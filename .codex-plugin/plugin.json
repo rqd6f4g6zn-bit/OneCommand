@@ -1,0 +1,32 @@
+{
+  "name": "onecommand",
+  "version": "1.0.0",
+  "description": "Build complete, production-ready software systems from a single prompt. Orchestrates Claude and Codex across 8 phases: Spec, Frontend, Backend, Integration, Tests, Automations, Exceed-Expectations, and Self-Improvement.",
+  "author": {
+    "name": "USC Software UG"
+  },
+  "license": "MIT",
+  "keywords": [
+    "onecommand",
+    "full-stack",
+    "multi-agent",
+    "automation",
+    "scaffolding",
+    "nextjs",
+    "self-healing"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "OneCommand",
+    "shortDescription": "Build complete, deployable software from one prompt",
+    "longDescription": "OneCommand takes a single natural-language prompt and delivers a complete, production-ready software system. 8 phases: Spec analysis, parallel Frontend+Backend generation, Integration, Tests with self-healing, Automations (CI/CD, git hooks), Exceed-Expectations (dark mode, PWA, security audit), Self-Improvement (memory), and Delivery report.",
+    "developerName": "USC Software UG",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": "Build a complete software system from my description"
+  }
+}
