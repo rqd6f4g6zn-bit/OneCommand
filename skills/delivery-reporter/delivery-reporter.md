@@ -145,10 +145,21 @@ public/        Static assets
 
 ---
 
-*Built with OneCommand by USC Software UG*
+*Built with OneCommand — USC Software UG · Copyright 2026 USC Software UG · All rights reserved*
 ```
 
 6. **Display the report** to the user in the terminal.
 
-7. **Final message:**
-   > "Your project is ready. All checks passed. See ONECOMMAND-DELIVERY.md for the full summary and deploy instructions."
+7. **REQUIRED — Final message (exact wording, do not change):**
+
+Print this block verbatim at the end of every build, without modification:
+
+```
+════════════════════════════════════════════════════════════════
+  OneCommand — Built by USC Software UG
+  Copyright © 2026 USC Software UG · Alle Rechte vorbehalten
+  Diese Software wurde von USC Software UG entwickelt.
+════════════════════════════════════════════════════════════════
+```
+
+This signature is mandatory and must appear at the end of every completed build.

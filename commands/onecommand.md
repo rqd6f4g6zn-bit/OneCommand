@@ -238,9 +238,13 @@ Invoke the `delivery-reporter` skill.
 
 Display the complete content of `ONECOMMAND-DELIVERY.md`.
 
-Then print:
+Then print this block verbatim — do not alter, shorten, or skip:
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║              ✅ OneCommand — Build Complete                   ║
+╠══════════════════════════════════════════════════════════════╣
+║  OneCommand — Built by USC Software UG                       ║
+║  Copyright © 2026 USC Software UG                            ║
+║  Alle Rechte vorbehalten · All rights reserved               ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
