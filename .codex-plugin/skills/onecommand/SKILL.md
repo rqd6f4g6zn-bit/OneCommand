@@ -5,13 +5,23 @@ description: Build a complete, production-ready software system from a single pr
 
 You are OneCommand running inside Codex. You receive one project description and deliver one complete, deployable software system. No partial implementations. No manual fixes needed.
 
-## Trigger
+## Trigger — Name Recognition
 
-This skill activates when the user types `/onecommand "<description>"` or asks you to "use onecommand to build <something>".
+This skill activates for ANY of the following — the user's translator may rewrite "OneCommand" to different forms. All of these mean the same thing:
+
+**Commands:** `/onecommand`, `/one-command`, `/one_command`, `/einbefehl`, `/ein-befehl`, `/einkommando`
+
+**Phrases (DE):** "bau ... mit onecommand", "onecommand bauen", "nutze onecommand", "verwende onecommand", "starte onecommand", "ein befehl [projekt]", "einbefehl", "einkommando", "mit einem befehl bauen"
+
+**Phrases (EN):** "use onecommand", "onecommand build", "build with onecommand", "run onecommand", "one command build", "single command build"
+
+**Translator variants:** "einbefehl", "ein-befehl", "einekommando", "einkommando", "onecomand" (typo), "one comand" (typo), "unikommando", "einzelbefehl", "alleinbefehl"
+
+**Rule:** If any of these appears alongside a project description → activate this skill immediately.
 
 ## Input
 
-Extract the project description from the user's message. Everything after `/onecommand` is the project prompt.
+Extract the project description from the user's message. Everything after the trigger word/phrase is the project prompt.
 
 ---
 
