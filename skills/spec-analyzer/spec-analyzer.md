@@ -26,6 +26,14 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    - `auth_type`: none | jwt | oauth | magic-link
    - `deploy_target`: vercel | railway | docker | fly
    - `extra_skills`: which optional skills to activate (marketing-skills if app needs landing page, etc.)
+   - `production_dependencies`: list services that need manual production setup. Detect from the prompt:
+     - Mentions of "payment", "Stripe", "PayPal", "checkout", "subscription" → `stripe`
+     - Mentions of "push notification", "Firebase", "FCM" → `firebase`
+     - Mentions of "iOS", "App Store", "iPhone" → `apple-release`
+     - Mentions of "Android", "Play Store", "Flutter" → `android-release`
+     - Mentions of "Google login", "GitHub login", "Apple login", "OAuth" → `oauth`
+     - Mentions of "file upload", "image upload", "storage", "S3" → `storage`
+     - Mentions of "email", "newsletter", "transactional email" → `email`
 
 3. **Output a structured spec** as a JSON block, for example:
 
@@ -60,7 +68,8 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
   "db_schema": ["User", "Workout", "Exercise", "LeaderboardEntry"],
   "auth_type": "jwt",
   "deploy_target": "vercel",
-  "extra_skills": ["marketing-skills"]
+  "extra_skills": ["marketing-skills"],
+  "production_dependencies": ["stripe", "firebase", "apple-release"]
 }
 ```
 
