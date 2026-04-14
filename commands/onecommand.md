@@ -113,7 +113,17 @@ Report:
 ## Phase 3: INTEGRATION + MARKETING
 > "🔗 **Phase 3/8 — Integrating systems + generating docs...**"
 
-### 3a: Integration (you handle this directly)
+### 3a: Live Integrations (dispatch in parallel with 3b)
+
+Invoke the `live-integrations` skill. It reads `production_dependencies` from the spec and generates:
+- Real email sending (Resend SDK): verification email, password reset email, full API routes
+- Social Login: NextAuth Google/GitHub/Apple providers, social login buttons component, OAuth PrismaAdapter schema
+- Firebase Admin SDK: push notification service, `/api/notifications/register` route, Flutter PushNotificationService
+- Flutter Social Login: google_sign_in + sign_in_with_apple, social login API routes
+
+Only generates what is listed in `production_dependencies` — no unused integrations.
+
+### 3b: Integration (you handle this directly)
 
 1. Read the frontend API client:
 ```bash
@@ -191,7 +201,7 @@ CMD ["node", "server.js"]
 
 Add `output: 'standalone'` to `next.config.js` if not present.
 
-### 3b: Marketing (dispatch in parallel)
+### 3c: Marketing (dispatch in parallel)
 
 Dispatch `marketing-agent` to run in parallel with integration work.
 
