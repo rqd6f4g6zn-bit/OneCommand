@@ -72,10 +72,19 @@ Report to user:
 
 ---
 
-## Phase 2: FRONTEND + BACKEND (Parallel)
-> "⚡ **Phase 2/8 — Generating Frontend + Backend in parallel...**"
+## Phase 2: FRONTEND + BACKEND + MOBILE (Parallel)
+> "⚡ **Phase 2/8 — Generating Frontend + Backend + Mobile in parallel...**"
 
-Dispatch both agents simultaneously:
+First, determine build targets from the spec:
+```bash
+python3 -c "
+import json; s=json.load(open('.onecommand-spec.json'))
+targets = s.get('build_targets', ['web'])
+print('web' in targets, 'mobile' in targets)
+"
+```
+
+**Always dispatch:**
 
 **Frontend Agent** (`frontend-agent`):
 - Generates all pages, components, and the API client
@@ -84,12 +93,20 @@ Dispatch both agents simultaneously:
 **Backend Agent** (`backend-agent`):
 - Generates all API routes, DB schema, auth, seed data
 - Delegates code generation to Codex via `codex:codex-cli-runtime`
-- Falls back to direct Claude generation if Codex is unavailable
 
-Wait for BOTH agents to complete before proceeding.
+**If `mobile` in build_targets — also dispatch in parallel:**
+
+**Mobile Agent** (`mobile-agent`):
+- Creates complete Flutter app (iOS + Android)
+- All screens from spec, GoRouter navigation, Riverpod state
+- Retrofit API layer, push notifications, app icons, splash
+- Fastlane for automated App Store + Google Play release
+- Uses Flutter at `~/.tooling/flutter/bin/flutter`
+
+Wait for ALL dispatched agents to complete before proceeding.
 
 Report:
-> "Frontend: [N] pages generated. Backend: [N] API routes, [N] DB models."
+> "Web: [N] pages, [N] API routes. Mobile: [N] screens, flutter analyze [pass/fail]."
 
 ---
 
@@ -208,24 +225,25 @@ Report:
 
 ---
 
-## Phase 6: EXCEED EXPECTATIONS + CLEANUP
-> "✨ **Phase 6/8 — Going beyond your requirements + cleaning demo content...**"
+## Phase 6: EXCEED EXPECTATIONS + CLEANUP + STORE READINESS
+> "✨ **Phase 6/8 — Quality pass: exceed, clean, secure, store-ready...**"
 
-Run all three in parallel:
+Run all four in parallel:
 
 **exceed-expectations skill** — dark mode, PWA, a11y, error boundaries
 
 **security-agent** — OWASP audit + fixes
 
-**demo-cleaner skill** — removes all placeholder/demo content, fixes spelling:
-- Lorem ipsum → real copy from spec context
-- Placeholder images → SVG avatars / brand gradients
-- Fake names, phone numbers, addresses → removed
-- "Coming soon" sections → implemented (if in spec) or removed
-- Spelling errors in UI strings → corrected
+**demo-cleaner skill** — removes all placeholder/demo content, fixes spelling
+
+**store-readiness-checker skill** (if mobile in build_targets):
+- Validates all iOS App Store requirements
+- Validates all Google Play requirements
+- Fixes: bundle ID com.example, targetSdk, permissions, icon sizes
+- Blocks delivery if critical items unresolved
 
 Report:
-> "Added: [exceed items]. Security: [audit summary]. Demo content: [N items cleaned, spelling: N fixes]."
+> "Exceeded: [N items]. Security: clean. Demo: [N removed]. Store: iOS ✓ / Android ✓ (or blockers listed)."
 
 ---
 

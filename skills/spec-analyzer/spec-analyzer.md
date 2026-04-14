@@ -25,6 +25,8 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    - `db_schema`: tables/models needed
    - `auth_type`: none | jwt | oauth | magic-link
    - `deploy_target`: vercel | railway | docker | fly
+   - `build_targets`: array — always includes `"web"`. Add `"mobile"` if the prompt mentions: iOS, Android, App Store, Google Play, Flutter, mobile app, iPhone, Smartphone-App, native app.
+   - `mobile_platforms`: `["ios", "android"]` (both by default if mobile detected), or single if explicitly mentioned
    - `extra_skills`: which optional skills to activate (marketing-skills if app needs landing page, etc.)
    - `production_dependencies`: list services that need manual production setup. Detect from the prompt:
      - Mentions of "payment", "Stripe", "PayPal", "checkout", "subscription" → `stripe`
@@ -69,7 +71,9 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
   "auth_type": "jwt",
   "deploy_target": "vercel",
   "extra_skills": ["marketing-skills"],
-  "production_dependencies": ["stripe", "firebase", "apple-release"]
+  "build_targets": ["web", "mobile"],
+  "mobile_platforms": ["ios", "android"],
+  "production_dependencies": ["stripe", "firebase", "apple-release", "android-release"]
 }
 ```
 
