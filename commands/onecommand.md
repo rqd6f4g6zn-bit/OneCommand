@@ -208,15 +208,24 @@ Report:
 
 ---
 
-## Phase 6: EXCEED EXPECTATIONS
-> "✨ **Phase 6/8 — Going beyond your requirements...**"
+## Phase 6: EXCEED EXPECTATIONS + CLEANUP
+> "✨ **Phase 6/8 — Going beyond your requirements + cleaning demo content...**"
 
-Invoke the `exceed-expectations` skill.
+Run all three in parallel:
 
-Run `security-agent` in parallel.
+**exceed-expectations skill** — dark mode, PWA, a11y, error boundaries
+
+**security-agent** — OWASP audit + fixes
+
+**demo-cleaner skill** — removes all placeholder/demo content, fixes spelling:
+- Lorem ipsum → real copy from spec context
+- Placeholder images → SVG avatars / brand gradients
+- Fake names, phone numbers, addresses → removed
+- "Coming soon" sections → implemented (if in spec) or removed
+- Spelling errors in UI strings → corrected
 
 Report:
-> "Added: [list of exceed items]. Security: [audit result summary]."
+> "Added: [exceed items]. Security: [audit summary]. Demo content: [N items cleaned, spelling: N fixes]."
 
 ---
 

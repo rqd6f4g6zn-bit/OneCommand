@@ -166,72 +166,236 @@ or third-party account access that no automated tool can configure on your behal
 
 <For each detected service, include the relevant block below:>
 
-### Stripe / PayPal (Payments)
-The app uses payment integration. Before going live:
-1. Create a Stripe account at https://stripe.com (or PayPal at https://developer.paypal.com)
-2. Copy your **live** secret key (not test key) into `.env.production`:
-   ```
-   STRIPE_SECRET_KEY=sk_live_...
-   STRIPE_WEBHOOK_SECRET=whsec_...
-   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
-   ```
-3. Register your webhook endpoint in the Stripe dashboard:
-   `https://yourdomain.com/api/webhooks/stripe`
-4. Test end-to-end with a real card before launch.
+### 💳 Stripe (Payments)
+| Was | Link | Env Variable |
+|-----|------|-------------|
+| Live API Keys | **→ https://dashboard.stripe.com/apikeys** | `STRIPE_SECRET_KEY=sk_live_...` |
+| Publishable Key | **→ https://dashboard.stripe.com/apikeys** | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...` |
+| Webhook Secret | **→ https://dashboard.stripe.com/webhooks** → Add endpoint: `https://yourdomain.com/api/webhooks/stripe` | `STRIPE_WEBHOOK_SECRET=whsec_...` |
 
-### Firebase (Push Notifications)
-The app uses push notifications. Before going live:
-1. Create a Firebase project at https://console.firebase.google.com
-2. **Android**: Download `google-services.json` → place in `android/app/`
-3. **iOS**: Download `GoogleService-Info.plist` → place in `ios/Runner/`
-4. Add to `.env.production`:
-   ```
-   FIREBASE_PROJECT_ID=your-project-id
-   FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
-   FIREBASE_CLIENT_EMAIL=firebase-adminsdk@...iam.gserviceaccount.com
-   ```
-5. Enable Cloud Messaging in the Firebase console.
+### 💳 PayPal (Payments)
+| Was | Link | Env Variable |
+|-----|------|-------------|
+| App Credentials | **→ https://developer.paypal.com/dashboard/applications/live** | `PAYPAL_CLIENT_ID=...` `PAYPAL_CLIENT_SECRET=...` |
 
-### Apple App Store Release
-Before submitting to the App Store:
-1. Enroll in Apple Developer Program ($99/year): https://developer.apple.com
-2. Create an App ID in App Store Connect
-3. Generate a Distribution Certificate + Provisioning Profile
-4. In Xcode: set Bundle ID, Team, and Signing Certificate
-5. Archive → Validate → Submit via Xcode or `xcrun altool`
+### 🔔 Firebase (Push Notifications)
+| Was | Link | Datei / Variable |
+|-----|------|-----------------|
+| Projekt erstellen | **→ https://console.firebase.google.com** | — |
+| Android Config | **→ Projekteinstellungen → Deine Apps → google-services.json** | `android/app/google-services.json` |
+| iOS Config | **→ Projekteinstellungen → Deine Apps → GoogleService-Info.plist** | `ios/Runner/GoogleService-Info.plist` |
+| Server Key (FCM) | **→ Projekteinstellungen → Cloud Messaging → Server Key** | `FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."` |
+| Service Account | **→ Projekteinstellungen → Service Accounts → Schlüssel generieren** | `FIREBASE_CLIENT_EMAIL=...` `FIREBASE_PROJECT_ID=...` |
 
-### Google Play Release
-Before submitting to Google Play:
-1. Register a Google Play Developer account ($25 one-time): https://play.google.com/console
-2. Generate a release keystore:
+### 🍎 Apple App Store Release
+| Was | Link |
+|-----|------|
+| Developer Account | **→ https://developer.apple.com/account** ($99/Jahr) |
+| App ID erstellen | **→ https://developer.apple.com/account/resources/identifiers/list** |
+| Zertifikat + Provisioning Profile | **→ https://developer.apple.com/account/resources/certificates/list** |
+| App Store Connect | **→ https://appstoreconnect.apple.com** → Neue App → Build hochladen |
+
+Befehle:
+```bash
+xcodebuild archive -scheme Runner -configuration Release
+xcrun altool --upload-app -f Runner.ipa -u apple@email.com -p @keychain:AC_PASSWORD
+```
+
+### 🤖 Google Play Release
+| Was | Link |
+|-----|------|
+| Play Console | **→ https://play.google.com/console** ($25 einmalig) |
+| Neue App erstellen | **→ https://play.google.com/console → Alle Apps → App erstellen** |
+
+Keystore generieren (einmalig, sicher aufbewahren!):
+```bash
+keytool -genkey -v -keystore release.keystore \
+  -alias release -keyalg RSA -keysize 2048 -validity 10000
+```
+
+`android/key.properties` befüllen:
+```
+storeFile=../release.keystore
+storePassword=DEIN_PASSWORT
+keyAlias=release
+keyPassword=DEIN_PASSWORT
+```
+
+```bash
+flutter build appbundle --release
+# → Datei hochladen unter: https://play.google.com/console → Interner Test
+```
+
+### 🔑 OAuth / Social Login
+| Provider | Link | Env Variables |
+|----------|------|---------------|
+| Google | **→ https://console.cloud.google.com/apis/credentials** → OAuth 2.0 Client erstellen | `GOOGLE_CLIENT_ID=...` `GOOGLE_CLIENT_SECRET=...` |
+| GitHub | **→ https://github.com/settings/developers** → New OAuth App | `GITHUB_CLIENT_ID=...` `GITHUB_CLIENT_SECRET=...` |
+| Apple | **→ https://developer.apple.com/account/resources/identifiers/list** → Services IDs | `APPLE_CLIENT_ID=...` `APPLE_CLIENT_SECRET=...` |
+
+Callback URL jeweils eintragen: `https://yourdomain.com/api/auth/callback/<provider>`
+
+### 📁 Storage (Datei-Upload)
+| Service | Link | Env Variable |
+|---------|------|--------------|
+| AWS S3 | **→ https://console.aws.amazon.com/iam** → User → Access Keys erstellen | `AWS_ACCESS_KEY_ID=...` `AWS_SECRET_ACCESS_KEY=...` `AWS_S3_BUCKET=...` |
+| Cloudinary | **→ https://console.cloudinary.com/settings/api-keys** | `CLOUDINARY_URL=cloudinary://...` |
+| UploadThing | **→ https://uploadthing.com/dashboard** → API Keys | `UPLOADTHING_SECRET=...` `UPLOADTHING_APP_ID=...` |
+
+### 📧 E-Mail — Echten Mailversand einrichten (Reset / Verifizierung)
+
+Der generierte Code enthält bereits die E-Mail-Templates für Passwort-Reset und Konto-Verifizierung. Für echten Versand im Livebetrieb:
+
+| Service | Link | Env Variable |
+|---------|------|--------------|
+| Resend (empfohlen) | **→ https://resend.com/api-keys** | `RESEND_API_KEY=re_...` |
+| SendGrid | **→ https://app.sendgrid.com/settings/api_keys** | `SENDGRID_API_KEY=SG....` |
+| Postmark | **→ https://account.postmarkapp.com/api_tokens** | `POSTMARK_API_TOKEN=...` |
+
+**Pflicht vor Launch:**
+1. Sending Domain verifizieren:
+   - Resend: **→ https://resend.com/domains** → Domain hinzufügen → DNS-Einträge setzen
+   - SendGrid: **→ https://app.sendgrid.com/settings/sender_auth** → Domain Authentication
+2. Absender-Adresse in `.env.production` setzen: `EMAIL_FROM=noreply@yourdomain.com`
+3. E-Mail-Versand testen:
    ```bash
-   keytool -genkey -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000
+   # Passwort-Reset testen:
+   curl -X POST https://yourdomain.com/api/auth/forgot-password \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@yourdomain.com"}'
    ```
-3. Add to `android/key.properties`:
-   ```
-   storeFile=../release.keystore
-   storePassword=<your-password>
-   keyAlias=release
-   keyPassword=<your-password>
-   ```
-4. Build release APK: `flutter build appbundle --release`
+4. Spam-Score prüfen: **→ https://www.mail-tester.com**
 
-### OAuth / Social Login
-For each social provider detected:
-- **Google**: https://console.cloud.google.com → Create OAuth 2.0 credentials
-- **GitHub**: https://github.com/settings/developers → New OAuth App
-- **Apple Sign In**: Requires Apple Developer account + Service ID configuration
+### 🔥 Firebase / APNs — Live-Integration
 
-### Storage (S3 / Cloudinary)
-For file upload functionality:
-- **AWS S3**: Create bucket, IAM user with S3 permissions, add `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
-- **Cloudinary**: Sign up at https://cloudinary.com, add `CLOUDINARY_URL`
+**Android (Firebase Cloud Messaging):**
+| Schritt | Link |
+|---------|------|
+| 1. Firebase-Projekt | **→ https://console.firebase.google.com** → Neues Projekt |
+| 2. Android-App registrieren | **→ Projekteinstellungen → Deine Apps → Android-App hinzufügen** |
+| 3. `google-services.json` | **→ Projekteinstellungen → google-services.json herunterladen** → in `android/app/` ablegen |
+| 4. FCM Server Key | **→ Projekteinstellungen → Cloud Messaging → Server Key kopieren** |
 
-### Email (SMTP / Transactional)
-For email sending:
-- **Resend** (recommended): https://resend.com → API key → `RESEND_API_KEY`
-- **SendGrid**: https://sendgrid.com → API key → `SENDGRID_API_KEY`
-- Verify your sending domain (DNS records required)
+```
+FIREBASE_PROJECT_ID=dein-projekt-id
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@dein-projekt.iam.gserviceaccount.com
+```
+
+**iOS (APNs via Firebase):**
+| Schritt | Link |
+|---------|------|
+| 1. APNs Auth Key | **→ https://developer.apple.com/account/resources/authkeys/list** → Key mit Push-Berechtigung erstellen |
+| 2. Key in Firebase hochladen | **→ Firebase Console → Projekteinstellungen → Cloud Messaging → APNs Auth Key** |
+| 3. `GoogleService-Info.plist` | **→ Firebase → iOS-App → GoogleService-Info.plist herunterladen** → in `ios/Runner/` ablegen |
+
+Push-Versand testen:
+```bash
+# Test-Notification via Firebase:
+curl -X POST https://fcm.googleapis.com/fcm/send \
+  -H "Authorization: key=DEIN_SERVER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to":"DEVICE_TOKEN","notification":{"title":"Test","body":"Push funktioniert"}}'
+```
+
+### 💳 Stripe Live-Konfiguration
+
+| Was | Link | Env Variable |
+|-----|------|-------------|
+| Live API Keys | **→ https://dashboard.stripe.com/apikeys** | `STRIPE_SECRET_KEY=sk_live_...` |
+| Publishable Key | **→ https://dashboard.stripe.com/apikeys** | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...` |
+| Webhook Secret | **→ https://dashboard.stripe.com/webhooks** → Endpoint hinzufügen | `STRIPE_WEBHOOK_SECRET=whsec_...` |
+
+Webhook-Endpoint in Stripe registrieren: `https://yourdomain.com/api/webhooks/stripe`
+
+Events aktivieren: `payment_intent.succeeded`, `customer.subscription.created`, `invoice.payment_failed`
+
+Livezahlung testen (echte Karte, dann sofort erstatten):
+```bash
+# Refund via Stripe Dashboard: https://dashboard.stripe.com/payments
+```
+
+### 💳 PayPal Live-Konfiguration
+
+| Was | Link | Env Variable |
+|-----|------|-------------|
+| Live App erstellen | **→ https://developer.paypal.com/dashboard/applications/live** | `PAYPAL_CLIENT_ID=...` |
+| Client Secret | **→ selbe Seite** | `PAYPAL_CLIENT_SECRET=...` |
+| Webhook | **→ https://developer.paypal.com/dashboard/webhooks/create** → `https://yourdomain.com/api/webhooks/paypal` | `PAYPAL_WEBHOOK_ID=...` |
+
+### 🔑 Social Login — Alle Provider
+
+**Google OAuth:**
+| Schritt | Link |
+|---------|------|
+| 1. Google Cloud Console | **→ https://console.cloud.google.com** → Projekt auswählen |
+| 2. OAuth-Zustimmungsbildschirm | **→ APIs & Dienste → OAuth-Zustimmungsbildschirm** → Extern → Ausfüllen |
+| 3. Credentials erstellen | **→ APIs & Dienste → Anmeldedaten → OAuth 2.0-Client-IDs** |
+| 4. Callback URL eintragen | `https://yourdomain.com/api/auth/callback/google` |
+
+```
+GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+```
+
+**GitHub OAuth:**
+| Schritt | Link |
+|---------|------|
+| 1. OAuth App erstellen | **→ https://github.com/settings/developers** → New OAuth App |
+| 2. Homepage URL | `https://yourdomain.com` |
+| 3. Callback URL | `https://yourdomain.com/api/auth/callback/github` |
+
+```
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+```
+
+**Apple Sign In:**
+| Schritt | Link |
+|---------|------|
+| 1. Service ID | **→ https://developer.apple.com/account/resources/identifiers/list/serviceId** → Identifier erstellen |
+| 2. Sign In with Apple aktivieren | **→ Identifier → Capabilities → Sign In with Apple** |
+| 3. Key erstellen | **→ https://developer.apple.com/account/resources/authkeys/list** → Sign In with Apple aktivieren |
+| 4. Callback URL | `https://yourdomain.com/api/auth/callback/apple` |
+
+```
+APPLE_CLIENT_ID=com.yourdomain.app
+APPLE_CLIENT_SECRET=... (JWT generiert aus dem Key)
+```
+
+### 📱 Store Release Check — iOS & Android
+
+**iOS Release Checklist:**
+- [ ] Apple Developer Account aktiv: **→ https://developer.apple.com/account**
+- [ ] Bundle ID registriert: **→ https://developer.apple.com/account/resources/identifiers/list**
+- [ ] Distribution Certificate gültig: **→ https://developer.apple.com/account/resources/certificates/list**
+- [ ] Provisioning Profile (App Store Distribution): **→ https://developer.apple.com/account/resources/profiles/list**
+- [ ] App in App Store Connect angelegt: **→ https://appstoreconnect.apple.com/apps**
+- [ ] Screenshots vorbereitet (6.7", 5.5", iPad falls nötig)
+- [ ] Datenschutzerklärung URL vorhanden
+- [ ] Archivieren + Hochladen:
+  ```bash
+  xcodebuild archive -scheme Runner -archivePath build/Runner.xcarchive
+  xcodebuild -exportArchive -archivePath build/Runner.xcarchive \
+    -exportPath build/export -exportOptionsPlist ExportOptions.plist
+  xcrun altool --upload-app -f build/export/Runner.ipa \
+    -u APPLE_ID@email.com -p "@keychain:AC_PASSWORD"
+  ```
+
+**Android Release Checklist:**
+- [ ] Google Play Console Account: **→ https://play.google.com/console** ($25 einmalig)
+- [ ] App in Play Console angelegt: **→ Alle Apps → App erstellen**
+- [ ] Keystore generiert und sicher gespeichert:
+  ```bash
+  keytool -genkey -v -keystore ~/release.keystore \
+    -alias release -keyalg RSA -keysize 2048 -validity 10000
+  # WICHTIG: Keystore niemals verlieren — ohne ihn kein Update möglich
+  ```
+- [ ] `android/key.properties` befüllt (Passwörter aus Keystore-Erstellung)
+- [ ] App Bundle gebaut: `flutter build appbundle --release`
+- [ ] Bundle hochgeladen: **→ Play Console → Produktion → Release erstellen**
+- [ ] Datenschutzerklärung URL hinterlegt
+- [ ] Screenshots für Phone + Tablet vorbereitet
 
 ---
 
