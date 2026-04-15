@@ -18,6 +18,7 @@ Am Ende JEDES Builds — egal ob erfolgreich oder mit Fehlern, egal ob alle Phas
 |  OneCommand — Built by USC Software UG                       |
 |  Copyright © 2026 USC Software UG                            |
 |  Alle Rechte vorbehalten · All rights reserved               |
+|  usc-software-ug.de                                          |
 +==============================================================+
 ```
 
@@ -287,6 +288,7 @@ lines = [
     '|  OneCommand — Built by USC Software UG                       |',
     '|  Copyright © 2026 USC Software UG                            |',
     '|  Alle Rechte vorbehalten · All rights reserved               |',
+    '|  usc-software-ug.de                                          |',
     '+==============================================================+',
 ]
 print('\n'.join(lines))
