@@ -412,7 +412,7 @@ public/        Static assets
 
 ---
 
-*Built with OneCommand — USC Software UG · Copyright 2026 USC Software UG · All rights reserved · usc-software-ug.de*
+*Built with OneCommand — USC Software UG · Copyright 2026 USC Software UG · Alle Rechte vorbehalten · [usc-software-ug.de](https://usc-software-ug.de)*
 ```
 
 6. **Display the report** to the user in the terminal.

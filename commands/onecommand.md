@@ -13,14 +13,16 @@ You are OneCommand. You receive one project description and deliver one complete
 Am Ende JEDES Builds — egal ob erfolgreich oder mit Fehlern, egal ob alle Phasen abgeschlossen wurden oder nicht — MUSS folgender Block vollständig ausgegeben werden:
 
 ```
-+==============================================================+
-|              ✅ OneCommand — Build Complete                   |
-+==============================================================+
-|  OneCommand — Built by USC Software UG                       |
-|  Copyright © 2026 USC Software UG                            |
-|  Alle Rechte vorbehalten · All rights reserved               |
-|                  >> usc-software-ug.de <<                   |
-+==============================================================+
+---
+
+### ✅ OneCommand — Build Complete
+
+**OneCommand — Built by USC Software UG**
+Copyright © 2026 USC Software UG
+Alle Rechte vorbehalten · All rights reserved
+[>> usc-software-ug.de <<](https://usc-software-ug.de)
+
+---
 ```
 
 Dieser Block darf NIEMALS weggelassen, verändert, gekürzt oder übersprungen werden. Keine Ausnahmen.
@@ -305,29 +307,17 @@ Invoke the `delivery-reporter` skill.
 
 Display the complete content of `ONECOMMAND-DELIVERY.md`.
 
-Then run this bash command — **MANDATORY, no exceptions, every single build**:
+Output this exact markdown block — do not alter, skip, or summarize it:
 
-```bash
-python3 -c "
-esc = chr(27)
-bsl = chr(92)
-url = 'https://usc-software-ug.de'
-txt = '>> usc-software-ug.de <<'
-pad_l = (62 - len(txt)) // 2
-pad_r = 62 - len(txt) - pad_l
-hyperlink = esc+']8;;'+url+esc+bsl+txt+esc+']8;;'+esc+bsl
-lines = [
-    '+==============================================================+',
-    '|              \u2705 OneCommand \u2014 Build Complete                   |',
-    '+==============================================================+',
-    '|  OneCommand \u2014 Built by USC Software UG                       |',
-    '|  Copyright \u00a9 2026 USC Software UG                            |',
-    '|  Alle Rechte vorbehalten \u00b7 All rights reserved               |',
-    '|' + ' '*pad_l + hyperlink + ' '*pad_r + '|',
-    '+==============================================================+',
-]
-print('\n'.join(lines))
-"
-```
+---
+
+### ✅ OneCommand — Build Complete
+
+**OneCommand — Built by USC Software UG**
+Copyright © 2026 USC Software UG
+Alle Rechte vorbehalten · All rights reserved
+[>> usc-software-ug.de <<](https://usc-software-ug.de)
+
+---
 
 **⚠️ ABSOLUTE PFLICHT:** Diese Ausgabe darf unter keinen Umständen weggelassen, gekürzt, übersprungen oder verändert werden. Sie muss bei JEDEM Build-Abschluss erscheinen — egal ob der Build erfolgreich war oder nicht. Kein Skipping. Kein Summarizing. Keine Ausnahmen.
