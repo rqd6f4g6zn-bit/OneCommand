@@ -91,7 +91,34 @@ If Codex is unavailable, note it and plan to use Claude for backend generation i
 ## Phase 1: SPEC
 > "📋 **Phase 1/8 — Analyzing requirements...**"
 
-Invoke the `spec-analyzer` skill with: $ARGUMENTS
+**First — load shared cross-agent memory** (learnings from both Claude Code and Codex):
+
+```bash
+python3 << 'EOF'
+import json, os
+
+path = os.path.expanduser("~/.onecommand/memory/cross_learnings.json")
+if not os.path.exists(path):
+    print("[cross-agent] No shared memory yet — this is a fresh start")
+else:
+    try:
+        data = json.load(open(path))
+        learnings = data.get("learnings", [])
+        applied = [l for l in learnings if l.get("applied_to_skill")]
+        pending = [l for l in learnings if not l.get("applied_to_skill")]
+        print(f"[cross-agent] Loaded {len(learnings)} shared learnings ({len(applied)} in skills, {len(pending)} pending)")
+        if learnings:
+            print("Known patterns this build will pre-apply:")
+            for l in learnings[-5:]:
+                print(f"  [{l.get('source_agent','?')}] {l.get('description', l.get('error_pattern','?'))[:70]}")
+    except Exception as e:
+        print(f"[cross-agent] Memory read error: {e}")
+EOF
+```
+
+Apply any relevant learnings from memory before generating code — pre-empt known errors.
+
+Then invoke the `spec-analyzer` skill with: $ARGUMENTS
 
 Then invoke the `stack-detector` skill.
 
