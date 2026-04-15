@@ -11,9 +11,9 @@ Show the current OneCommand build status for this project directory.
 
 ```bash
 echo ""
-echo "╔══════════════════════════════════════════════╗"
-echo "║         OneCommand — Build Status            ║"
-echo "╚══════════════════════════════════════════════╝"
+echo "+==============================================+"
+echo "|         OneCommand — Build Status            |"
+echo "+==============================================+"
 echo ""
 
 # Phase 1: Spec

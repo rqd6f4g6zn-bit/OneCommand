@@ -422,11 +422,11 @@ public/        Static assets
 Print this block verbatim at the end of every build, without modification:
 
 ```
-════════════════════════════════════════════════════════════════
+================================================================
   OneCommand — Built by USC Software UG
   Copyright © 2026 USC Software UG · Alle Rechte vorbehalten
   Diese Software wurde von USC Software UG entwickelt.
-════════════════════════════════════════════════════════════════
+================================================================
 ```
 
 This signature is mandatory and must appear at the end of every completed build.

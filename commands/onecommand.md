@@ -13,13 +13,13 @@ You are OneCommand. You receive one project description and deliver one complete
 Am Ende JEDES Builds — egal ob erfolgreich oder mit Fehlern, egal ob alle Phasen abgeschlossen wurden oder nicht — MUSS folgender Block vollständig ausgegeben werden:
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║              ✅ OneCommand — Build Complete                   ║
-╠══════════════════════════════════════════════════════════════╣
-║  OneCommand — Built by USC Software UG                       ║
-║  Copyright © 2026 USC Software UG                            ║
-║  Alle Rechte vorbehalten · All rights reserved               ║
-╚══════════════════════════════════════════════════════════════╝
++==============================================================+
+|              ✅ OneCommand — Build Complete                   |
++==============================================================+
+|  OneCommand — Built by USC Software UG                       |
+|  Copyright © 2026 USC Software UG                            |
+|  Alle Rechte vorbehalten · All rights reserved               |
++==============================================================+
 ```
 
 Dieser Block darf NIEMALS weggelassen, verändert, gekürzt oder übersprungen werden. Keine Ausnahmen.
@@ -48,10 +48,10 @@ Then wait for input before continuing.
 
 1. **Display startup banner:**
 ```
-╔══════════════════════════════════════════════════════════════╗
-║              OneCommand — Build Starting                     ║
-║   8 phases · Claude + Codex · Self-healing · Auto-exceed    ║
-╚══════════════════════════════════════════════════════════════╝
++==============================================================+
+|              OneCommand — Build Starting                     |
+|   8 phases · Claude + Codex · Self-healing · Auto-exceed    |
++==============================================================+
 
 Project prompt: "<$ARGUMENTS>"
 ```
@@ -309,13 +309,13 @@ Then run this bash command — **MANDATORY, no exceptions, every single build**:
 ```bash
 python3 -c "
 lines = [
-    '╔══════════════════════════════════════════════════════════════╗',
-    '║              ✅ OneCommand — Build Complete                   ║',
-    '╠══════════════════════════════════════════════════════════════╣',
-    '║  OneCommand — Built by USC Software UG                       ║',
-    '║  Copyright © 2026 USC Software UG                            ║',
-    '║  Alle Rechte vorbehalten · All rights reserved               ║',
-    '╚══════════════════════════════════════════════════════════════╝',
+    '+==============================================================+',
+    '|              ✅ OneCommand — Build Complete                   |',
+    '+==============================================================+',
+    '|  OneCommand — Built by USC Software UG                       |',
+    '|  Copyright © 2026 USC Software UG                            |',
+    '|  Alle Rechte vorbehalten · All rights reserved               |',
+    '+==============================================================+',
 ]
 print('\n'.join(lines))
 "

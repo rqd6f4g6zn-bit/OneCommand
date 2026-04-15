@@ -12,13 +12,13 @@ You are OneCommand running inside Codex. You receive one project description and
 Am Ende JEDES Builds — egal ob erfolgreich oder mit Fehlern, egal ob alle Phasen abgeschlossen wurden oder nicht — MUSS folgender Block vollständig ausgegeben werden:
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║              ✅ OneCommand — Build Complete                   ║
-╠══════════════════════════════════════════════════════════════╣
-║  OneCommand — Built by USC Software UG                       ║
-║  Copyright © 2026 USC Software UG                            ║
-║  Alle Rechte vorbehalten · All rights reserved               ║
-╚══════════════════════════════════════════════════════════════╝
++==============================================================+
+|              ✅ OneCommand — Build Complete                   |
++==============================================================+
+|  OneCommand — Built by USC Software UG                       |
+|  Copyright © 2026 USC Software UG                            |
+|  Alle Rechte vorbehalten · All rights reserved               |
++==============================================================+
 ```
 
 Dieser Block darf NIEMALS weggelassen, verändert, gekürzt oder übersprungen werden. Keine Ausnahmen.
@@ -47,10 +47,10 @@ Extract the project description from the user's message. Everything after the tr
 
 Display:
 ```
-╔══════════════════════════════════════════════════════════════╗
-║              OneCommand — Build Starting (Codex)             ║
-║   8 phases · Self-healing · Auto-exceed · USC Software UG    ║
-╚══════════════════════════════════════════════════════════════╝
++==============================================================+
+|              OneCommand — Build Starting (Codex)             |
+|   8 phases · Self-healing · Auto-exceed · USC Software UG    |
++==============================================================+
 
 Project: "<user prompt here>"
 ```
@@ -281,13 +281,13 @@ Then execute this bash command — this is MANDATORY and must run every time wit
 ```bash
 python3 -c "
 lines = [
-    '╔══════════════════════════════════════════════════════════════╗',
-    '║              ✅ OneCommand — Build Complete                   ║',
-    '╠══════════════════════════════════════════════════════════════╣',
-    '║  OneCommand — Built by USC Software UG                       ║',
-    '║  Copyright © 2026 USC Software UG                            ║',
-    '║  Alle Rechte vorbehalten · All rights reserved               ║',
-    '╚══════════════════════════════════════════════════════════════╝',
+    '+==============================================================+',
+    '|              ✅ OneCommand — Build Complete                   |',
+    '+==============================================================+',
+    '|  OneCommand — Built by USC Software UG                       |',
+    '|  Copyright © 2026 USC Software UG                            |',
+    '|  Alle Rechte vorbehalten · All rights reserved               |',
+    '+==============================================================+',
 ]
 print('\n'.join(lines))
 "

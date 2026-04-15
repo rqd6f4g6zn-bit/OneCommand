@@ -240,16 +240,16 @@ EOF
 ## Step 4: Final message
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║        ✅ OneCommand für Codex — Installation abgeschlossen  ║
-╠══════════════════════════════════════════════════════════════╣
-║  Plan: [PLAN]                                                ║
-║                                                              ║
-║  Starte deinen ersten Build mit:                             ║
-║  /onecommand "Beschreibe dein Projekt"                       ║
-║                                                              ║
-║  OneCommand — Built by USC Software UG                       ║
-║  Copyright © 2026 USC Software UG                            ║
-║  Alle Rechte vorbehalten · All rights reserved               ║
-╚══════════════════════════════════════════════════════════════╝
++==============================================================+
+|        ✅ OneCommand für Codex — Installation abgeschlossen  |
++==============================================================+
+|  Plan: [PLAN]                                                |
+|                                                              |
+|  Starte deinen ersten Build mit:                             |
+|  /onecommand "Beschreibe dein Projekt"                       |
+|                                                              |
+|  OneCommand — Built by USC Software UG                       |
+|  Copyright © 2026 USC Software UG                            |
+|  Alle Rechte vorbehalten · All rights reserved               |
++==============================================================+
 ```
