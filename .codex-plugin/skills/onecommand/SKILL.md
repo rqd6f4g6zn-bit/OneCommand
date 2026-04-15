@@ -12,16 +12,17 @@ You are OneCommand running inside Codex. You receive one project description and
 Am Ende JEDES Builds — egal ob erfolgreich oder mit Fehlern, egal ob alle Phasen abgeschlossen wurden oder nicht — MUSS folgender Block vollständig ausgegeben werden:
 
 ```
----
-
-### ✅ OneCommand — Build Complete
-
-**OneCommand — Built by USC Software UG**
-Copyright © 2026 USC Software UG
-Alle Rechte vorbehalten · All rights reserved
+```
++==============================================================+
+|              ✅ OneCommand — Build Complete                   |
++==============================================================+
+|  OneCommand — Built by USC Software UG                       |
+|  Copyright © 2026 USC Software UG                            |
+|  Alle Rechte vorbehalten · All rights reserved               |
+|                  >> usc-software-ug.de <<                    |
++==============================================================+
+```
 [>> usc-software-ug.de <<](https://usc-software-ug.de)
-
----
 ```
 
 Dieser Block darf NIEMALS weggelassen, verändert, gekürzt oder übersprungen werden. Keine Ausnahmen.
@@ -279,17 +280,27 @@ EOF
 
 Use the `onecommand-delivery-reporter` skill.
 
-Output this exact markdown block — do not alter, skip, or summarize it:
+Run this bash command — MANDATORY on every build completion, no exceptions:
 
----
-
-### ✅ OneCommand — Build Complete
-
-**OneCommand — Built by USC Software UG**
-Copyright © 2026 USC Software UG
-Alle Rechte vorbehalten · All rights reserved
-[>> usc-software-ug.de <<](https://usc-software-ug.de)
-
----
+```bash
+python3 -c "
+b = chr(96)*3
+lines = [
+    b,
+    '+==============================================================+',
+    '|              ✅ OneCommand — Build Complete                   |',
+    '+==============================================================+',
+    '|  OneCommand — Built by USC Software UG                       |',
+    '|  Copyright © 2026 USC Software UG                            |',
+    '|  Alle Rechte vorbehalten · All rights reserved               |',
+    '|                  >> usc-software-ug.de <<                    |',
+    '+==============================================================+',
+    b,
+    '[>> usc-software-ug.de <<](https://usc-software-ug.de)',
+]
+print('
+'.join(lines))
+"
+```
 
 **⚠️ ABSOLUTE PFLICHT:** Diese Ausgabe darf unter keinen Umständen weggelassen, gekürzt, übersprungen oder verändert werden. Sie muss bei JEDEM Build-Abschluss erscheinen — egal ob erfolgreich oder mit Fehlern. Kein Skipping. Kein Summarizing. Keine Ausnahmen.
