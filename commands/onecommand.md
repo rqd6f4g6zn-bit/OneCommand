@@ -19,7 +19,7 @@ Am Ende JEDES Builds — egal ob erfolgreich oder mit Fehlern, egal ob alle Phas
 |  OneCommand — Built by USC Software UG                       |
 |  Copyright © 2026 USC Software UG                            |
 |  Alle Rechte vorbehalten · All rights reserved               |
-|  usc-software-ug.de                                          |
+|                  >> usc-software-ug.de <<                   |
 +==============================================================+
 ```
 
@@ -309,14 +309,21 @@ Then run this bash command — **MANDATORY, no exceptions, every single build**:
 
 ```bash
 python3 -c "
+esc = chr(27)
+bsl = chr(92)
+url = 'https://usc-software-ug.de'
+txt = '>> usc-software-ug.de <<'
+pad_l = (62 - len(txt)) // 2
+pad_r = 62 - len(txt) - pad_l
+hyperlink = esc+']8;;'+url+esc+bsl+txt+esc+']8;;'+esc+bsl
 lines = [
     '+==============================================================+',
-    '|              ✅ OneCommand — Build Complete                   |',
+    '|              \u2705 OneCommand \u2014 Build Complete                   |',
     '+==============================================================+',
-    '|  OneCommand — Built by USC Software UG                       |',
-    '|  Copyright © 2026 USC Software UG                            |',
-    '|  Alle Rechte vorbehalten · All rights reserved               |',
-    '|  usc-software-ug.de                                          |',
+    '|  OneCommand \u2014 Built by USC Software UG                       |',
+    '|  Copyright \u00a9 2026 USC Software UG                            |',
+    '|  Alle Rechte vorbehalten \u00b7 All rights reserved               |',
+    '|' + ' '*pad_l + hyperlink + ' '*pad_r + '|',
     '+==============================================================+',
 ]
 print('\n'.join(lines))

@@ -251,6 +251,6 @@ EOF
 |  OneCommand — Built by USC Software UG                       |
 |  Copyright © 2026 USC Software UG                            |
 |  Alle Rechte vorbehalten · All rights reserved               |
-|  usc-software-ug.de                                          |
+|                  >> usc-software-ug.de <<                   |
 +==============================================================+
 ```
