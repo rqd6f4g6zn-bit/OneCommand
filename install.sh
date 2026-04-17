@@ -112,8 +112,29 @@ section "[ 2/4 ] Installing into Claude Code"
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_PLUGINS_DIR="$CLAUDE_DIR/plugins"
 OC_CLAUDE_DIR="$CLAUDE_PLUGINS_DIR/onecommand"
+CLAUDE_COMMANDS_DIR="$CLAUDE_DIR/commands"
 
-mkdir -p "$CLAUDE_PLUGINS_DIR"
+mkdir -p "$CLAUDE_PLUGINS_DIR" "$CLAUDE_COMMANDS_DIR"
+
+# Install /oc-resume as a global Claude Code command
+OC_RESUME_CMD="$CLAUDE_COMMANDS_DIR/oc-resume.md"
+if [ -f "$OC_RESUME_CMD" ]; then
+  skip "/oc-resume global command (already installed)"
+else
+  cp "${REPO_ROOT}/skills/auto-clear/oc-resume-global.md" "$OC_RESUME_CMD" 2>/dev/null || \
+  cp "${REPO_ROOT}/.claude-plugin/../skills/auto-clear/SKILL.md" "$OC_RESUME_CMD" 2>/dev/null || true
+  # Write directly if copy fails
+  if [ ! -f "$OC_RESUME_CMD" ]; then
+    cat > "$OC_RESUME_CMD" << 'CMDEOF'
+---
+description: Resume an interrupted OneCommand build after /clear. Continues from exactly the last phase — nothing is lost.
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+---
+Resume the active OneCommand build. Read ~/.onecommand/brain/working_memory.json and ~/.onecommand/brain/resume_brief.md, verify files on disk, then continue building from the phase indicated in working_memory["current_phase"]. Never re-run completed phases. Never re-generate existing files.
+CMDEOF
+  fi
+  ok "Installed /oc-resume global command → $OC_RESUME_CMD"
+fi
 
 if [ -d "$OC_CLAUDE_DIR" ]; then
   # Check version
@@ -258,6 +279,23 @@ else
     fi
   done
 
+  # Install /oc-resume as global Codex skill
+  OC_RESUME_CODEX="$CODEX_SKILLS_DIR/oc-resume"
+  if [ -d "$OC_RESUME_CODEX" ]; then
+    skip "Codex /oc-resume skill (already installed)"
+  else
+    mkdir -p "$OC_RESUME_CODEX"
+    cat > "$OC_RESUME_CODEX/SKILL.md" << 'SKILLEOF'
+---
+name: oc-resume
+description: Resume an interrupted OneCommand build after /clear. Continues from exactly the last phase — nothing is lost.
+model: claude-opus-4-7
+---
+Resume the active OneCommand build. Read ~/.onecommand/brain/working_memory.json and ~/.onecommand/brain/resume_brief.md, verify files on disk, then continue building from the phase indicated in working_memory["current_phase"]. Never re-run completed phases. Never re-generate existing files.
+SKILLEOF
+    ok "Installed /oc-resume global Codex skill"
+  fi
+
   # Register in AGENTS.md
   if [ -f "$CODEX_AGENTS_FILE" ] && grep -q "onecommand" "$CODEX_AGENTS_FILE" 2>/dev/null; then
     skip "Codex AGENTS.md (onecommand already registered)"
@@ -276,8 +314,14 @@ Use the `onecommand` skill when the user invokes any of:
   "mit einem befehl" · "single command build" · "one command build"
   "erstelle mir" + project description · "build me" + project description
 
+# ── oc-resume (global) ──────────────────────────────────────────────────────
+# Resumes interrupted OneCommand builds after /clear
+Use the `oc-resume` skill when the user types:
+  /oc-resume · /resume · /weiter · /fortfahren
+  "resume build" · "weitermachen" · "wo war ich" · "build fortsetzen"
+
 AGENTSEOF
-    ok "Registered OneCommand in AGENTS.md"
+    ok "Registered OneCommand + oc-resume in AGENTS.md"
   fi
 
   # Register in config.toml
