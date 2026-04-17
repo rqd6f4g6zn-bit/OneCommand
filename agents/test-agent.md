@@ -1,7 +1,7 @@
 ---
 name: test-agent
 description: Runs npm install, TypeScript check, build, and tests. Collects all errors and invokes the self-healer skill iteratively (up to 5 times) until all checks pass. Reports final pass/fail status.
-model: sonnet
+model: claude-sonnet-4-6
 tools: Bash, Read, Write
 skills:
   - self-healer

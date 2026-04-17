@@ -1,7 +1,7 @@
 ---
 name: marketing-agent
 description: Generates landing page copy, README.md, and CHANGELOG.md using marketing-skills. Runs in parallel with the backend-agent during Phase 3.
-model: sonnet
+model: claude-sonnet-4-6
 tools: Read, Write, Edit, Bash
 skills:
   - marketing-skills

@@ -86,6 +86,16 @@ codex --version 2>/dev/null || echo "CODEX_UNAVAILABLE"
 ```
 If Codex is unavailable, note it and plan to use Claude for backend generation instead (still excellent, just not delegated to Codex).
 
+4. **Model strategy** — always follow this split:
+
+| Role | Model | Why |
+|---|---|---|
+| Spec analysis, Stack detection, Self-improvement, Cross-agent sync | `claude-opus-4-7` | Deep reasoning → better requirements extraction |
+| Security audit, Store readiness | `claude-opus-4-6` | Thorough review → catches what Sonnet misses |
+| Frontend, Backend, Mobile, Tests, Marketing | `claude-sonnet-4-6` | Fast + high-quality code generation → saves tokens |
+
+Opus analyses WHAT to build. Sonnet builds it. The combination gives better results than using one model for everything.
+
 ---
 
 ## Phase 1: SPEC

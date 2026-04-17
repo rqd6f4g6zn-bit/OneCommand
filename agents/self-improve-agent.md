@@ -1,7 +1,7 @@
 ---
 name: self-improve-agent
 description: After each OneCommand run, extracts successful patterns, recurring errors, and proven stack combinations into ~/.onecommand/memory/. Future runs load this memory to make faster, more accurate decisions.
-model: sonnet
+model: claude-opus-4-7
 tools: Bash, Read, Write
 ---
 

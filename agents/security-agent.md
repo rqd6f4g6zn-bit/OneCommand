@@ -1,7 +1,7 @@
 ---
 name: security-agent
 description: Performs an OWASP-based security audit on the generated codebase and fixes all critical and high-severity issues. Part of the Exceed-Expectations phase.
-model: opus
+model: claude-opus-4-6
 tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 

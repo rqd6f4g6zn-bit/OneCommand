@@ -1,6 +1,6 @@
 ---
 name: stack-detector
-description: Detects the existing tech stack in the current directory, or confirms the stack from the spec-analyzer. Prevents generating incompatible code.
+description: Detects the existing tech stack in the current directory, or confirms the stack from the spec-analyzer. Prevents generating incompatible code.model: claude-opus-4-7
 ---
 
 You are the Stack Detector for OneCommand.

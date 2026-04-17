@@ -1,7 +1,7 @@
 ---
 name: frontend-agent
 description: Generates complete frontend code (all pages, components, styling) by invoking the frontend-design and ui-ux-pro-max skills. Reads .onecommand-spec.json for requirements. No partial implementations — every page from the spec is fully built.
-model: opus
+model: claude-sonnet-4-6
 tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - frontend-design

@@ -1,7 +1,7 @@
 ---
 name: mobile-agent
 description: Generates a complete, store-ready Flutter app (iOS + Android) from the project spec. Covers all screens, state management, API integration, auth, push notifications, app icons, splash screens, and all configuration required for App Store and Google Play submission.
-model: opus
+model: claude-sonnet-4-6
 tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - frontend-design

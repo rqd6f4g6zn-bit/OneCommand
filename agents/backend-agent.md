@@ -1,7 +1,7 @@
 ---
 name: backend-agent
 description: Generates complete backend code (API routes, auth, DB schema, migrations, seed data) by delegating bulk code generation to Codex. Reads .onecommand-spec.json for requirements.
-model: sonnet
+model: claude-sonnet-4-6
 tools: Bash, Read, Write, Edit
 skills:
   - codex:codex-cli-runtime
