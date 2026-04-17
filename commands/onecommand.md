@@ -101,32 +101,11 @@ Opus analyses WHAT to build. Sonnet builds it. The combination gives better resu
 ## Phase 1: SPEC
 > "📋 **Phase 1/8 — Analyzing requirements...**"
 
-**First — load shared cross-agent memory** (learnings from both Claude Code and Codex):
+**First — boot the brain and collaboration layer:**
 
-```bash
-python3 << 'EOF'
-import json, os
+Invoke `brain-agent` (runs: agent detection, memory READ, RECALL similar projects, set collab plan).
 
-path = os.path.expanduser("~/.onecommand/memory/cross_learnings.json")
-if not os.path.exists(path):
-    print("[cross-agent] No shared memory yet — this is a fresh start")
-else:
-    try:
-        data = json.load(open(path))
-        learnings = data.get("learnings", [])
-        applied = [l for l in learnings if l.get("applied_to_skill")]
-        pending = [l for l in learnings if not l.get("applied_to_skill")]
-        print(f"[cross-agent] Loaded {len(learnings)} shared learnings ({len(applied)} in skills, {len(pending)} pending)")
-        if learnings:
-            print("Known patterns this build will pre-apply:")
-            for l in learnings[-5:]:
-                print(f"  [{l.get('source_agent','?')}] {l.get('description', l.get('error_pattern','?'))[:70]}")
-    except Exception as e:
-        print(f"[cross-agent] Memory read error: {e}")
-EOF
-```
-
-Apply any relevant learnings from memory before generating code — pre-empt known errors.
+This loads all past learnings, finds similar past projects, detects if Codex is available, and sets the collaboration plan — before a single line of code is generated.
 
 Then invoke the `spec-analyzer` skill with: $ARGUMENTS
 
@@ -137,8 +116,14 @@ Verify `.onecommand-spec.json` was created:
 cat .onecommand-spec.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Spec ready: {d[\"project_name\"]} ({d[\"app_type\"]})')"
 ```
 
-Report to user:
-> "Spec complete: [project_name] — [N] pages, [N] API routes, [features list]"
+**Checkpoint Phase 1:**
+Invoke `context-manager` in CHECKPOINT mode.
+Update working_memory with phase summary: `"1": "Spec: [project_name] ([app_type]), [N] features, [stack]"`
+
+Report to user (compact — max 3 lines):
+> "✓ Spec: [project_name] — [N] features, [stack], [deploy_target]"
+> "🧠 Brain: [N] past builds in memory. [Similar project note if found]"
+> "🤝 Mode: [dual-agent / claude-only]"
 
 ---
 
@@ -202,10 +187,15 @@ Skip frontend-agent, backend-agent for pure OS projects.
 
 Wait for ALL dispatched agents to complete before proceeding.
 
-Report:
-> "Game: [engine], [N] scenes/scripts, [N] assets generated." OR
+**Checkpoint Phase 2:**
+Invoke `context-manager` in CHECKPOINT mode.
+Invoke `context-manager` in SUGGEST_COMPACT mode. ← safe to /compact here
+Update working_memory phase summary.
+
+Report (compact — max 2 lines):
+> "Game: [engine], [N] scenes/scripts, [N] assets." OR
 > "OS: [base], [N] features, build scripts ready." OR
-> "Web: [N] pages, [N] API routes. Mobile: [N] screens, flutter analyze [pass/fail]."
+> "Web: [N] pages, [N] API routes. Mobile: [N] screens."
 
 ---
 
@@ -304,10 +294,16 @@ Add `output: 'standalone'` to `next.config.js` if not present.
 
 Dispatch `marketing-agent` to run in parallel with integration work.
 
+**Checkpoint Phase 3:**
+Invoke `context-manager` in CHECKPOINT mode.
+Report (1 line): "✓ Integration: API verified, Docker ready. Marketing: README + landing page."
+
 ---
 
 ## Phase 4: TESTS + SELF-HEALING
 > "🧪 **Phase 4/8 — Running tests and self-healing...**"
+
+Invoke `context-manager` in BUDGET mode. ← print compact status, not full history
 
 Run the post-generate hook:
 ```bash
@@ -319,23 +315,31 @@ Then dispatch `test-agent`. The test-agent runs all checks and invokes `self-hea
 Do not display interim healer details to the user — just show:
 > "Running checks... [iteration N if healing needed]"
 
-When test-agent completes, report:
-> "✅ All checks passed." or "⚠️ [N] issues remain after 5 iterations — documented in ONECOMMAND-DELIVERY.md."
+When test-agent completes:
+- All errors fixed → invoke `brain-agent` WRITE to save error patterns to brain
+- Invoke `context-manager` in CHECKPOINT mode
+- Invoke `context-manager` in SUGGEST_COMPACT mode ← safe to /compact here
+
+Report (1 line):
+> "✅ All checks passed." or "⚠️ [N] issues remain — documented in ONECOMMAND-DELIVERY.md."
 
 ---
 
 ## Phase 5: AUTOMATIONS
 > "⚙️ **Phase 5/8 — Installing automations...**"
 
+Invoke `context-manager` in BUDGET mode.
 Invoke the `automation-installer` skill.
 
-Report:
-> "✓ Git hooks, GitHub Actions CI, Makefile installed."
+**Checkpoint Phase 5:** Invoke `context-manager` in CHECKPOINT mode.
+Report (1 line): "✓ Git hooks, GitHub Actions CI, Makefile installed."
 
 ---
 
 ## Phase 6: EXCEED EXPECTATIONS + CLEANUP + STORE READINESS
 > "✨ **Phase 6/8 — Quality pass: exceed, clean, secure, store-ready...**"
+
+Invoke `context-manager` in BUDGET mode.
 
 Run all four in parallel:
 
@@ -351,21 +355,36 @@ Run all four in parallel:
 - Fixes: bundle ID com.example, targetSdk, permissions, icon sizes
 - Blocks delivery if critical items unresolved
 
-Report:
-> "Exceeded: [N items]. Security: clean. Demo: [N removed]. Store: iOS ✓ / Android ✓ (or blockers listed)."
+**Checkpoint Phase 6:**
+Invoke `context-manager` in CHECKPOINT mode.
+Invoke `context-manager` in SUGGEST_COMPACT mode. ← safe to /compact here
+
+Report (1 line):
+> "✓ Quality: [N exceeded]. Security: clean. Store: iOS ✓ / Android ✓."
 
 ---
 
-## Phase 7: SELF-IMPROVEMENT
+## Phase 7: SELF-IMPROVEMENT + BRAIN REFLECTION
 > "🧠 **Phase 7/8 — Updating memory...**"
 
-Dispatch `self-improve-agent`.
+Invoke `context-manager` in BUDGET mode.
+
+Dispatch `self-improve-agent` (cross-agent sync, skill evolution).
+
+Then invoke `brain-agent` post-build reflection:
+- REFLECT mode → save complete episode to episodic memory
+- PREFER mode → update user preferences from this build's decisions
+- Brain growth report → print how many builds/patterns/facts now in memory
+
+**Checkpoint Phase 7:** Invoke `context-manager` in CHECKPOINT mode.
+Report (1 line): "🧠 Brain updated: [N] builds in memory, [N] patterns learned."
 
 ---
 
 ## Phase 8: DELIVERY
 > "📦 **Phase 8/8 — Preparing delivery...**"
 
+Invoke `context-manager` in BUDGET mode.
 Invoke the `delivery-reporter` skill.
 
 ---

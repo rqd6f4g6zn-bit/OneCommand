@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.2.0"
+PLUGIN_VERSION="1.3.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
@@ -67,13 +67,37 @@ EOF
   ok "Initialized cross_learnings.json"
 fi
 
+# Brain directories
+BRAIN_DIR="$HOME/.onecommand/brain"
+if [ -d "$BRAIN_DIR" ]; then
+  skip "Brain directory $BRAIN_DIR"
+else
+  mkdir -p "$BRAIN_DIR/checkpoints" "$BRAIN_DIR/handoff"
+  ok "Created brain directory structure"
+fi
+
+for brain_file in "episodic_memory.json" "semantic_memory.json" "pattern_library.json" "user_preferences.json"; do
+  brain_path="$BRAIN_DIR/$brain_file"
+  if [ -f "$brain_path" ]; then
+    skip "Brain: $brain_file"
+  else
+    case "$brain_file" in
+      episodic_memory.json)   echo '{"version":"1.0","builds":[]}' > "$brain_path" ;;
+      semantic_memory.json)   echo '{"version":"1.0","knowledge":[]}' > "$brain_path" ;;
+      pattern_library.json)   echo '{"version":"1.0","patterns":[]}' > "$brain_path" ;;
+      user_preferences.json)  echo '{"version":"1.0","preferences":{}}' > "$brain_path" ;;
+    esac
+    ok "Initialized brain: $brain_file"
+  fi
+done
+
 CONFIG_FILE="$HOME/.onecommand/config.json"
 if [ -f "$CONFIG_FILE" ]; then
   skip "~/.onecommand/config.json (preserving existing config)"
 else
   cat > "$CONFIG_FILE" << 'EOF'
 {
-  "version": "1.1.2",
+  "version": "1.3.0",
   "installed_at": "auto",
   "plan": "unknown"
 }
@@ -298,6 +322,9 @@ BUNDLED_SKILLS=(
   "phaser-builder"
   "asset-generator"
   "os-builder"
+  "brain-core"
+  "context-manager"
+  "collab-protocol"
 )
 
 all_ok=true
