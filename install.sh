@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.3.1"
+PLUGIN_VERSION="1.3.2"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
@@ -312,6 +312,23 @@ SKILLEOF
     ok "Installed /oc-resume global Codex skill"
   fi
 
+  # Install /oc-save as global Codex skill
+  OC_SAVE_CODEX="$CODEX_SKILLS_DIR/oc-save"
+  if [ -d "$OC_SAVE_CODEX" ]; then
+    skip "Codex /oc-save skill (already installed)"
+  else
+    mkdir -p "$OC_SAVE_CODEX"
+    cat > "$OC_SAVE_CODEX/SKILL.md" << 'SKILLEOF'
+---
+name: oc-save
+description: Manually save the current OneCommand build state so /clear is safe at any moment. Generates resume_brief.md + file_manifest.json, then prints /clear + /oc-resume instructions.
+model: claude-opus-4-7
+---
+Save the active OneCommand build state to disk. Read ~/.onecommand/brain/working_memory.json, scan all project files into file_manifest.json, write resume_brief.md with current phase/stack/decisions, create a timestamped checkpoint, then print a confirmation box instructing the user to /clear and /oc-resume.
+SKILLEOF
+    ok "Installed /oc-save global Codex skill"
+  fi
+
   # Register in AGENTS.md
   if [ -f "$CODEX_AGENTS_FILE" ] && grep -q "onecommand" "$CODEX_AGENTS_FILE" 2>/dev/null; then
     skip "Codex AGENTS.md (onecommand already registered)"
@@ -336,8 +353,14 @@ Use the `oc-resume` skill when the user types:
   /oc-resume · /resume · /weiter · /fortfahren
   "resume build" · "weitermachen" · "wo war ich" · "build fortsetzen"
 
+# ── oc-save (global) ────────────────────────────────────────────────────────
+# Manually saves current build state so /clear is safe at any moment
+Use the `oc-save` skill when the user types:
+  /oc-save · /save · /sichern · /speichern
+  "save build" · "build sichern" · "save state" · "alles speichern"
+
 AGENTSEOF
-    ok "Registered OneCommand + oc-resume in AGENTS.md"
+    ok "Registered OneCommand + oc-resume + oc-save in AGENTS.md"
   fi
 
   # Register in config.toml
