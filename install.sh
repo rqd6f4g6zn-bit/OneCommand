@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.1.2"
+PLUGIN_VERSION="1.2.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
@@ -34,7 +34,7 @@ section() { echo -e "\n${BOLD}$*${RESET}"; }
 
 echo ""
 echo "+==============================================================+"
-echo "|          OneCommand — Installer v${PLUGIN_VERSION}                    |"
+echo "|         OneCommand — Installer v${PLUGIN_VERSION}                     |"
 echo "|          USC Software UG · usc-software-ug.de               |"
 echo "+==============================================================+"
 echo ""
@@ -292,6 +292,12 @@ BUNDLED_SKILLS=(
   "exceed-expectations"
   "demo-cleaner"
   "store-readiness-checker"
+  "game-engine-selector"
+  "godot-builder"
+  "threejs-builder"
+  "phaser-builder"
+  "asset-generator"
+  "os-builder"
 )
 
 all_ok=true
@@ -310,7 +316,7 @@ done
 echo ""
 if [ "$all_ok" = true ]; then
   echo "+==============================================================+"
-  echo "|          ✅ OneCommand — Installation Complete               |"
+  echo "|        ✅ OneCommand v${PLUGIN_VERSION} — Install Complete            |"
   echo "+==============================================================+"
   echo "|                                                              |"
   echo "|  Version : ${PLUGIN_VERSION}                                          |"

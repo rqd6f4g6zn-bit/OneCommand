@@ -142,17 +142,44 @@ Report to user:
 
 ---
 
-## Phase 2: FRONTEND + BACKEND + MOBILE (Parallel)
-> "⚡ **Phase 2/8 — Generating Frontend + Backend + Mobile in parallel...**"
+## Phase 2: BUILD (Parallel — type-aware)
+> "⚡ **Phase 2/8 — Generating in parallel...**"
 
 First, determine build targets from the spec:
 ```bash
 python3 -c "
 import json; s=json.load(open('.onecommand-spec.json'))
 targets = s.get('build_targets', ['web'])
-print('web' in targets, 'mobile' in targets)
+app_type = s.get('app_type', 'web-app')
+print('web:', 'web' in targets)
+print('mobile:', 'mobile' in targets)
+print('game:', 'game' in targets or app_type == 'game')
+print('os:', 'os' in targets or app_type == 'os')
 "
 ```
+
+### If `game` in build_targets OR app_type == "game":
+
+**Game Agent** (`game-agent`) — handles the entire build:
+- Invokes `game-engine-selector` → chooses Godot 4, Three.js, or Phaser 3
+- Generates complete game project: all scenes, scripts, worlds, characters
+- Generates all assets in parallel (`asset-generator`)
+- 3D worlds are fully editable in the Godot Editor (built-in world designer)
+- Exports for: Windows, macOS, Linux, Web, iOS, Android
+
+Skip frontend-agent, backend-agent for pure game projects.
+
+### If `os` in build_targets OR app_type == "os":
+
+**OS Agent** (`os-agent`) — handles the entire build:
+- Generates complete custom Linux OS (Alpine server, Buildroot embedded, Debian desktop)
+- All config files, build scripts, hardened SSH, firewall, services
+- Docker test environment + QEMU boot test
+- ISO creation workflow
+
+Skip frontend-agent, backend-agent for pure OS projects.
+
+### If `web` in build_targets (default — web apps, SaaS, etc.):
 
 **Always dispatch:**
 
@@ -176,6 +203,8 @@ print('web' in targets, 'mobile' in targets)
 Wait for ALL dispatched agents to complete before proceeding.
 
 Report:
+> "Game: [engine], [N] scenes/scripts, [N] assets generated." OR
+> "OS: [base], [N] features, build scripts ready." OR
 > "Web: [N] pages, [N] API routes. Mobile: [N] screens, flutter analyze [pass/fail]."
 
 ---
