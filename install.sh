@@ -136,6 +136,22 @@ CMDEOF
   ok "Installed /oc-resume global command → $OC_RESUME_CMD"
 fi
 
+# Install /oc-save as a global Claude Code command
+OC_SAVE_CMD="$CLAUDE_COMMANDS_DIR/oc-save.md"
+if [ -f "$OC_SAVE_CMD" ]; then
+  skip "/oc-save global command (already installed)"
+else
+  cp "${REPO_ROOT}/skills/auto-clear/oc-save-global.md" "$OC_SAVE_CMD" 2>/dev/null || \
+  cat > "$OC_SAVE_CMD" << 'CMDEOF'
+---
+description: Manually save the current OneCommand build state so you can safely run /clear at any time. Run /oc-resume afterwards to continue.
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+---
+Save the active OneCommand build state to disk. Scan all project files, write file_manifest.json, generate resume_brief.md, and print instructions to /clear and /oc-resume.
+CMDEOF
+  ok "Installed /oc-save global command → $OC_SAVE_CMD"
+fi
+
 if [ -d "$OC_CLAUDE_DIR" ]; then
   # Check version
   INSTALLED_VERSION=""
