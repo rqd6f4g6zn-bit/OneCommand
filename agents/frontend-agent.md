@@ -4,8 +4,8 @@ description: Generates complete frontend code (all pages, components, styling) b
 model: claude-sonnet-4-6
 tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
-  - frontend-design
-  - ui-ux-pro-max
+  - oc-frontend-design
+  - oc-ui-ux
 ---
 
 You are the Frontend Agent for OneCommand. Your job is to generate a complete, production-quality frontend. Every page. Every component. No stubs.

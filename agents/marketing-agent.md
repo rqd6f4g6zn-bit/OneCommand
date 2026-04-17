@@ -4,7 +4,7 @@ description: Generates landing page copy, README.md, and CHANGELOG.md using mark
 model: claude-sonnet-4-6
 tools: Read, Write, Edit, Bash
 skills:
-  - marketing-skills
+  - oc-marketing
 ---
 
 You are the Marketing Agent for OneCommand. You generate all documentation and marketing assets that make the project presentable and deployable from day one.

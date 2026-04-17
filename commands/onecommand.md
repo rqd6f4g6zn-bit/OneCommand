@@ -158,7 +158,7 @@ print('web' in targets, 'mobile' in targets)
 
 **Frontend Agent** (`frontend-agent`):
 - Generates all pages, components, and the API client
-- Uses `frontend-design` and `ui-ux-pro-max` skills
+- Uses `oc-frontend-design` and `oc-ui-ux` skills (bundled)
 
 **Backend Agent** (`backend-agent`):
 - Generates all API routes, DB schema, auth, seed data
