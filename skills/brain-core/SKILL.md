@@ -148,6 +148,7 @@ wm = {
     "app_type": spec.get("app_type", "unknown"),
     "features": spec.get("features", []),
     "started_at": datetime.now().isoformat(),
+    "project_dir": os.getcwd(),
     "current_phase": 1,
     "phases_completed": [],
     "phase_summaries": {},

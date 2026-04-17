@@ -50,6 +50,43 @@ Then wait for input before continuing.
 
 ## Pre-flight Check
 
+### 0. Resume detection — check FIRST before anything else
+
+```bash
+python3 << 'EOF'
+import json, os, sys
+
+args = """$ARGUMENTS""".strip()
+is_resume = "--resume" in args or args == ""
+
+if not is_resume:
+    print("MODE: new_build")
+else:
+    brain_dir = os.path.expanduser("~/.onecommand/brain")
+    wm_path = os.path.join(brain_dir, "working_memory.json")
+    if os.path.exists(wm_path):
+        wm = json.load(open(wm_path))
+        phases_done = wm.get("phases_completed", [])
+        next_phase = wm.get("current_phase", 1)
+        if phases_done and next_phase > 1:
+            print(f"MODE: resume phase={next_phase}")
+        else:
+            print("MODE: new_build")
+    else:
+        print("MODE: new_build")
+EOF
+```
+
+**If MODE is `resume phase=N`:**
+Invoke `auto-clear` skill in RESUME mode.
+Then skip directly to Phase N and continue the build from there.
+Do NOT repeat any phase already in `phases_completed`.
+Do NOT re-read this pre-flight section — just continue from Phase N.
+
+**If MODE is `new_build`:** proceed normally below.
+
+---
+
 1. **Display startup banner:**
 ```
 +==============================================================+
@@ -189,8 +226,12 @@ Wait for ALL dispatched agents to complete before proceeding.
 
 **Checkpoint Phase 2:**
 Invoke `context-manager` in CHECKPOINT mode.
-Invoke `context-manager` in SUGGEST_COMPACT mode. ← safe to /compact here
 Update working_memory phase summary.
+
+**→ AUTO-CLEAR after Phase 2:**
+Invoke `auto-clear` skill in SAVE mode.
+This saves the full resume brief and file manifest to disk, then prints the /clear instruction box.
+**STOP here and wait for the user to /clear and /onecommand --resume.**
 
 Report (compact — max 2 lines):
 > "Game: [engine], [N] scenes/scripts, [N] assets." OR
@@ -318,7 +359,10 @@ Do not display interim healer details to the user — just show:
 When test-agent completes:
 - All errors fixed → invoke `brain-agent` WRITE to save error patterns to brain
 - Invoke `context-manager` in CHECKPOINT mode
-- Invoke `context-manager` in SUGGEST_COMPACT mode ← safe to /compact here
+
+**→ AUTO-CLEAR after Phase 4:**
+Invoke `auto-clear` skill in SAVE mode.
+**STOP here and wait for the user to /clear and /onecommand --resume.**
 
 Report (1 line):
 > "✅ All checks passed." or "⚠️ [N] issues remain — documented in ONECOMMAND-DELIVERY.md."
@@ -357,7 +401,10 @@ Run all four in parallel:
 
 **Checkpoint Phase 6:**
 Invoke `context-manager` in CHECKPOINT mode.
-Invoke `context-manager` in SUGGEST_COMPACT mode. ← safe to /compact here
+
+**→ AUTO-CLEAR after Phase 6:**
+Invoke `auto-clear` skill in SAVE mode.
+**STOP here and wait for the user to /clear and /onecommand --resume.**
 
 Report (1 line):
 > "✓ Quality: [N exceeded]. Security: clean. Store: iOS ✓ / Android ✓."

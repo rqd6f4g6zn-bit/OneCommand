@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.3.0"
+PLUGIN_VERSION="1.3.1"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
@@ -325,6 +325,7 @@ BUNDLED_SKILLS=(
   "brain-core"
   "context-manager"
   "collab-protocol"
+  "auto-clear"
 )
 
 all_ok=true
