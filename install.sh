@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.3.2"
+PLUGIN_VERSION="1.3.3"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
@@ -113,44 +113,53 @@ CLAUDE_DIR="$HOME/.claude"
 CLAUDE_PLUGINS_DIR="$CLAUDE_DIR/plugins"
 OC_CLAUDE_DIR="$CLAUDE_PLUGINS_DIR/onecommand"
 CLAUDE_COMMANDS_DIR="$CLAUDE_DIR/commands"
+OC_PLUGIN_COMMANDS_DIR="$OC_CLAUDE_DIR/commands"
 
 mkdir -p "$CLAUDE_PLUGINS_DIR" "$CLAUDE_COMMANDS_DIR"
 
-# Install /oc-resume as a global Claude Code command
-OC_RESUME_CMD="$CLAUDE_COMMANDS_DIR/oc-resume.md"
-if [ -f "$OC_RESUME_CMD" ]; then
-  skip "/oc-resume global command (already installed)"
+# Install /oc-resume — into plugin commands (primary) AND ~/.claude/commands (fallback)
+# Plugin commands load reliably when the plugin is enabled; ~/.claude/commands is a belt-and-suspenders fallback.
+OC_RESUME_PLUGIN="$OC_PLUGIN_COMMANDS_DIR/oc-resume.md"
+OC_RESUME_GLOBAL="$CLAUDE_COMMANDS_DIR/oc-resume.md"
+if [ -f "$OC_RESUME_PLUGIN" ]; then
+  skip "/oc-resume plugin command (already installed)"
 else
-  cp "${REPO_ROOT}/skills/auto-clear/oc-resume-global.md" "$OC_RESUME_CMD" 2>/dev/null || \
-  cp "${REPO_ROOT}/.claude-plugin/../skills/auto-clear/SKILL.md" "$OC_RESUME_CMD" 2>/dev/null || true
-  # Write directly if copy fails
-  if [ ! -f "$OC_RESUME_CMD" ]; then
-    cat > "$OC_RESUME_CMD" << 'CMDEOF'
+  mkdir -p "$OC_PLUGIN_COMMANDS_DIR"
+  cp "${REPO_ROOT}/.claude-plugin/commands/oc-resume.md" "$OC_RESUME_PLUGIN" 2>/dev/null || \
+  cp "${REPO_ROOT}/skills/auto-clear/oc-resume-global.md" "$OC_RESUME_PLUGIN" 2>/dev/null || \
+  cat > "$OC_RESUME_PLUGIN" << 'CMDEOF'
 ---
 description: Resume an interrupted OneCommand build after /clear. Continues from exactly the last phase — nothing is lost.
+argument-hint: (no arguments needed)
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 Resume the active OneCommand build. Read ~/.onecommand/brain/working_memory.json and ~/.onecommand/brain/resume_brief.md, verify files on disk, then continue building from the phase indicated in working_memory["current_phase"]. Never re-run completed phases. Never re-generate existing files.
 CMDEOF
-  fi
-  ok "Installed /oc-resume global command → $OC_RESUME_CMD"
+  ok "Installed /oc-resume → plugin commands"
 fi
+# Also write to ~/.claude/commands as fallback (idempotent)
+[ ! -f "$OC_RESUME_GLOBAL" ] && cp "$OC_RESUME_PLUGIN" "$OC_RESUME_GLOBAL" 2>/dev/null && ok "/oc-resume → ~/.claude/commands (fallback)"
 
-# Install /oc-save as a global Claude Code command
-OC_SAVE_CMD="$CLAUDE_COMMANDS_DIR/oc-save.md"
-if [ -f "$OC_SAVE_CMD" ]; then
-  skip "/oc-save global command (already installed)"
+# Install /oc-save — same dual-location strategy
+OC_SAVE_PLUGIN="$OC_PLUGIN_COMMANDS_DIR/oc-save.md"
+OC_SAVE_GLOBAL="$CLAUDE_COMMANDS_DIR/oc-save.md"
+if [ -f "$OC_SAVE_PLUGIN" ]; then
+  skip "/oc-save plugin command (already installed)"
 else
-  cp "${REPO_ROOT}/skills/auto-clear/oc-save-global.md" "$OC_SAVE_CMD" 2>/dev/null || \
-  cat > "$OC_SAVE_CMD" << 'CMDEOF'
+  mkdir -p "$OC_PLUGIN_COMMANDS_DIR"
+  cp "${REPO_ROOT}/.claude-plugin/commands/oc-save.md" "$OC_SAVE_PLUGIN" 2>/dev/null || \
+  cp "${REPO_ROOT}/skills/auto-clear/oc-save-global.md" "$OC_SAVE_PLUGIN" 2>/dev/null || \
+  cat > "$OC_SAVE_PLUGIN" << 'CMDEOF'
 ---
-description: Manually save the current OneCommand build state so you can safely run /clear at any time. Run /oc-resume afterwards to continue.
+description: Save the current OneCommand build state so you can safely run /clear. Run /oc-resume afterwards to continue.
+argument-hint: (no arguments needed)
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
-Save the active OneCommand build state to disk. Scan all project files, write file_manifest.json, generate resume_brief.md, and print instructions to /clear and /oc-resume.
+Save the active OneCommand build state to disk. Scan all project files, write file_manifest.json, generate resume_brief.md, create a timestamped checkpoint, then print instructions to /clear and /oc-resume.
 CMDEOF
-  ok "Installed /oc-save global command → $OC_SAVE_CMD"
+  ok "Installed /oc-save → plugin commands"
 fi
+[ ! -f "$OC_SAVE_GLOBAL" ] && cp "$OC_SAVE_PLUGIN" "$OC_SAVE_GLOBAL" 2>/dev/null && ok "/oc-save → ~/.claude/commands (fallback)"
 
 if [ -d "$OC_CLAUDE_DIR" ]; then
   # Check version
