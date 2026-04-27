@@ -206,8 +206,12 @@ Skip frontend-agent, backend-agent for pure OS projects.
 **Always dispatch:**
 
 **Frontend Agent** (`frontend-agent`):
-- Generates all pages, components, and the API client
-- Uses `oc-frontend-design` and `oc-ui-ux` skills (bundled)
+- **First** consults `21st-components` skill to source UI sections (hero, pricing,
+  dashboard, auth, onboarding, features, testimonials, footers) from 21st.dev
+  community library — installs via shadcn CLI, adapts to brand tokens
+- **Then** generates project-specific / domain-specific components from scratch
+  for what 21st.dev doesn't cover
+- Uses `oc-frontend-design` and `oc-ui-ux` skills (bundled) for layout/typography/spacing rules
 
 **Backend Agent** (`backend-agent`):
 - Generates all API routes, DB schema, auth, seed data
@@ -216,11 +220,15 @@ Skip frontend-agent, backend-agent for pure OS projects.
 **If `mobile` in build_targets — also dispatch in parallel:**
 
 **Mobile Agent** (`mobile-agent`):
-- Creates complete Flutter app (iOS + Android)
-- All screens from spec, GoRouter navigation, Riverpod state
-- Retrofit API layer, push notifications, app icons, splash
-- Fastlane for automated App Store + Google Play release
-- Uses Flutter at `~/.tooling/flutter/bin/flutter`
+- Creates complete Flutter or Expo app (iOS + Android, per spec)
+- All screens from spec, GoRouter/expo-router navigation, Riverpod/Zustand state
+- Retrofit/TanStack Query API layer, push notifications, app icons, splash
+- Fastlane / EAS Build for automated App Store + Google Play release
+- Uses Flutter at `~/.tooling/flutter/bin/flutter` (when Flutter stack)
+- **Consults `21st-components` skill in REFERENCE mode** — uses 21st.dev as
+  visual blueprint (information hierarchy, microinteractions) for onboarding,
+  pricing, dashboard screens; reimplements in Tamagui/Flutter (not auto-installed
+  since 21st.dev components are web-React)
 
 Wait for ALL dispatched agents to complete before proceeding.
 

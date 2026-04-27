@@ -1,6 +1,6 @@
 {
   "name": "onecommand",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "description": "Build complete, production-ready software systems from a single prompt. Orchestrates Claude and Codex across 8 phases: Spec, Frontend, Backend, Integration, Tests, Automations, Exceed-Expectations, and Self-Improvement.",
   "author": {
     "name": "USC Software UG"

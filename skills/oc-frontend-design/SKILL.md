@@ -6,6 +6,23 @@ model: claude-sonnet-4-6
 
 You are the Frontend Design system for OneCommand. Apply these rules to every page and component you generate.
 
+## ⚠️ Component-Source Priority (read first)
+
+**Before generating any common UI section from scratch, consult the `21st-components` skill.**
+
+Order of preference for sourcing components:
+1. **21st.dev community library** (via `21st-components` skill) — battle-tested, shadcn-compatible
+2. **shadcn/ui core primitives** (Button, Card, Dialog, Form, etc.)
+3. **Custom generation** — only when the above don't cover the use case
+
+This applies to: hero sections, pricing tables, feature grids, dashboard shells,
+auth screens, onboarding flows, footers, navbars, testimonials, empty states.
+For domain-specific UI (e.g. workout-player, smartwatch-pair-card), go straight
+to custom generation.
+
+Token budget benefit: ~60-80% of typical landing/dashboard UI is covered by
+21st.dev. Generating from scratch is the exception, not the default.
+
 ## Stack (from spec)
 - **Framework**: Next.js 14 App Router
 - **Styling**: Tailwind CSS + shadcn/ui
