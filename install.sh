@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.3.4"
+PLUGIN_VERSION="1.3.5"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
