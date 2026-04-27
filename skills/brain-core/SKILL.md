@@ -142,13 +142,27 @@ try:
 except Exception:
     pass
 
+# ── Default project location: ~/Desktop/<ProjectName> ────────────────────────
+# Builds are kept SEPARATE from the OneCommand plugin directory.
+# If we're already inside a project dir (spec exists in cwd), use cwd.
+# Otherwise default to ~/Desktop/<ProjectName> and create it.
+project_name = spec.get("project_name", "unknown")
+if os.path.exists(".onecommand-spec.json"):
+    project_dir = os.getcwd()
+else:
+    desktop = os.path.expanduser("~/Desktop")
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "" for c in project_name) or "OneCommandBuild"
+    project_dir = os.path.join(desktop, safe_name)
+    os.makedirs(project_dir, exist_ok=True)
+    print(f"[brain] Project directory: {project_dir} (created on Desktop)")
+
 wm = {
     "build_id": f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-    "project_name": spec.get("project_name", "unknown"),
+    "project_name": project_name,
     "app_type": spec.get("app_type", "unknown"),
     "features": spec.get("features", []),
     "started_at": datetime.now().isoformat(),
-    "project_dir": os.getcwd(),
+    "project_dir": project_dir,
     "current_phase": 1,
     "phases_completed": [],
     "phase_summaries": {},
