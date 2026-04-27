@@ -10,7 +10,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.3.3"
+PLUGIN_VERSION="1.3.4"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
@@ -198,60 +198,55 @@ else
   ok "Copied plugin files"
 fi
 
-# Register in Claude settings
+# Register in Claude settings (enabledPlugins) + installed_plugins.json registry
 CLAUDE_SETTINGS="$CLAUDE_DIR/settings.json"
+INSTALLED_PLUGINS="$CLAUDE_PLUGINS_DIR/installed_plugins.json"
 
-if [ -f "$CLAUDE_SETTINGS" ]; then
-  ALREADY_REG=$(python3 - << PYEOF
-import json, sys
-try:
-    d = json.load(open("$CLAUDE_SETTINGS"))
-    plugins = d.get("plugins", [])
-    found = any(p.get("name") == "onecommand" for p in plugins) if isinstance(plugins, list) \
-            else "onecommand" in plugins if isinstance(plugins, dict) \
-            else False
-    print("yes" if found else "no")
-except:
-    print("no")
-PYEOF
-)
-  if [ "$ALREADY_REG" = "yes" ]; then
-    skip "Claude Code settings (already registered)"
-  else
-    python3 - << PYEOF
+python3 - << PYEOF
 import json, os
-path = "$CLAUDE_SETTINGS"
+from datetime import datetime, timezone
+
+# ── 1. settings.json → enabledPlugins ───────────────────────────────────────
+settings_path = "$CLAUDE_SETTINGS"
 try:
-    d = json.load(open(path))
+    d = json.load(open(settings_path)) if os.path.exists(settings_path) else {}
 except Exception:
     d = {}
+
+ep = d.get("enabledPlugins", {})
+if "onecommand@local" in ep:
+    print("○ Claude settings (onecommand@local already enabled — skipped)")
+else:
+    ep["onecommand@local"] = True
+    d["enabledPlugins"] = ep
+    with open(settings_path, "w") as f:
+        json.dump(d, f, indent=2)
+    print("✓ Registered onecommand@local in enabledPlugins")
+
+# ── 2. installed_plugins.json → registry ────────────────────────────────────
+reg_path = "$INSTALLED_PLUGINS"
 try:
-    plugins = d.get("plugins", [])
-    if isinstance(plugins, list):
-        plugins.append({"name": "onecommand", "path": "$OC_CLAUDE_DIR"})
-        d["plugins"] = plugins
-        with open(path, "w") as f:
-            json.dump(d, f, indent=2)
-        print("registered in Claude settings")
-except Exception as e:
-    print(f"could not auto-register: {e}")
-    print(f"manual step: add onecommand to $CLAUDE_SETTINGS")
+    reg = json.load(open(reg_path)) if os.path.exists(reg_path) else {"version": 2, "plugins": {}}
+except Exception:
+    reg = {"version": 2, "plugins": {}}
+
+existing = reg["plugins"].get("onecommand@local", [{}])[0]
+existing_ver = existing.get("version", "0")
+if existing_ver == "$PLUGIN_VERSION":
+    print(f"○ installed_plugins.json (v{existing_ver} already current — skipped)")
+else:
+    reg["plugins"]["onecommand@local"] = [{
+        "scope": "user",
+        "installPath": "$REPO_ROOT",
+        "version": "$PLUGIN_VERSION",
+        "installedAt": existing.get("installedAt", datetime.now(timezone.utc).isoformat()),
+        "lastUpdated": datetime.now(timezone.utc).isoformat(),
+        "gitCommitSha": "local"
+    }]
+    with open(reg_path, "w") as f:
+        json.dump(reg, f, indent=2)
+    print(f"✓ installed_plugins.json updated: {existing_ver} → $PLUGIN_VERSION")
 PYEOF
-  fi
-else
-  info "Creating Claude settings.json"
-  cat > "$CLAUDE_SETTINGS" << JSEOF
-{
-  "plugins": [
-    {
-      "name": "onecommand",
-      "path": "$OC_CLAUDE_DIR"
-    }
-  ]
-}
-JSEOF
-  ok "Created settings.json with onecommand registered"
-fi
 
 # ─── Codex installation ───────────────────────────────────────────────────────
 
