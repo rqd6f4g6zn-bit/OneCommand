@@ -7,7 +7,7 @@
 # swallowed by a pipe (`cmd | tee log; $?` reports tee's status, not cmd's).
 #
 # Stages:
-#   static  install → prisma generate → typecheck → lint → build → unit tests
+#   static  install → audit → prisma generate → typecheck → lint → build → unit tests
 #   e2e     database prep → Playwright acceptance tests → acceptance report
 #   all     static, then e2e (e2e only runs when static passed)
 #
@@ -21,7 +21,12 @@
 # Exit codes: 0 passed · 1 failed · 2 usage error · 3 not applicable (no package.json)
 #
 # Usage: quality-gate.sh [--stage static|e2e|all] [--project-dir DIR] [--out DIR]
-#                        [--force-install] [--strict-flaky] [--verbose] [--help]
+#                        [--force-install] [--strict-flaky] [--no-audit] [--audit-level high|critical]
+#                        [--verbose] [--help]
+#
+# audit checks production dependencies (npm, pnpm): critical advisories fail the gate, high ones
+# are recorded as warnings (--audit-level high makes them blocking). --no-audit / OC_GATE_AUDIT=0
+# disables it; an unreachable registry skips it.
 # =============================================================================
 
 set -uo pipefail
@@ -32,6 +37,8 @@ PROJECT_DIR="$(pwd)"
 OUT_DIR=""
 FORCE_INSTALL=false
 STRICT_FLAKY=false
+AUDIT="${OC_GATE_AUDIT:-1}"
+AUDIT_LEVEL="${OC_GATE_AUDIT_LEVEL:-critical}"   # critical: only critical blocks · high: high blocks too
 VERBOSE=false
 STEP_TIMEOUT="${OC_GATE_STEP_TIMEOUT:-900}"   # seconds per step
 E2E_TIMEOUT="${OC_GATE_E2E_TIMEOUT:-1800}"     # seconds for the Playwright run
@@ -50,12 +57,20 @@ while [ $# -gt 0 ]; do
     --out=*)          OUT_DIR="${1#*=}" ;;
     --force-install)  FORCE_INSTALL=true ;;
     --strict-flaky)   STRICT_FLAKY=true ;;
+    --no-audit)       AUDIT=0 ;;
+    --audit-level)    AUDIT_LEVEL="${2:-}"; shift ;;
+    --audit-level=*)  AUDIT_LEVEL="${1#*=}" ;;
     -v|--verbose)     VERBOSE=true ;;
     -h|--help)        usage; exit 0 ;;
     *) echo "[gate] Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
   shift
 done
+
+case "$AUDIT_LEVEL" in
+  high|critical) ;;
+  *) echo "[gate] --audit-level must be high or critical (got '$AUDIT_LEVEL')" >&2; exit 2 ;;
+esac
 
 case "$STAGE" in
   static|e2e|all) ;;
@@ -241,6 +256,71 @@ install_cmd() {
 
 # ─── Stage: static ────────────────────────────────────────────────────────────
 
+stage_audit() {
+  if [ "$AUDIT" = "0" ]; then
+    skip_step audit "disabled (--no-audit / OC_GATE_AUDIT=0)"
+    return 0
+  fi
+  local -a cmd
+  case "$PM" in
+    npm)  cmd=(npm audit --omit=dev --json) ;;
+    pnpm) cmd=(pnpm audit --prod --json) ;;
+    *)    skip_step audit "no machine-readable audit for $PM"; return 0 ;;
+  esac
+  log "▶ audit: ${cmd[*]} (blocking level: ${AUDIT_LEVEL})"
+  local start end verdict
+  start="$(date +%s)"
+  # audit exits non-zero whenever anything is found — the verdict comes from the JSON counts.
+  with_timeout 180 "${cmd[@]}" > "$OUT_DIR/audit.json" 2> "$OUT_DIR/audit.log"
+  end="$(date +%s)"
+  verdict="$(python3 - "$OUT_DIR/audit.json" "$AUDIT_LEVEL" << 'PYEOF2'
+import json, sys
+path, level = sys.argv[1], sys.argv[2]
+try:
+    data = json.load(open(path))
+except (OSError, ValueError):
+    print("unreadable"); raise SystemExit
+# An error object or missing counts means the audit did not run (e.g. registry unreachable) —
+# never report that as "no advisories".
+if not isinstance(data, dict) or data.get("error") or "vulnerabilities" not in (data.get("metadata") or {}):
+    print("unreadable"); raise SystemExit
+counts = data["metadata"]["vulnerabilities"]
+critical, high = int(counts.get("critical") or 0), int(counts.get("high") or 0)
+vulns = data.get("vulnerabilities") or data.get("advisories") or {}
+names = sorted({(v.get("name") or k) + ":" + str(v.get("severity")) for k, v in vulns.items()
+                if v.get("severity") in ("high", "critical")})
+blocking = critical + (high if level == "high" else 0)
+state = "fail" if blocking else ("warn" if high else "pass")
+print(f"{state}\t{critical}\t{high}\t{', '.join(names)[:600]}")
+PYEOF2
+)"
+  local state critical high names
+  IFS=$'\t' read -r state critical high names <<< "$verdict"
+  case "$state" in
+    pass)
+      record audit pass 0 "$((end - start))" "$OUT_DIR/audit.json" ""
+      log "  ✓ audit — no high/critical advisories ($((end - start))s)" ;;
+    warn)
+      record audit warn 0 "$((end - start))" "$OUT_DIR/audit.json" "${high} high advisories (non-blocking at level ${AUDIT_LEVEL}): ${names}"
+      log "  ⚠ audit — ${high} high advisories, not blocking at level ${AUDIT_LEVEL}: ${names}" ;;
+    fail)
+      record audit fail 1 "$((end - start))" "$OUT_DIR/audit.json" "${critical} critical / ${high} high advisories"
+      {
+        echo "===== audit (full report: ${OUT_DIR}/audit.json) ====="
+        echo "${critical} critical, ${high} high advisories in production dependencies: ${names}"
+        echo "Fix: upgrade the affected packages to patched versions ($PM audit fix, or bump the direct"
+        echo "dependency named in the advisory). A major upgrade is fine — the gate re-verifies everything."
+        echo ""
+      } >> "$OUT_DIR/errors.txt"
+      log "  ✗ audit — ${critical} critical / ${high} high advisories: ${names}"
+      return 1 ;;
+    *)
+      # Unreadable output almost always means the registry was unreachable — not a vulnerability.
+      skip_step audit "audit not possible ($(head -c 160 "$OUT_DIR/audit.log" | tr '\n' ' '))" ;;
+  esac
+  return 0
+}
+
 stage_static() {
   local failed=0
 
@@ -271,6 +351,11 @@ stage_static() {
       fi
     fi
   fi
+
+  # 1b. audit — high/critical advisories in production dependencies. Run in the static
+  # stage so vulnerable dependencies are fixed while building, not by a late
+  # security pass that forces a full re-verification.
+  stage_audit || failed=1
 
   # 2. prisma generate
   if [ -f prisma/schema.prisma ]; then
@@ -374,8 +459,8 @@ browser_mismatch_hint() {
     echo "===== browsers (not an application bug) ====="
     echo "@playwright/test ${version} needs a browser that is not installed: ${wanted}"
     echo "Installed: ${have:-none}"
-    echo "Fix: allow the download (npx playwright install chromium), or pin @playwright/test to the"
-    echo "version whose chromium revision is installed (e.g. chromium-1194 → @playwright/test 1.56.x)."
+    echo "Fix: python3 \"${SCRIPT_DIR}/playwright-pin.py\" --project-dir \"${PROJECT_DIR}\" apply"
+    echo "(pins the version whose browsers are installed), or allow the download: npx playwright install chromium"
     echo ""
   } >> "$OUT_DIR/errors.txt"
   log "  ⚠ browser revision mismatch — see errors.txt"
@@ -492,6 +577,7 @@ result = {
     "started_at": started, "finished_at": finished,
     "passed": overall == "0", "not_applicable": overall == "3",
     "failed_steps": [s["step"] for s in steps if s["status"] == "fail"],
+    "warnings": [f'{s["step"]}: {s["reason"]}' for s in steps if s["status"] == "warn"],
     "steps": steps,
 }
 acc_path = os.path.join(out_dir, "acceptance.json")

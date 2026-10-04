@@ -47,6 +47,8 @@ def test_full_gate_passes_on_sqlite_app(app):
     steps = {s["step"]: s["status"] for s in result["steps"]}
     for step in ("install", "prisma", "typecheck", "lint", "build", "unit", "database", "seed", "e2e", "acceptance"):
         assert steps[step] == "pass", (step, steps)
+    # prisma's config loader pulls deepmerge-ts with a high advisory: recorded, not blocking.
+    assert any("deepmerge-ts" in w for w in result["warnings"])
     # DATABASE_URL came from .env (SQLite) — not the Postgres default the gate used to force.
     assert (app / "prisma" / "dev.db").exists()
     assert acceptance["summary"]["blocking_passed"] == acceptance["summary"]["blocking"] == 3

@@ -81,6 +81,20 @@ Expected: "foo", Received: "bar"
 - Fix the code (remove the dead variable, add the missing dependency to the hook array, escape the entity).
 - Never add `eslint-disable` comments or loosen the ESLint config to get green.
 
+### Dependency audit failure
+```
+===== audit =====
+next  <15.5.24  Severity: high  …  fix available via `npm audit fix --force`
+```
+- Upgrade the affected package to a patched version — prefer the smallest version that fixes the advisory (`npm audit fix`; for a direct dependency bump it in `package.json`).
+- A fix that needs a major upgrade (`--force`) changes behaviour: do it, then let the gate re-verify everything (build + all acceptance criteria). Never silence the audit with `--no-audit`.
+
+### Playwright cannot launch the browser
+```
+===== browsers (not an application bug) =====
+```
+- Run `python3 "$OC_ROOT/hooks/playwright-pin.py" apply`, then re-run the gate. Do not touch application code for this.
+
 ### Acceptance criterion failure
 ```
 ===== failing acceptance criteria =====

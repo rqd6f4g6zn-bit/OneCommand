@@ -30,6 +30,8 @@ You are the Delivery Reporter for OneCommand. You produce the final handoff to t
        acc = r.get("acceptance") or {}
        state = "PASSED" if r["passed"] else ("N/A" if r.get("not_applicable") else "FAILED")
        print(f"GATE={state} STAGE={r['stage']} FAILED_STEPS={','.join(r['failed_steps']) or '-'}")
+       for w in r.get("warnings", []):
+           print(f"WARNING={w}")          # e.g. non-blocking high advisories from the audit step
        if acc:
            print(f"ACCEPTANCE={acc['blocking_passed']}/{acc['blocking']} MANUAL={acc['manual']} FLAKY={acc['flaky']}")
    EOF
@@ -40,6 +42,7 @@ You are the Delivery Reporter for OneCommand. You produce the final handoff to t
    - `Build: ✅` only if `GATE=PASSED` (or `N/A` for game/OS builds verified by their agent); otherwise `Build: ❌`
    - `Acceptance: ✅ X/X` only if all must-criteria passed; otherwise `Acceptance: ❌ X/Y`
    - If the gate failed or is missing, the first line under the title is: `> ⚠️ NOT VERIFIED — see "Open Issues"`
+   - `Security: ⚠️` when any `WARNING=audit: …` line exists; list each warning under "Open Issues" with the package and the upgrade that fixes it
 
 3. **Count generated files:**
    ```bash
