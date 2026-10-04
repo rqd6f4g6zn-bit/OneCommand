@@ -200,6 +200,14 @@ ensure_database_url() {
   fi
 }
 
+manifest_hash() {
+  file_hash package.json package-lock.json pnpm-lock.yaml yarn.lock bun.lockb bun.lock | awk '{print $1}' | tr -d '\n'
+}
+
+has_any_dep() {
+  python3 -c 'import json,sys; p=json.load(open("package.json")); sys.exit(0 if (p.get("dependencies") or p.get("devDependencies")) else 1)' 2>/dev/null
+}
+
 file_hash() {
   if command -v shasum &>/dev/null; then shasum -a 256 "$@" 2>/dev/null
   else sha256sum "$@" 2>/dev/null; fi
@@ -237,14 +245,16 @@ stage_static() {
   local failed=0
 
   # 1. install — skipped when manifests are unchanged since the last green install
-  local stamp="$OUT_DIR/.install-stamp" current=""
-  current="$(file_hash package.json package-lock.json pnpm-lock.yaml yarn.lock bun.lockb bun.lock | awk '{print $1}' | tr -d '\n')"
-  if [ "$FORCE_INSTALL" = false ] && [ -d node_modules ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$current" ]; then
+  # The stamp is taken AFTER a successful install: npm creates/rewrites the lockfile,
+  # so a hash taken before would never match on the next run.
+  local stamp="$OUT_DIR/.install-stamp"
+  if [ "$FORCE_INSTALL" = false ] && [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$(manifest_hash)" ] \
+     && { [ -d node_modules ] || ! has_any_dep; }; then
     skip_step install "package manifests unchanged since last successful install"
   else
     # shellcheck disable=SC2046
     if run_step install "$STEP_TIMEOUT" $(install_cmd); then
-      printf '%s' "$current" > "$stamp"
+      manifest_hash > "$stamp"
     else
       rm -f "$stamp"
       # npm ci fails on an out-of-sync lockfile — retry once with npm install
@@ -252,7 +262,7 @@ stage_static() {
         log "  ↻ lockfile out of sync — retrying with npm install"
         sed -i.bak '$d' "$STEPS_FILE" && rm -f "$STEPS_FILE.bak"
         if run_step install "$STEP_TIMEOUT" npm install; then
-          printf '%s' "$current" > "$stamp"
+          manifest_hash > "$stamp"
         else
           return 1
         fi
@@ -347,6 +357,30 @@ prepare_database() {
   fi
 }
 
+# browser_mismatch_hint — every test fails in milliseconds when the installed
+# @playwright/test needs a browser revision that is not on disk. Say so explicitly,
+# otherwise the healer goes hunting for bugs in the app.
+browser_mismatch_hint() {
+  grep -q "Executable doesn't exist" "$OUT_DIR/e2e.log" 2>/dev/null || return 0
+  local wanted have version
+  wanted="$(grep -o "Executable doesn't exist at [^ ]*" "$OUT_DIR/e2e.log" | head -1 | sed 's/.* at //')"
+  local d
+  have=""
+  for d in "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"/chromium*; do
+    [ -d "$d" ] && have="${have}$(basename "$d") "
+  done
+  version="$(node -p "require('@playwright/test/package.json').version" 2>/dev/null || echo '?')"
+  {
+    echo "===== browsers (not an application bug) ====="
+    echo "@playwright/test ${version} needs a browser that is not installed: ${wanted}"
+    echo "Installed: ${have:-none}"
+    echo "Fix: allow the download (npx playwright install chromium), or pin @playwright/test to the"
+    echo "version whose chromium revision is installed (e.g. chromium-1194 → @playwright/test 1.56.x)."
+    echo ""
+  } >> "$OUT_DIR/errors.txt"
+  log "  ⚠ browser revision mismatch — see errors.txt"
+}
+
 stage_e2e() {
   local spec=".onecommand-spec.json" config=""
   local f
@@ -373,11 +407,17 @@ stage_e2e() {
 
   prepare_database || return 1
 
-  # Browser binary: reuse a pre-installed Chromium when present (CI images, sandboxes).
-  if [ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ] || [ ! -d "${PLAYWRIGHT_BROWSERS_PATH}" ]; then
-    run_step browsers "$STEP_TIMEOUT" "${EXEC[@]}" playwright install chromium || return 1
-  else
-    skip_step browsers "using PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH}"
+  # Browser binary. `playwright install` is a no-op when the revision this @playwright/test
+  # needs is already there — a pre-set PLAYWRIGHT_BROWSERS_PATH does NOT mean it is the
+  # right revision. If the download is blocked (sandbox, offline) but pre-installed browsers
+  # exist, carry on: the run below says precisely which revision is missing.
+  if ! run_step browsers "$STEP_TIMEOUT" "${EXEC[@]}" playwright install chromium; then
+    if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d "${PLAYWRIGHT_BROWSERS_PATH}" ]; then
+      sed -i.bak '$d' "$STEPS_FILE" && rm -f "$STEPS_FILE.bak"
+      skip_step browsers "download failed — trying pre-installed browsers in ${PLAYWRIGHT_BROWSERS_PATH}"
+    else
+      return 1
+    fi
   fi
 
   local results="$OUT_DIR/playwright.json"
@@ -386,6 +426,7 @@ stage_e2e() {
     run_step e2e "$E2E_TIMEOUT" "${EXEC[@]}" playwright test --config "$config" --reporter=list,json
   # The e2e exit code alone is not the verdict: the acceptance report checks that
   # every must-criterion has a passing test (a missing test is a failure too).
+  browser_mismatch_hint
 
   local report_args=(report --spec "$spec" --results "$results" --out "$OUT_DIR/acceptance.json" --markdown "$OUT_DIR/acceptance.md")
   [ "$STRICT_FLAKY" = true ] && report_args+=(--strict-flaky)

@@ -170,7 +170,7 @@ ok "python3, rsync, cmp available"
 for manifest in "$REPO_ROOT/.claude-plugin/plugin.json" "$REPO_ROOT/commands/onecommand.md" \
                 "$REPO_ROOT/hooks/quality-gate.sh" "$REPO_ROOT/hooks/acceptance-report.py" \
                 "$REPO_ROOT/hooks/learnings.py" "$REPO_ROOT/hooks/skill-catalog.py" \
-                "$REPO_ROOT/hooks/update.py" "$REPO_ROOT/hooks/hooks.json"; do
+                "$REPO_ROOT/hooks/update.py" "$REPO_ROOT/hooks/hooks.json" "$REPO_ROOT/hooks/checkpoint.py"; do
   if [ ! -f "$manifest" ]; then
     err "Not a OneCommand checkout: $manifest missing (REPO_ROOT=$REPO_ROOT)"
     exit 1
@@ -272,7 +272,7 @@ print(msg)
 PYEOF
 )"
 case "$CONFIG_RESULT" in
-  skip)      skip "~/.onecommand/config.json" ;;
+  skip)      skip "config.json in ~/.onecommand" ;;
   created)   ok "Created ~/.onecommand/config.json" ;;
   updated:*) ok "config.json version ${CONFIG_RESULT#updated:}" ;;
   error:*)   warn "${CONFIG_RESULT#error:}" ;;
@@ -442,7 +442,6 @@ else
 ---
 name: oc-resume
 description: Resume an interrupted OneCommand build after /clear. Continues from exactly the last phase — nothing is lost.
-model: claude-opus-4-7
 ---
 Resume the active OneCommand build. Read ~/.onecommand/brain/working_memory.json and ~/.onecommand/brain/resume_brief.md, verify files on disk, then continue building from the phase indicated in working_memory["current_phase"]. Never re-run completed phases. Never re-generate existing files.
 SKILLEOF
@@ -451,7 +450,6 @@ SKILLEOF
 ---
 name: oc-save
 description: Manually save the current OneCommand build state so /clear is safe at any moment. Generates resume_brief.md + file_manifest.json, then prints /clear + /oc-resume instructions.
-model: claude-opus-4-7
 ---
 Save the active OneCommand build state to disk. Read ~/.onecommand/brain/working_memory.json, scan all project files into file_manifest.json, write resume_brief.md with current phase/stack/decisions, create a timestamped checkpoint, then print a confirmation box instructing the user to /clear and /oc-resume.
 SKILLEOF
