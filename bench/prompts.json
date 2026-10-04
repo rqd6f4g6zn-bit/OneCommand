@@ -13,6 +13,7 @@
       "team-tasks",
       "crm-enterprise",
       "booking",
+      "helpdesk",
       "habit-mobile",
       "platformer",
       "server-os"
@@ -44,6 +45,12 @@
       "id": "booking",
       "type": "web",
       "prompt": "Terminbuchung für einen Friseursalon: Dienstleistungen mit Dauer und Preis, freie Zeitslots pro Mitarbeiter, Online-Buchung ohne Konto mit Bestätigungs-E-Mail, Stornierung per Link, Kalenderansicht für den Salon."
+    },
+    {
+      "id": "helpdesk",
+      "type": "web",
+      "prompt": "Ticketsystem für unseren Support mit Kundenportal",
+      "notes": "Short prompt: helpdesk blueprint (pro) supplies the features; exercises api_contract, metrics, three demo logins and the UI tour (v1.7.0)."
     },
     {
       "id": "habit-mobile",
