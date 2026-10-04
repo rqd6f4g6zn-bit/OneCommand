@@ -1,0 +1,84 @@
+{
+  "id": "projects",
+  "name": "Projekt- & Aufgabenmanagement",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["projektmanagement", "projektverwaltung", "aufgabenverwaltung", "task management", "kanban", "kanban-board", "asana", "trello", "jira", "team-aufgaben", "aufgabenmanagement", "to-do für teams"],
+  "summary": "Workspaces mit Projekten, Aufgaben auf Board und Liste, Zuweisung, Fälligkeiten, Kommentare und Benachrichtigungen für Teams.",
+  "roles": [
+    {"id": "owner", "name": "Owner", "can": "Workspace, Mitglieder, Abrechnung"},
+    {"id": "member", "name": "Mitglied", "can": "Projekte und Aufgaben bearbeiten"},
+    {"id": "guest", "name": "Gast", "can": "nur freigegebene Projekte sehen und kommentieren", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "avatar"], "tier": "mvp"},
+    {"name": "Workspace", "fields": ["name", "ownerId"], "tier": "mvp"},
+    {"name": "Membership", "fields": ["workspaceId", "userId", "role"], "tier": "mvp"},
+    {"name": "Project", "fields": ["workspaceId", "name", "status", "archived"], "tier": "mvp"},
+    {"name": "Task", "fields": ["projectId", "title", "description", "status(todo|in_progress|done)", "assigneeId", "dueDate", "priority", "position"], "tier": "mvp"},
+    {"name": "Comment", "fields": ["taskId", "authorId", "body", "mentions"], "tier": "mvp"},
+    {"name": "Subtask", "fields": ["taskId", "title", "done"], "tier": "pro"},
+    {"name": "Label", "fields": ["workspaceId", "name", "color"], "tier": "pro"},
+    {"name": "TimeEntry", "fields": ["taskId", "userId", "minutes", "date"], "tier": "pro"},
+    {"name": "Dependency", "fields": ["taskId", "blockedById"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung & Workspaces", "tier": "mvp",
+     "features": ["Registrierung legt einen Workspace an", "Mitglieder per E-Mail einladen", "Nur Mitglieder sehen den Workspace"],
+     "criteria": [
+       {"title": "Invited member joins the workspace and sees its projects", "verification": "e2e", "start": "/settings/members", "requires_auth": true, "steps": ["Owner invites 'tom@example.com'", "Tom opens the invite link from the outbox and registers"], "expected": ["Tom sees the workspace's projects"]},
+       {"title": "Non-member gets 404 for another workspace's project", "verification": "api", "steps": ["As a user of workspace B GET /api/projects/<id in workspace A>"], "expected": ["Status 404"]}
+     ]},
+    {"id": "projects", "name": "Projekte", "tier": "mvp",
+     "features": ["Projekte anlegen, umbenennen, archivieren", "Projektübersicht mit Fortschritt"],
+     "criteria": [
+       {"title": "Archived project disappears from the active list", "verification": "e2e", "start": "/projects", "requires_auth": true, "steps": ["Create project 'Relaunch'", "Click 'Archivieren'"], "expected": ["'Relaunch' is not in the active list", "It is listed under 'Archiv'"]}
+     ]},
+    {"id": "board", "name": "Board & Liste", "tier": "mvp",
+     "features": ["Kanban-Spalten To do / In Arbeit / Erledigt mit Drag & Drop", "Listenansicht mit Sortierung", "Reihenfolge bleibt erhalten"],
+     "criteria": [
+       {"title": "Task dragged to 'In Arbeit' stays there after reload", "verification": "e2e", "start": "/projects", "requires_auth": true, "steps": ["Create task 'Logo entwerfen'", "Drag it to 'In Arbeit'", "Reload"], "expected": ["Task is in 'In Arbeit' after reload"]}
+     ]},
+    {"id": "tasks", "name": "Aufgaben", "tier": "mvp",
+     "features": ["Titel, Beschreibung, Zuständiger, Fälligkeit, Priorität", "'Meine Aufgaben' über alle Projekte", "Überfällige hervorgehoben"],
+     "criteria": [
+       {"title": "Task assigned to me appears in 'Meine Aufgaben' with its due date", "verification": "e2e", "start": "/my-tasks", "requires_auth": true, "steps": ["Create a task assigned to me due tomorrow"], "expected": ["Task is listed with tomorrow's date"]}
+     ]},
+    {"id": "comments", "name": "Kommentare & Erwähnungen", "tier": "mvp",
+     "features": ["Kommentare an Aufgaben", "@Erwähnung benachrichtigt die Person"],
+     "criteria": [
+       {"title": "@mention in a comment notifies the mentioned member", "verification": "e2e", "start": "/projects", "requires_auth": true, "steps": ["Comment '@Tom bitte prüfen' on a task", "Log in as Tom"], "expected": ["Tom's notifications list the comment"]}
+     ]},
+    {"id": "subtasks-labels", "name": "Unteraufgaben & Labels", "tier": "pro",
+     "features": ["Checklisten in Aufgaben", "Labels mit Farbe und Filter"],
+     "criteria": [
+       {"title": "Completing subtasks updates the task's progress", "verification": "e2e", "start": "/projects", "requires_auth": true, "steps": ["Add two subtasks", "Tick one"], "expected": ["Task shows '1/2'"]}
+     ]},
+    {"id": "time-tracking", "name": "Zeiterfassung", "tier": "pro",
+     "features": ["Zeiten je Aufgabe buchen", "Summe je Projekt und Person"],
+     "criteria": [
+       {"title": "Logged time sums up per project", "verification": "e2e", "start": "/projects", "requires_auth": true, "steps": ["Log 30 and 45 minutes on two tasks of a project", "Open the project's time report"], "expected": ["Total shows 1:15 h"]}
+     ]},
+    {"id": "guests", "name": "Gäste & Freigaben", "tier": "pro",
+     "features": ["Gäste sehen nur freigegebene Projekte"],
+     "criteria": [
+       {"title": "Guest sees only the shared project", "verification": "e2e", "start": "/projects", "requires_auth": true, "steps": ["Share project 'Relaunch' with guest 'kunde@example.com'", "Log in as the guest"], "expected": ["Only 'Relaunch' is visible"]}
+     ]},
+    {"id": "timeline", "name": "Zeitplan & Abhängigkeiten", "tier": "enterprise",
+     "features": ["Gantt-/Timeline-Ansicht", "Abhängigkeiten: blockierte Aufgaben", "Workload je Person"],
+     "criteria": [
+       {"title": "Task blocked by an open task cannot be moved to 'Erledigt'", "verification": "e2e", "start": "/projects", "requires_auth": true, "steps": ["Mark task B as blocked by open task A", "Move B to 'Erledigt'"], "expected": ["Text 'Blockiert durch: A' is shown and B stays in its column"]}
+     ]},
+    {"id": "automations", "name": "Automatisierungen & Integrationen", "tier": "enterprise",
+     "features": ["Regeln (wenn Status = Erledigt → Kommentar/Benachrichtigung)", "Webhooks, Slack-Benachrichtigung"],
+     "criteria": [
+       {"title": "Rule posts a comment when a task is moved to 'Erledigt'", "verification": "e2e", "start": "/settings/automations", "requires_auth": true, "steps": ["Create rule 'Erledigt → Kommentar: Fertig gemeldet'", "Move a task to 'Erledigt'"], "expected": ["Task has comment 'Fertig gemeldet'"]}
+     ]}
+  ],
+  "non_functional": [
+    {"tier": "mvp", "text": "Drag & Drop auch per Tastatur bedienbar"},
+    {"tier": "pro", "text": "Board mit 500 Aufgaben bleibt flüssig (virtuelle Listen)"}
+  ],
+  "production_dependencies": {"mvp": ["email"], "pro": ["email"], "enterprise": ["email"]},
+  "pages": {"mvp": ["/login", "/register", "/projects", "/projects/[id]", "/my-tasks", "/settings/members"], "pro": ["/projects/[id]/time"], "enterprise": ["/projects/[id]/timeline", "/settings/automations"]}
+}

@@ -16,6 +16,12 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    ```
    If patterns exist, use them to inform your tech stack and architecture decisions.
 
+1b. **Domain blueprint — know the domain, don't make the user spell it out.** Short prompts like "ein CRM auf höchstem Niveau" must produce the full professional feature set. Follow the `domain-blueprints` skill:
+   ```bash
+   python3 "$OC_ROOT/hooks/blueprint.py" detect --prompt "$ARGUMENTS"
+   ```
+   On a match, expand it (`blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json`) and build the spec **on top of that draft**: keep every module and every criterion (`source` tag), add what the prompt asks for beyond it, adapt the wording. Only modules the user explicitly does not want may be left out — via `--exclude "<module>=<the user's reason>"`.
+
 2. **Analyze the prompt** — Extract:
    - `app_type`: the category (web-app, mobile-web, api, dashboard, ecommerce, saas, game, tool)
    - `features`: array of required features (e.g. ["auth", "dashboard", "real-time", "payments"])
@@ -150,7 +156,7 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    SPEC
    ```
 
-5. **Validate the acceptance criteria** — the build must not start with an untestable spec:
+5. **Validate the acceptance criteria** — the build must not start with an untestable spec (with a blueprint, also run `python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json`; it fails when a blueprint module or criterion was dropped):
    ```bash
    python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
    ```

@@ -1,0 +1,84 @@
+{
+  "id": "invoicing",
+  "name": "Rechnungen & Angebote",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["rechnung", "rechnungen", "rechnungsprogramm", "rechnungssoftware", "faktura", "fakturierung", "invoicing", "invoice", "buchhaltung light", "angebote und rechnungen", "lexoffice", "sevdesk"],
+  "summary": "Kunden, Artikel, Angebote und Rechnungen mit fortlaufender Nummer, PDF, Versand, Zahlungsstatus und Mahnwesen nach deutschen Anforderungen.",
+  "roles": [
+    {"id": "admin", "name": "Inhaber", "can": "alles inkl. Firmendaten und Nummernkreise"},
+    {"id": "accountant", "name": "Buchhaltung", "can": "Rechnungen, Zahlungen, Exporte", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "Company", "fields": ["name", "address", "taxId", "vatId", "iban", "logo"], "tier": "mvp"},
+    {"name": "Customer", "fields": ["name", "address", "email", "vatId"], "tier": "mvp"},
+    {"name": "Item", "fields": ["name", "unit", "netPrice", "taxRate"], "tier": "mvp"},
+    {"name": "Invoice", "fields": ["number", "customerId", "date", "serviceDate", "dueDate", "lines", "net", "tax", "gross", "status(draft|sent|paid|overdue|cancelled)", "locked"], "tier": "mvp"},
+    {"name": "Payment", "fields": ["invoiceId", "amount", "date", "method"], "tier": "mvp"},
+    {"name": "Quote", "fields": ["number", "customerId", "lines", "validUntil", "status"], "tier": "pro"},
+    {"name": "Reminder", "fields": ["invoiceId", "level", "fee", "sentAt"], "tier": "pro"},
+    {"name": "RecurringInvoice", "fields": ["customerId", "lines", "interval", "nextDate"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung & Firmendaten", "tier": "mvp",
+     "features": ["Login", "Firmendaten, Steuernummer/USt-ID, Bankverbindung, Logo"],
+     "criteria": [
+       {"title": "Company data appears in the invoice PDF header and footer", "verification": "api", "steps": ["Save company name, address, VAT id and IBAN", "Download an invoice PDF"], "expected": ["PDF text contains the company name, VAT id and IBAN"]}
+     ]},
+    {"id": "customers-items", "name": "Kunden & Artikel", "tier": "mvp",
+     "features": ["Kundenstamm", "Artikel mit Einheit, Nettopreis und Steuersatz (19 %, 7 %, 0 %)"],
+     "criteria": [
+       {"title": "Item with 7 % tax is calculated with 7 % on an invoice", "verification": "e2e", "start": "/invoices/new", "requires_auth": true, "steps": ["Add item 'Buch' 20,00 net with 7 %"], "expected": ["Tax shows 1,40", "Gross shows 21,40"]}
+     ]},
+    {"id": "invoices", "name": "Rechnungen", "tier": "mvp",
+     "features": ["Fortlaufende, lückenlose Rechnungsnummer", "Pflichtangaben nach §14 UStG", "Netto/Steuer/Brutto je Steuersatz", "Entwurf → versendet: danach nicht mehr änderbar (nur Storno)"],
+     "criteria": [
+       {"title": "Finalising invoices assigns gap-free sequential numbers", "verification": "api", "steps": ["Create and finalise three invoices"], "expected": ["Numbers are consecutive without gaps (e.g. RE-2026-0001…0003)"]},
+       {"title": "Sent invoice cannot be edited — only cancelled", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Open a sent invoice"], "expected": ["Fields are read-only", "Button 'Stornieren' is available, 'Bearbeiten' is not"]},
+       {"title": "Invoice with 19 % and 7 % lines shows tax per rate", "verification": "e2e", "start": "/invoices/new", "requires_auth": true, "steps": ["Add one 100,00 line at 19 % and one 100,00 line at 7 %"], "expected": ["Tax 19 % shows 19,00", "Tax 7 % shows 7,00", "Gross shows 226,00"]}
+     ]},
+    {"id": "pdf-send", "name": "PDF & Versand", "tier": "mvp",
+     "features": ["Rechnung als PDF", "Versand per E-Mail mit PDF-Anhang", "Status 'versendet'"],
+     "criteria": [
+       {"title": "Sending an invoice e-mails the PDF and sets status 'Versendet'", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Open a finalised invoice", "Click 'Per E-Mail senden'"], "expected": ["Outbox contains a mail with a PDF attachment", "Status shows 'Versendet'"]}
+     ]},
+    {"id": "payments", "name": "Zahlungen & offene Posten", "tier": "mvp",
+     "features": ["Zahlung erfassen (auch Teilzahlung)", "Offene Posten und überfällige Rechnungen", "Status 'bezahlt' automatisch bei vollem Betrag"],
+     "criteria": [
+       {"title": "Partial then full payment moves the invoice to 'Bezahlt'", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Invoice of 119,00: record payment 50,00", "Record payment 69,00"], "expected": ["After the first payment 'Offen: 69,00'", "After the second the status is 'Bezahlt'"]}
+     ]},
+    {"id": "cancellation", "name": "Storno & Gutschrift", "tier": "pro",
+     "features": ["Stornorechnung mit eigener Nummer und Bezug", "Gutschrift"],
+     "criteria": [
+       {"title": "Cancelling an invoice creates a cancellation invoice referencing it", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Cancel a sent invoice"], "expected": ["A new document 'Stornorechnung zu <number>' with negative amounts exists", "The original shows status 'Storniert'"]}
+     ]},
+    {"id": "quotes", "name": "Angebote", "tier": "pro",
+     "features": ["Angebote mit Gültigkeit", "Angebot mit einem Klick in Rechnung umwandeln"],
+     "criteria": [
+       {"title": "Accepted quote converts into an invoice with the same lines", "verification": "e2e", "start": "/quotes", "requires_auth": true, "steps": ["Create a quote with two lines", "Click 'In Rechnung umwandeln'"], "expected": ["New invoice draft contains both lines and the customer"]}
+     ]},
+    {"id": "dunning", "name": "Mahnwesen", "tier": "pro",
+     "features": ["Zahlungserinnerung und Mahnstufen 1–3", "Mahngebühren", "Überfällige automatisch markiert"],
+     "criteria": [
+       {"title": "Overdue invoice can be reminded and records the reminder level", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Invoice due 10 days ago (seeded)", "Click 'Zahlungserinnerung senden'"], "expected": ["Outbox contains the reminder", "Invoice shows 'Mahnstufe 1'"]}
+     ]},
+    {"id": "exports", "name": "Exporte", "tier": "pro",
+     "features": ["CSV-/DATEV-Export für den Steuerberater", "Umsatzübersicht nach Monat"],
+     "criteria": [
+       {"title": "Export for a month contains every invoice of that month", "verification": "e2e", "start": "/exports", "requires_auth": true, "steps": ["Choose last month", "Click 'Export erstellen'"], "expected": ["Downloaded CSV has one row per invoice of that month with number, date, net, tax, gross"]}
+     ]},
+    {"id": "e-invoice", "name": "E-Rechnung & Wiederkehrende Rechnungen", "tier": "enterprise",
+     "features": ["E-Rechnung (ZUGFeRD / XRechnung)", "Wiederkehrende Rechnungen (monatlich)", "Online-Zahlung per Link"],
+     "criteria": [
+       {"title": "E-invoice download contains the structured XML", "verification": "api", "steps": ["GET the XRechnung export of an invoice"], "expected": ["Status 200", "XML contains invoice number, seller VAT id and gross total"]},
+       {"title": "Recurring invoice job creates the next invoice on its date", "verification": "api", "steps": ["Recurring monthly invoice due today", "Trigger the recurring job (test mode)"], "expected": ["A new invoice draft exists", "Next date moved one month ahead"]}
+     ]}
+  ],
+  "non_functional": [
+    {"tier": "mvp", "text": "Geldbeträge als Ganzzahl in Cent gespeichert, Rundung je Steuersatz kaufmännisch"},
+    {"tier": "mvp", "text": "Versendete Rechnungen unveränderbar (GoBD), Änderungen nur per Storno"},
+    {"tier": "pro", "text": "Aufbewahrung: Rechnungen werden nie physisch gelöscht"}
+  ],
+  "production_dependencies": {"mvp": ["email"], "pro": ["email"], "enterprise": ["email", "stripe"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/customers", "/items", "/invoices", "/invoices/new", "/invoices/[id]", "/settings/company"], "pro": ["/quotes", "/exports"], "enterprise": ["/recurring"]}
+}

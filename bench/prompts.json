@@ -2,8 +2,21 @@
   "version": 1,
   "description": "Fixed prompts for OneCommand benchmark runs. 'core' runs on every plugin change, 'extended' covers the non-web build types.",
   "sets": {
-    "core": ["notes", "shop", "team-tasks"],
-    "extended": ["notes", "shop", "team-tasks", "booking", "habit-mobile", "platformer", "server-os"]
+    "core": [
+      "notes",
+      "shop",
+      "team-tasks"
+    ],
+    "extended": [
+      "notes",
+      "shop",
+      "team-tasks",
+      "crm-enterprise",
+      "booking",
+      "habit-mobile",
+      "platformer",
+      "server-os"
+    ]
   },
   "prompts": [
     {
@@ -20,6 +33,12 @@
       "id": "team-tasks",
       "type": "web",
       "prompt": "Team-Aufgabenverwaltung: Workspaces mit Einladung per E-Mail, Rollen Owner/Member, Projekte mit Kanban-Board (To do, In Arbeit, Erledigt), Aufgaben zuweisen, Fälligkeitsdatum, Kommentare."
+    },
+    {
+      "id": "crm-enterprise",
+      "type": "web",
+      "prompt": "CRM auf höchstem Niveau",
+      "notes": "Deliberately short: the crm blueprint (enterprise tier) must supply the feature set."
     },
     {
       "id": "booking",

@@ -1,0 +1,77 @@
+{
+  "id": "helpdesk",
+  "name": "Helpdesk / Ticketsystem",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["helpdesk", "ticketsystem", "ticket-system", "support-system", "kundensupport", "service desk", "servicedesk", "zendesk", "freshdesk", "support tickets", "störungsmeldung"],
+  "summary": "Kundenanfragen als Tickets mit Status, Priorität, Zuweisung, Antworten, SLA und Wissensdatenbank.",
+  "roles": [
+    {"id": "admin", "name": "Admin", "can": "alles inkl. Teams, SLA, Einstellungen"},
+    {"id": "agent", "name": "Support-Mitarbeiter", "can": "Tickets bearbeiten und beantworten"},
+    {"id": "customer", "name": "Kunde", "can": "eigene Tickets erstellen und sehen"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "role", "teamId"], "tier": "mvp"},
+    {"name": "Ticket", "fields": ["number", "subject", "status(open|pending|solved|closed)", "priority(low|normal|high|urgent)", "requesterId", "assigneeId", "teamId", "createdAt", "firstResponseAt", "solvedAt"], "tier": "mvp"},
+    {"name": "Message", "fields": ["ticketId", "authorId", "body", "internal", "attachments"], "tier": "mvp"},
+    {"name": "Team", "fields": ["name"], "tier": "pro"},
+    {"name": "SlaPolicy", "fields": ["priority", "firstResponseMinutes", "resolutionMinutes"], "tier": "pro"},
+    {"name": "Macro", "fields": ["name", "body", "actions"], "tier": "pro"},
+    {"name": "Article", "fields": ["title", "body", "category", "published"], "tier": "pro"},
+    {"name": "Rating", "fields": ["ticketId", "score", "comment"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung", "tier": "mvp",
+     "features": ["Login für Mitarbeiter und Kunden", "Kunden sehen nur eigene Tickets"],
+     "criteria": [
+       {"title": "Customer cannot open another customer's ticket", "verification": "api", "steps": ["As customer B GET /api/tickets/<id of A's ticket>"], "expected": ["Status 404"]}
+     ]},
+    {"id": "tickets", "name": "Tickets", "tier": "mvp",
+     "features": ["Ticket per Formular erstellen", "Fortlaufende Ticketnummer", "Status, Priorität, Zuweisung", "Listen: Meine, Nicht zugewiesen, Alle offenen"],
+     "criteria": [
+       {"title": "Customer creates a ticket and receives its number", "verification": "e2e", "start": "/support/new", "requires_auth": true, "steps": ["Fill subject 'Login geht nicht' and description", "Click 'Anfrage senden'"], "expected": ["Page shows 'Ticket #<n> erstellt'", "Ticket appears under 'Nicht zugewiesen' for agents"]},
+       {"title": "Agent assigns a ticket to themselves and it moves to 'Meine Tickets'", "verification": "e2e", "start": "/tickets", "requires_auth": true, "steps": ["Open an unassigned ticket", "Click 'Mir zuweisen'"], "expected": ["Ticket is listed under 'Meine Tickets'"]}
+     ]},
+    {"id": "conversation", "name": "Antworten & interne Notizen", "tier": "mvp",
+     "features": ["Öffentliche Antwort benachrichtigt den Kunden per E-Mail", "Interne Notizen sind für Kunden unsichtbar", "Anhänge"],
+     "criteria": [
+       {"title": "Public reply e-mails the customer; internal note stays hidden", "verification": "e2e", "start": "/tickets", "requires_auth": true, "steps": ["Agent posts reply 'Bitte Cache leeren'", "Agent adds internal note 'Bug #123'", "Customer opens the ticket"], "expected": ["Outbox contains the reply to the customer", "Customer sees the reply but not 'Bug #123'"]}
+     ]},
+    {"id": "status-flow", "name": "Status & Lösung", "tier": "mvp",
+     "features": ["Offen → Wartend → Gelöst → Geschlossen", "Antwort des Kunden öffnet gelöstes Ticket wieder"],
+     "criteria": [
+       {"title": "Customer reply reopens a solved ticket", "verification": "e2e", "start": "/tickets", "requires_auth": true, "steps": ["Agent marks a ticket 'Gelöst'", "Customer replies 'Geht immer noch nicht'"], "expected": ["Ticket status is 'Offen' again"]}
+     ]},
+    {"id": "email-channel", "name": "E-Mail-Kanal", "tier": "pro",
+     "features": ["Eingehende Mails erzeugen Tickets", "Antworten per Mail landen im richtigen Ticket"],
+     "criteria": [
+       {"title": "Inbound mail creates a ticket; a reply with the ticket number is threaded", "verification": "api", "steps": ["POST an inbound test mail", "POST a second mail with '[#<n>]' in the subject"], "expected": ["One ticket exists with two messages"]}
+     ]},
+    {"id": "sla", "name": "SLA & Eskalation", "tier": "pro",
+     "features": ["Reaktions- und Lösungszeit je Priorität", "Ablaufende SLAs hervorgehoben", "Eskalation an Teamleitung"],
+     "criteria": [
+       {"title": "Urgent ticket without response past its SLA is flagged 'SLA verletzt'", "verification": "e2e", "start": "/tickets", "requires_auth": true, "steps": ["SLA urgent: first response 60 min", "Ticket created 90 minutes ago without response (seeded)"], "expected": ["Ticket shows badge 'SLA verletzt'"]}
+     ]},
+    {"id": "macros", "name": "Textbausteine & Teams", "tier": "pro",
+     "features": ["Textbausteine mit Platzhaltern", "Teams und Zuweisung nach Kategorie"],
+     "criteria": [
+       {"title": "Applying a macro inserts text with the customer's name", "verification": "e2e", "start": "/tickets", "requires_auth": true, "steps": ["Create macro 'Danke' with 'Hallo {{name}}'", "Apply it in a ticket of 'Lena'"], "expected": ["Reply editor contains 'Hallo Lena'"]}
+     ]},
+    {"id": "knowledge-base", "name": "Wissensdatenbank", "tier": "pro",
+     "features": ["Öffentliche Artikel mit Suche", "Artikelvorschläge beim Erstellen eines Tickets"],
+     "criteria": [
+       {"title": "Published article is found by the public search", "verification": "e2e", "start": "/help", "requires_auth": false, "steps": ["Publish article 'Passwort zurücksetzen'", "Search 'Passwort' on /help"], "expected": ["The article is listed"]}
+     ]},
+    {"id": "reporting", "name": "Auswertungen & Zufriedenheit", "tier": "enterprise",
+     "features": ["Erste Reaktionszeit, Lösungszeit, Tickets pro Agent", "Zufriedenheitsumfrage nach Lösung"],
+     "criteria": [
+       {"title": "Report shows median first response time of the period", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Seed three tickets with first responses after 10, 20, 30 minutes", "Open 'Reaktionszeit'"], "expected": ["Median shows 20 min"]}
+     ]}
+  ],
+  "non_functional": [
+    {"tier": "mvp", "text": "Ticketlisten paginiert, Filter in der URL teilbar"},
+    {"tier": "pro", "text": "Anhänge virengeprüft oder auf erlaubte Typen beschränkt, max. Größe konfigurierbar"}
+  ],
+  "production_dependencies": {"mvp": ["email"], "pro": ["email", "storage"], "enterprise": ["email", "storage"]},
+  "pages": {"mvp": ["/login", "/support/new", "/support/tickets", "/tickets", "/tickets/[id]"], "pro": ["/help", "/help/[slug]", "/settings/sla", "/settings/macros"], "enterprise": ["/reports"]}
+}

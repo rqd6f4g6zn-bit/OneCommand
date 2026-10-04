@@ -2,9 +2,16 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
-## [1.5.1] — 2026-10-04
+## [1.6.0] — 2026-10-04
 
 ### Added
+- **Domain blueprints** (`skills/domain-blueprints`, `hooks/blueprint.py`): structured domain knowledge
+  for CRM, online shop, appointment booking, helpdesk, project management and invoicing — modules,
+  entities, roles, pages and concrete acceptance criteria in three cumulative tiers (mvp / pro /
+  enterprise). A short prompt like "CRM auf höchstem Niveau" is detected as `crm` · `enterprise` and
+  expanded into 22 modules with 43 acceptance criteria. spec-analyzer builds on the draft; `check`
+  fails when a blueprint module or criterion is dropped (modules may only be excluded with the user's
+  reason). The delivery report states the tier and any excluded modules.
 - **Benchmark** (`bench/run.py`, `bench/prompts.json`): builds fixed prompts headless with the plugin
   under test and scores each build from OneCommand's own artefacts (gate verdict, acceptance ratio,
   phases completed) plus wall time, cost, agent and gate-run counts. `compare` flags regressions

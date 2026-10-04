@@ -198,6 +198,7 @@ This loads all past learnings, finds similar past projects, detects if Codex is 
 
 Then invoke the `spec-analyzer` skill with: $ARGUMENTS (pass `OC_ROOT` so it can run the validator).
 The spec MUST contain `acceptance_criteria` — the definition of done that Phase 4 verifies with real browser tests.
+For known system types (CRM, shop, booking, helpdesk, project management, invoicing) spec-analyzer starts from a **domain blueprint** (`domain-blueprints` skill): a short prompt gets the complete professional feature set of its tier (mvp / pro / enterprise — "höchstes Niveau" selects enterprise).
 
 Then invoke the `stack-detector` skill.
 
@@ -223,6 +224,12 @@ Gate the spec — the build does not start with untestable requirements:
 python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
 ```
 Exit 1 → fix the reported criteria in `.onecommand-spec.json` and validate again (max 3 rounds). Do not continue to Phase 2 with an invalid spec.
+
+If the spec has a `blueprint`, it must still cover it — no module or blueprint criterion silently dropped:
+```bash
+python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json
+```
+Report the tier and module count to the user in the Phase 1 summary (e.g. "CRM · enterprise · 22 Module · 43 Kriterien").
 
 Verify `.onecommand-spec.json` was created:
 ```bash

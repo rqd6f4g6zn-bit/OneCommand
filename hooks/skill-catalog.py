@@ -52,6 +52,7 @@ PHASE_NAMES = {
 #   /oc-resume, /oc-save and the orchestrator itself, never handed to phase agents)
 BUNDLED: dict[str, dict[str, Any]] = {
     "spec-analyzer":           {"phases": [1], "when": "always", "use": "prompt → spec with acceptance criteria"},
+    "domain-blueprints":       {"phases": [1], "when": "always", "use": "domain knowledge (CRM, shop, …) so short prompts get the full feature set"},
     "stack-detector":          {"phases": [1], "when": "always", "use": "confirm or detect the tech stack"},
     "brain-core":              {"phases": [1, 7], "when": "always", "use": "memory recall at start, reflection at end (via brain-agent)"},
     "context-manager":         {"phases": [], "when": "support", "use": "context compression helpers — checkpoints are written by hooks/checkpoint.py"},

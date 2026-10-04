@@ -46,6 +46,14 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
   results (test titles start with `AC-###`) onto them. A missing test counts as a failure.
 - Exit codes: 0 passed · 1 failed · 2 usage error · 3 not applicable (no package.json).
 
+## Domain Blueprints
+
+`skills/domain-blueprints/blueprints/<id>.json` (crm, shop, booking, helpdesk, projects, invoicing)
+hold modules, entities, roles, pages and acceptance criteria per tier (mvp ⊂ pro ⊂ enterprise).
+`hooks/blueprint.py detect|expand|check`: spec-analyzer expands the matching blueprint and builds the
+spec on top; `check` fails when a module or a blueprint criterion (`source` tag) is dropped. New
+blueprints: add a JSON file — `tests/test_blueprint.py` validates schema and every tier expansion.
+
 ## Skill Plan
 
 `hooks/skill-catalog.py` makes every build consider every skill. `scan` discovers bundled skills

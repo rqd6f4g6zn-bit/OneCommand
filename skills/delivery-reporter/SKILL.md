@@ -118,6 +118,13 @@ Create `ONECOMMAND-DELIVERY.md` with this content (substitute actual values):
 
 ---
 
+## Scope
+
+<only when .onecommand-spec.json has a "blueprint": "Built as <blueprint name> · tier <tier> · <N> modules";
+list excluded modules with the user's reason from blueprint.excluded_modules; otherwise omit this section>
+
+---
+
 ## Acceptance Verification
 
 <paste the full content of .onecommand/gate/acceptance.md here>

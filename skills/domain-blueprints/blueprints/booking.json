@@ -1,0 +1,87 @@
+{
+  "id": "booking",
+  "name": "Terminbuchung",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["terminbuchung", "termin buchen", "online-buchung", "buchungssystem", "terminvereinbarung", "terminplaner", "booking", "appointment", "reservierung", "calendly", "friseur", "praxis", "salon"],
+  "summary": "Dienstleistungen mit Dauer, freie Zeitslots pro Mitarbeiter, Online-Buchung mit Bestätigung, Stornierung und Kalenderansicht für den Betrieb.",
+  "roles": [
+    {"id": "admin", "name": "Inhaber", "can": "Dienstleistungen, Mitarbeiter, Öffnungszeiten, alle Termine"},
+    {"id": "staff", "name": "Mitarbeiter", "can": "eigene Termine und Abwesenheiten"},
+    {"id": "customer", "name": "Kunde", "can": "buchen, umbuchen, stornieren"}
+  ],
+  "entities": [
+    {"name": "Service", "fields": ["name", "durationMinutes", "price", "bufferMinutes", "active"], "tier": "mvp"},
+    {"name": "Staff", "fields": ["name", "email", "serviceIds", "color"], "tier": "mvp"},
+    {"name": "WorkingHours", "fields": ["staffId", "weekday", "start", "end"], "tier": "mvp"},
+    {"name": "Booking", "fields": ["serviceId", "staffId", "start", "end", "customerName", "customerEmail", "customerPhone", "status(confirmed|cancelled|no_show)", "cancelToken"], "tier": "mvp"},
+    {"name": "TimeOff", "fields": ["staffId", "start", "end", "reason"], "tier": "pro"},
+    {"name": "Customer", "fields": ["name", "email", "phone", "notes", "bookingCount"], "tier": "pro"},
+    {"name": "Location", "fields": ["name", "address", "timezone"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung für den Betrieb", "tier": "mvp",
+     "features": ["Login für Inhaber und Mitarbeiter", "Kunden buchen ohne Konto"],
+     "criteria": [
+       {"title": "Unauthenticated access to /admin/calendar redirects to /login", "verification": "e2e", "start": "/admin/calendar", "requires_auth": false, "steps": ["Open /admin/calendar without a session"], "expected": ["URL is /login"]}
+     ]},
+    {"id": "services", "name": "Dienstleistungen & Mitarbeiter", "tier": "mvp",
+     "features": ["Dienstleistungen mit Dauer, Preis, Puffer", "Mitarbeiter mit Arbeitszeiten und angebotenen Leistungen"],
+     "criteria": [
+       {"title": "New service is offered on the public booking page", "verification": "e2e", "start": "/admin/services", "requires_auth": true, "steps": ["Create service 'Herrenschnitt', 30 min, 28 €", "Open /book"], "expected": ["'Herrenschnitt · 30 min · 28 €' is listed"]}
+     ]},
+    {"id": "availability", "name": "Freie Zeitslots", "tier": "mvp",
+     "features": ["Slots aus Arbeitszeit minus Termine minus Puffer", "Keine Slots in der Vergangenheit", "Mitarbeiter wählbar oder 'egal'"],
+     "criteria": [
+       {"title": "A booked slot is no longer offered", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Book 'Herrenschnitt' tomorrow 10:00 with Anna", "Open the same day again"], "expected": ["10:00 is not offered for Anna"]},
+       {"title": "Slots respect service duration and working hours", "verification": "api", "steps": ["Anna works 09:00–12:00; GET slots for a 60 min service"], "expected": ["Last offered slot starts at 11:00"]}
+     ]},
+    {"id": "booking-flow", "name": "Online-Buchung", "tier": "mvp",
+     "features": ["Leistung → Mitarbeiter → Datum/Uhrzeit → Kontaktdaten → Bestätigung", "Bestätigungs-E-Mail mit Storno-Link", "Doppelbuchung ausgeschlossen (auch bei gleichzeitigen Anfragen)"],
+     "criteria": [
+       {"title": "Customer books and receives a confirmation mail with a cancel link", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Choose a service, staff and slot", "Fill name and e-mail", "Click 'Verbindlich buchen'"], "expected": ["Page shows 'Termin bestätigt'", "Outbox contains a mail with date, time and a cancel link"]},
+       {"title": "Two simultaneous bookings for the same slot: exactly one succeeds", "verification": "api", "steps": ["Send two booking requests for the same staff and slot in parallel"], "expected": ["One returns 201, the other 409"]}
+     ]},
+    {"id": "cancel", "name": "Stornieren & Umbuchen", "tier": "mvp",
+     "features": ["Storno über Link bis X Stunden vorher", "Slot wird wieder frei"],
+     "criteria": [
+       {"title": "Cancel link frees the slot again", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Open the cancel link from the confirmation mail", "Click 'Termin stornieren'", "Open the booking page for that day"], "expected": ["Text 'Termin storniert' is visible", "The slot is offered again"]}
+     ]},
+    {"id": "calendar", "name": "Kalender für den Betrieb", "tier": "mvp",
+     "features": ["Tages- und Wochenansicht je Mitarbeiter", "Termine manuell anlegen (Telefonbuchung)", "Termin verschieben"],
+     "criteria": [
+       {"title": "Online booking appears in the staff member's day view", "verification": "e2e", "start": "/admin/calendar", "requires_auth": true, "steps": ["A customer books Anna tomorrow 10:00", "Open the calendar day view for tomorrow"], "expected": ["Anna's column shows the booking at 10:00 with the customer name"]}
+     ]},
+    {"id": "time-off", "name": "Abwesenheiten & Feiertage", "tier": "pro",
+     "features": ["Urlaub/Krankheit blockiert Slots", "Betriebsferien"],
+     "criteria": [
+       {"title": "Time off removes the staff member's slots for that day", "verification": "e2e", "start": "/admin/staff", "requires_auth": true, "steps": ["Enter time off for Anna tomorrow", "Open the booking page for tomorrow"], "expected": ["No slots are offered for Anna"]}
+     ]},
+    {"id": "reminders", "name": "Erinnerungen", "tier": "pro",
+     "features": ["Erinnerung 24 h vorher per E-Mail (optional SMS)"],
+     "criteria": [
+       {"title": "Reminder job sends a mail for bookings in 24 hours", "verification": "api", "steps": ["Create a booking 24 h ahead", "Trigger the reminder job endpoint (test mode)"], "expected": ["Outbox contains one reminder for that booking"]}
+     ]},
+    {"id": "customers", "name": "Kundenkartei", "tier": "pro",
+     "features": ["Kundenhistorie", "Notizen", "No-Show markieren"],
+     "criteria": [
+       {"title": "Customer card lists all past bookings", "verification": "e2e", "start": "/admin/customers", "requires_auth": true, "steps": ["Same e-mail books twice", "Open the customer"], "expected": ["Both bookings are listed"]}
+     ]},
+    {"id": "payments", "name": "Anzahlung & Online-Zahlung", "tier": "enterprise",
+     "features": ["Anzahlung bei Buchung (Stripe)", "Storno-Gebühr"],
+     "criteria": [
+       {"title": "Service with deposit requires payment before confirmation", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Book a service with 10 € deposit", "Pay with the test card"], "expected": ["Booking is confirmed only after payment"]}
+     ]},
+    {"id": "multi-location", "name": "Mehrere Standorte", "tier": "enterprise",
+     "features": ["Standorte mit eigener Zeitzone und eigenem Team", "Kalender-Sync (Google/Outlook)"],
+     "criteria": [
+       {"title": "Location filter shows only that location's staff", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Choose location 'Mitte'"], "expected": ["Only staff of 'Mitte' are offered"]}
+     ]}
+  ],
+  "non_functional": [
+    {"tier": "mvp", "text": "Alle Zeiten in der Zeitzone des Betriebs gespeichert und angezeigt"},
+    {"tier": "mvp", "text": "Buchung auf dem Handy in unter einer Minute möglich"}
+  ],
+  "production_dependencies": {"mvp": ["email"], "pro": ["email"], "enterprise": ["email", "stripe", "oauth"]},
+  "pages": {"mvp": ["/book", "/book/confirmed", "/cancel/[token]", "/login", "/admin/calendar", "/admin/services", "/admin/staff"], "pro": ["/admin/customers"], "enterprise": ["/admin/locations"]}
+}

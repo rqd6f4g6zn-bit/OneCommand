@@ -1,0 +1,110 @@
+{
+  "id": "shop",
+  "name": "Online-Shop (E-Commerce)",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["shop", "online-shop", "onlineshop", "webshop", "e-commerce", "ecommerce", "store", "warenkorb", "produktkatalog", "shopify", "woocommerce", "verkaufsplattform"],
+  "summary": "Produktkatalog, Warenkorb, Checkout mit Zahlung, Kundenkonto und Bestellverwaltung für einen Händler.",
+  "roles": [
+    {"id": "admin", "name": "Shop-Admin", "can": "Produkte, Bestellungen, Kunden, Einstellungen"},
+    {"id": "customer", "name": "Kunde", "can": "einkaufen, eigene Bestellungen sehen"},
+    {"id": "staff", "name": "Mitarbeiter", "can": "Bestellungen bearbeiten, keine Einstellungen", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["email", "passwordHash", "role", "name"], "tier": "mvp"},
+    {"name": "Product", "fields": ["name", "slug", "description", "price", "compareAtPrice", "images", "categoryId", "stock", "active"], "tier": "mvp"},
+    {"name": "Category", "fields": ["name", "slug", "parentId"], "tier": "mvp"},
+    {"name": "Cart", "fields": ["userId|sessionId", "items"], "tier": "mvp"},
+    {"name": "Order", "fields": ["number", "userId", "items", "subtotal", "shipping", "tax", "total", "status(pending|paid|shipped|cancelled|refunded)", "shippingAddress", "paymentId"], "tier": "mvp"},
+    {"name": "Address", "fields": ["userId", "name", "street", "zip", "city", "country"], "tier": "mvp"},
+    {"name": "Variant", "fields": ["productId", "options", "sku", "price", "stock"], "tier": "pro"},
+    {"name": "Coupon", "fields": ["code", "type(percent|fixed)", "value", "validUntil", "maxUses"], "tier": "pro"},
+    {"name": "Review", "fields": ["productId", "userId", "rating", "text", "approved"], "tier": "pro"},
+    {"name": "ShippingRate", "fields": ["country", "price", "freeFrom"], "tier": "pro"},
+    {"name": "Warehouse", "fields": ["name", "stockLevels"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Kundenkonto", "tier": "mvp",
+     "features": ["Registrierung und Login", "Gastbestellung ohne Konto", "Passwort zurücksetzen"],
+     "criteria": [
+       {"title": "Customer registers and sees 'Mein Konto'", "verification": "e2e", "start": "/register", "requires_auth": false, "steps": ["Fill e-mail and password", "Click 'Konto erstellen'"], "expected": ["URL is /account", "Heading 'Mein Konto' is visible"]},
+       {"title": "GET /api/admin/orders as a customer returns 403", "verification": "api", "steps": ["Log in as customer", "GET /api/admin/orders"], "expected": ["Status 403"]}
+     ]},
+    {"id": "catalog", "name": "Produktkatalog", "tier": "mvp",
+     "features": ["Kategorien", "Produktliste mit Filter und Sortierung (Preis, Neuheit)", "Produktdetail mit Bildern", "Suche", "Ausverkauft-Kennzeichnung"],
+     "criteria": [
+       {"title": "Category filter and price sort order the product list", "verification": "e2e", "start": "/products", "requires_auth": false, "steps": ["Choose category 'Espresso'", "Sort by 'Preis aufsteigend'"], "expected": ["Only Espresso products are listed", "Prices are ascending"]},
+       {"title": "Sold-out product shows 'Ausverkauft' and cannot be added to the cart", "verification": "e2e", "start": "/products", "requires_auth": false, "steps": ["Open a product with stock 0"], "expected": ["Text 'Ausverkauft' is visible", "Button 'In den Warenkorb' is disabled"]}
+     ]},
+    {"id": "cart", "name": "Warenkorb", "tier": "mvp",
+     "features": ["Hinzufügen, Menge ändern, entfernen", "Zwischensumme, Versand, Gesamt", "Warenkorb bleibt nach Reload erhalten"],
+     "criteria": [
+       {"title": "Cart total updates when the quantity changes and survives reload", "verification": "e2e", "start": "/products", "requires_auth": false, "steps": ["Add a 12,90 product to the cart", "Set quantity to 2", "Reload"], "expected": ["Subtotal shows 25,80", "Quantity is still 2 after reload"]}
+     ]},
+    {"id": "checkout", "name": "Checkout & Zahlung", "tier": "mvp",
+     "features": ["Adresse, Versandart, Zahlung (Stripe)", "Bestellbestätigung per E-Mail", "Bestand wird reduziert", "Preise serverseitig berechnet"],
+     "criteria": [
+       {"title": "Checkout with test payment creates a paid order and sends a confirmation", "verification": "e2e", "start": "/cart", "requires_auth": false, "steps": ["Click 'Zur Kasse'", "Fill address", "Pay with the test card"], "expected": ["Page shows 'Vielen Dank für Ihre Bestellung' with an order number", "Outbox contains the confirmation mail", "Order status is 'bezahlt'"]},
+       {"title": "Manipulated client price is ignored — the server total is charged", "verification": "api", "steps": ["POST checkout with a cart item price of 0,01"], "expected": ["Order total equals the catalogue price"]},
+       {"title": "Paid order reduces product stock", "verification": "api", "steps": ["Note stock of a product", "Complete an order of 2 units"], "expected": ["Stock is 2 lower"]}
+     ]},
+    {"id": "orders", "name": "Bestellungen", "tier": "mvp",
+     "features": ["Kunde sieht eigene Bestellungen und Status", "Admin: Bestellliste, Status ändern (versendet mit Tracking)", "Versandbenachrichtigung"],
+     "criteria": [
+       {"title": "Admin marks an order shipped and the customer sees status 'Versendet'", "verification": "e2e", "start": "/admin/orders", "requires_auth": true, "steps": ["Open a paid order", "Enter tracking number, click 'Als versendet markieren'", "Log in as the customer and open 'Meine Bestellungen'"], "expected": ["Order shows 'Versendet' with the tracking number"]},
+       {"title": "Customer cannot open another customer's order", "verification": "api", "steps": ["As customer B GET /api/orders/<id of A's order>"], "expected": ["Status 404"]}
+     ]},
+    {"id": "admin-products", "name": "Produktverwaltung", "tier": "mvp",
+     "features": ["Produkte anlegen, bearbeiten, deaktivieren", "Bilder hochladen", "Bestand pflegen"],
+     "criteria": [
+       {"title": "Product created in the admin is visible in the shop", "verification": "e2e", "start": "/admin/products", "requires_auth": true, "steps": ["Create product 'Hausmischung' 9,90, stock 10, active", "Open /products"], "expected": ["'Hausmischung' is listed with 9,90"]}
+     ]},
+    {"id": "variants", "name": "Varianten", "tier": "pro",
+     "features": ["Varianten (Größe, Mahlgrad) mit eigenem Preis und Bestand"],
+     "criteria": [
+       {"title": "Choosing a variant changes price and adds that variant to the cart", "verification": "e2e", "start": "/products", "requires_auth": false, "steps": ["Open a product with variants 250 g / 1 kg", "Choose '1 kg', add to cart"], "expected": ["Price shows the 1 kg price", "Cart line says '1 kg'"]}
+     ]},
+    {"id": "coupons", "name": "Gutscheine & Rabatte", "tier": "pro",
+     "features": ["Prozent- und Festbetrag-Gutscheine", "Gültigkeit und Nutzungslimit"],
+     "criteria": [
+       {"title": "Valid 10 % coupon reduces the total; expired coupon is rejected", "verification": "e2e", "start": "/cart", "requires_auth": false, "steps": ["Apply code 'KAFFEE10' to a 50,00 cart", "Apply an expired code"], "expected": ["Total shows 45,00", "Text 'Gutschein ungültig oder abgelaufen' for the expired code"]}
+     ]},
+    {"id": "shipping-tax", "name": "Versand & Steuern", "tier": "pro",
+     "features": ["Versandkosten nach Land, versandkostenfrei ab Betrag", "MwSt. ausgewiesen", "Rechnung als PDF"],
+     "criteria": [
+       {"title": "Shipping is free above the threshold", "verification": "e2e", "start": "/cart", "requires_auth": false, "steps": ["Cart of 39,00 with threshold 40,00", "Add items to reach 41,00"], "expected": ["Shipping is charged at 39,00", "Shipping shows 0,00 at 41,00"]}
+     ]},
+    {"id": "reviews", "name": "Bewertungen", "tier": "pro",
+     "features": ["Kunden bewerten gekaufte Produkte", "Freigabe durch Admin", "Durchschnitt auf der Produktseite"],
+     "criteria": [
+       {"title": "Approved review updates the product's average rating", "verification": "e2e", "start": "/admin/reviews", "requires_auth": true, "steps": ["Customer submits 4 stars for a bought product", "Admin approves it"], "expected": ["Product page shows the review and the new average"]}
+     ]},
+    {"id": "refunds", "name": "Stornos & Erstattungen", "tier": "pro",
+     "features": ["Bestellung stornieren", "Erstattung über den Zahlungsanbieter", "Bestand zurückbuchen"],
+     "criteria": [
+       {"title": "Refunding an order sets status 'erstattet' and restores stock", "verification": "api", "steps": ["Refund a paid order of 2 units via the admin API"], "expected": ["Order status is 'erstattet'", "Stock is 2 higher"]}
+     ]},
+    {"id": "analytics", "name": "Shop-Auswertungen", "tier": "enterprise",
+     "features": ["Umsatz, Bestellungen, Warenkorbwert, Top-Produkte nach Zeitraum", "Abbruchquote im Checkout"],
+     "criteria": [
+       {"title": "Revenue report sums paid orders of the period", "verification": "e2e", "start": "/admin/reports", "requires_auth": true, "steps": ["Two paid orders of 20,00 and 30,00 today, one cancelled", "Open 'Umsatz', period 'Heute'"], "expected": ["Revenue shows 50,00"]}
+     ]},
+    {"id": "multi-warehouse", "name": "Mehrere Lager & Marktplätze", "tier": "enterprise",
+     "features": ["Bestand je Lager", "Export für Marktplätze (Feed)"],
+     "criteria": [
+       {"title": "Product feed lists active products with price and availability", "verification": "api", "steps": ["GET /api/feed/products.xml"], "expected": ["Status 200", "Each active product appears with price and availability"]}
+     ]}
+  ],
+  "non_functional": [
+    {"tier": "mvp", "text": "Preise, Steuern und Bestand werden ausschließlich serverseitig berechnet"},
+    {"tier": "mvp", "text": "Produktseiten serverseitig gerendert mit Meta-Tags (SEO)"},
+    {"tier": "pro", "text": "Rechtstexte: Impressum, AGB, Widerruf, Datenschutz verlinkt im Footer und im Checkout"},
+    {"tier": "enterprise", "text": "Lighthouse Performance ≥ 90 auf Produktliste und Produktseite"}
+  ],
+  "production_dependencies": {"mvp": ["stripe", "email"], "pro": ["stripe", "email", "storage"], "enterprise": ["stripe", "email", "storage"]},
+  "pages": {
+    "mvp": ["/", "/products", "/products/[slug]", "/cart", "/checkout", "/checkout/success", "/login", "/register", "/account", "/account/orders", "/admin/products", "/admin/orders"],
+    "pro": ["/admin/coupons", "/admin/reviews", "/admin/shipping"],
+    "enterprise": ["/admin/reports"]
+  }
+}

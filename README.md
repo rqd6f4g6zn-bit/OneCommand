@@ -73,6 +73,25 @@ bash hooks/quality-gate.sh --stage all --project-dir ~/Desktop/MyApp
 # → .onecommand/gate/result.json, errors.txt, acceptance.md
 ```
 
+## Knows the Domain
+
+Short prompts are enough for common business systems. OneCommand ships domain blueprints for
+**CRM, online shop, appointment booking, helpdesk, project management and invoicing** — what a
+professional expects from each, as modules with concrete acceptance criteria:
+
+| Prompt says | Tier | Example: CRM |
+|---|---|---|
+| "MVP", "erste Version", "einfaches CRM" | mvp | 7 modules · 20 criteria |
+| nothing about scope | pro | 16 modules · 36 criteria (roles, leads, import, reports, e-mail, GDPR …) |
+| "höchstes Niveau", "Enterprise", "wie Salesforce" | enterprise | 22 modules · 43 criteria (+ automations, API, SSO, multi-tenancy …) |
+
+```bash
+/onecommand "CRM auf höchstem Niveau"
+```
+
+Anything you add to the prompt is built on top; modules you explicitly don't want are left out and
+noted in the delivery report.
+
 ## Uses Every Skill You Have
 
 Phase 1 builds a skill plan from **all** available skills — OneCommand's bundled ones and every

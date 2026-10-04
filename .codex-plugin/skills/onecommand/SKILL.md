@@ -105,7 +105,12 @@ EOF
 
 Apply relevant learnings before generating — pre-empt known errors from any previous build.
 
-Use the `onecommand-spec-analyzer` skill with the project prompt.
+Use the `onecommand-spec-analyzer` skill with the project prompt. For known system types it starts from a domain blueprint so a short prompt gets the full professional feature set:
+```bash
+python3 "$HOME/.codex/skills/onecommand/hooks/blueprint.py" detect --prompt "<user prompt>"
+# on a match: … blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json
+# build the spec on top of the draft, then: … blueprint.py check --spec .onecommand-spec.json
+```
 Then use the `onecommand-stack-detector` skill.
 
 Verify `.onecommand-spec.json` was created:
