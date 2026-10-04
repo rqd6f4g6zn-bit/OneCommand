@@ -273,7 +273,8 @@ stage_audit() {
   # audit exits non-zero whenever anything is found — the verdict comes from the JSON counts.
   with_timeout 180 "${cmd[@]}" > "$OUT_DIR/audit.json" 2> "$OUT_DIR/audit.log"
   end="$(date +%s)"
-  verdict="$(python3 - "$OUT_DIR/audit.json" "$AUDIT_LEVEL" << 'PYEOF2'
+  # Temp file instead of $( … ) around the heredoc: bash 3.2 (macOS) parses quotes inside it.
+  python3 - "$OUT_DIR/audit.json" "$AUDIT_LEVEL" > "$OUT_DIR/.audit-verdict" << 'PYEOF2'
 import json, sys
 path, level = sys.argv[1], sys.argv[2]
 try:
@@ -293,7 +294,8 @@ blocking = critical + (high if level == "high" else 0)
 state = "fail" if blocking else ("warn" if high else "pass")
 print(f"{state}\t{critical}\t{high}\t{', '.join(names)[:600]}")
 PYEOF2
-)"
+  verdict="$(cat "$OUT_DIR/.audit-verdict")"
+  rm -f "$OUT_DIR/.audit-verdict"
   local state critical high names
   IFS=$'\t' read -r state critical high names <<< "$verdict"
   case "$state" in
