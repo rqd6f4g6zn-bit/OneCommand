@@ -307,64 +307,15 @@ print(f"Memory updated: {len(data['patterns'])} patterns stored")
 EOF
 ```
 
-**Cross-agent skill evolution** — checks if any learning has 3+ confirmations and auto-patches skill files. Then syncs to Claude Code so it benefits too:
+**Cross-agent skill evolution** — promotes learnings confirmed 3+ times (by Codex and Claude Code together) into `~/.onecommand/memory/evolved_rules.md`, which both agents' self-healer loads before every healing round:
 
 ```bash
-python3 << 'EOF'
-import json, os, datetime, shutil
-
-memory_path = os.path.expanduser("~/.onecommand/memory/cross_learnings.json")
-plugin_root = None
-for c in ["/Users/g.urban/OneComand", os.path.expanduser("~/OneComand")]:
-    if os.path.isdir(os.path.join(c, "skills")):
-        plugin_root = c
-        break
-
-if os.path.exists(memory_path) and plugin_root:
-    try:
-        data = json.load(open(memory_path))
-    except:
-        data = {"version": "1.0", "learnings": []}
-
-    learnings = data.get("learnings", [])
-    ready = [l for l in learnings if l.get("confirmations", 0) >= 3 and not l.get("applied_to_skill")]
-
-    if ready:
-        healer_path = os.path.join(plugin_root, "skills", "self-healer", "self-healer.md")
-        if os.path.exists(healer_path):
-            with open(healer_path) as f:
-                healer = f.read()
-            section = f"\n\n## Auto-Evolved Rules — Cross-Agent Learnings\n\n"
-            section += f"*Auto-updated: {datetime.date.today().isoformat()} · {len(ready)} confirmed patterns*\n\n"
-            for l in ready:
-                section += f"### {l.get('description', l.get('error_pattern','?'))}\n"
-                section += f"- **Pattern**: `{l.get('error_pattern','')}`\n"
-                section += f"- **Fix**: `{l.get('fix','')}`\n"
-                section += f"- **Confirmed by**: {', '.join(l.get('confirmed_by',[]))} ({l.get('confirmations')}x)\n\n"
-            marker = "## Auto-Evolved Rules"
-            healer = healer[:healer.index(marker)] + section.lstrip("\n") if marker in healer else healer + section
-            with open(healer_path, "w") as f:
-                f.write(healer)
-            for l in ready:
-                l["applied_to_skill"] = True
-                l["applied_date"] = datetime.date.today().isoformat()
-            json.dump(data, open(memory_path, "w"), indent=2)
-            print(f"[codex→claude] {len(ready)} learnings evolved into skill files")
-
-    # Sync skill to Claude Code plugin dir (bidirectional)
-    codex_skill = os.path.join(plugin_root, ".codex-plugin", "skills", "onecommand", "SKILL.md")
-    claude_skill_dir = os.path.expanduser("~/.codex/skills/onecommand/")
-    os.makedirs(claude_skill_dir, exist_ok=True)
-    if os.path.exists(codex_skill):
-        shutil.copy2(codex_skill, os.path.join(claude_skill_dir, "SKILL.md"))
-    print("[cross-agent] Claude Code + Codex memory synchronized")
-
-    total = len(learnings)
-    print(f"[cross-agent] {total} total learnings shared between both agents")
-else:
-    print("[cross-agent] Memory not initialized yet")
-EOF
+OC_ROOT="$HOME/.codex/skills/onecommand"
+python3 "$OC_ROOT/hooks/learnings.py" evolve
+python3 "$OC_ROOT/hooks/learnings.py" stats
 ```
+
+Every fix the gate confirmed in Phase 4 is recorded with `python3 "$OC_ROOT/hooks/learnings.py" record … --agent codex` (see `self-healer` → Cross-Agent Learning).
 
 ---
 

@@ -26,7 +26,16 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    - `auth_type`: none | jwt | oauth | magic-link
    - `deploy_target`: vercel | railway | docker | fly
    - `extra_skills`: which optional skills to activate (marketing-skills if app needs landing page, etc.)
-   - `build_targets`: `["web"]` by default; add `"mobile"` for native apps (`game` / `os` see below)
+   - `build_targets`: array — always includes `"web"` for apps. Add `"mobile"` if the prompt mentions: iOS, Android, App Store, Google Play, Flutter, mobile app, iPhone, Smartphone-App, native app. (`game` / `os` projects: see below.)
+   - `mobile_platforms`: `["ios", "android"]` (both by default if mobile detected), or a single one if explicitly mentioned. Omit for web-only builds.
+   - `production_dependencies`: services that need real credentials / manual production setup. `live-integrations` (Phase 3) generates code only for what is listed here, and `delivery-reporter` lists the setup steps. Detect from the prompt and the features:
+     - "payment", "Stripe", "PayPal", "checkout", "subscription" → `stripe`
+     - "push notification", "Firebase", "FCM" → `firebase`
+     - "iOS", "App Store", "iPhone" → `apple-release`
+     - "Android", "Play Store", "Flutter" → `android-release`
+     - "Google login", "GitHub login", "Apple login", "OAuth", "social login" → `oauth`
+     - "file upload", "image upload", "storage", "S3" → `storage`
+     - "email", "newsletter", "transactional email", e-mail verification, password reset → `email`
    - `acceptance_criteria`: the definition of done — see **Acceptance Criteria** below. Mandatory.
 
 3. **Output a structured spec** as a JSON block, for example:
@@ -64,6 +73,7 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
   "deploy_target": "vercel",
   "extra_skills": ["marketing-skills"],
   "build_targets": ["web"],
+  "production_dependencies": ["email"],
   "acceptance_criteria": [
     {
       "id": "AC-001",
@@ -106,6 +116,28 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
       "verification": "api",
       "steps": ["GET /api/workouts without cookies"],
       "expected": ["Status 401"]
+    },
+    {
+      "id": "AC-005",
+      "feature": "leaderboard",
+      "title": "/leaderboard ranks users by total workout minutes, highest first",
+      "priority": "must",
+      "verification": "e2e",
+      "start": "/leaderboard",
+      "requires_auth": true,
+      "steps": ["Log 2 workouts of 30 min as user A", "Log 1 workout of 20 min as user B", "Open /leaderboard"],
+      "expected": ["Row 1 shows user A with '60 min'", "Row 2 shows user B with '20 min'"]
+    },
+    {
+      "id": "AC-006",
+      "feature": "profile",
+      "title": "Changed display name is saved and shown after reload",
+      "priority": "must",
+      "verification": "e2e",
+      "start": "/profile",
+      "requires_auth": true,
+      "steps": ["Fill 'Display name' with 'Jax'", "Click 'Save'", "Reload the page"],
+      "expected": ["Text 'Profile saved' is visible", "After reload 'Display name' contains 'Jax'"]
     }
   ]
 }
@@ -130,6 +162,7 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    - Number of pages
    - Number of API routes
    - Features list
+   - Build targets (+ mobile platforms) and production dependencies
    - Number of acceptance criteria (must / should)
    - Any memory patterns that influenced the decision
 

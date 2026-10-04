@@ -8,6 +8,17 @@ You are the Self-Healer for OneCommand. You fix errors so the project compiles a
 ## Input
 `.onecommand/gate/errors.txt` written by `hooks/quality-gate.sh` (passed as $ARGUMENTS or from context). Each block names the failing step (or acceptance criterion) and the full log path — open the full log when the excerpt is not enough.
 
+## Step 0 — Load known fixes first
+
+Before diagnosing anything, read what Claude Code and Codex already learned in earlier builds:
+
+```bash
+cat ~/.onecommand/memory/evolved_rules.md 2>/dev/null || echo "(no evolved rules yet)"
+python3 "$OC_ROOT/hooks/learnings.py" read --stack "$(python3 -c "import json; s=json.load(open('.onecommand-spec.json')).get('tech_stack', {}); print(s.get('frontend', '') if isinstance(s, dict) else '')" 2>/dev/null)" --limit 10
+```
+
+If an error matches a rule's error pattern, apply that fix first — it has been confirmed by at least 3 earlier builds.
+
 ## Rules
 
 - Fix ONE category of errors at a time — don't scatter changes across 20 files randomly.
@@ -101,3 +112,23 @@ Report:
 - **Confidence**: high / medium / low that this resolves the error
 
 Then signal to test-agent to re-run the gate (`hooks/quality-gate.sh`). The gate — not your confidence — decides whether the fix worked.
+
+## Cross-Agent Learning — record every fix that worked
+
+After the gate confirms a fix (the error is gone on the next run), record it so the other agent and every future build know it too. One call per distinct error:
+
+```bash
+python3 "$OC_ROOT/hooks/learnings.py" record \
+  --error "Cannot find module 'bcryptjs'" \
+  --fix "npm install bcryptjs @types/bcryptjs" \
+  --description "bcryptjs missing from dependencies when auth is enabled" \
+  --file "lib/auth.ts" \
+  --stack "Next.js + Prisma" \
+  --category error_fix \
+  --agent claude          # Codex: --agent codex
+```
+
+- `--error` is the identifying error line, without file paths or line numbers that change between builds — that is how the same problem is recognised next time.
+- `--category`: `error_fix` | `pattern` | `dependency` | `stack_preference`.
+- Recording the same error again raises its confirmation count. At 3 confirmations, `self-improve-agent` (Phase 7) promotes it to `~/.onecommand/memory/evolved_rules.md`, which Step 0 loads in every later build — for Claude Code and Codex alike.
+- Do not record fixes the gate did not confirm.

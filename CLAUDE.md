@@ -9,7 +9,7 @@ OneCommand is a Claude Code plugin that builds complete, production-ready softwa
 commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor)
 skills/                      # Reusable skills invoked by agents and commands
 agents/                      # Specialized agents for each build phase
-hooks/                       # post-generate.sh, quality-gate.sh, acceptance-report.py
+hooks/                       # post-generate.sh, quality-gate.sh, acceptance-report.py, learnings.py
 docs/superpowers/            # Design specs and implementation plans
 ```
 
@@ -58,10 +58,18 @@ OneCommand stores learned patterns in `~/.onecommand/memory/`:
 - `patterns.json` — successful app_type + feature + stack combinations
 - `errors.json` — recurring errors and their fixes
 - `stacks.json` — proven tech stack combinations with run counts
+- `cross_learnings.json` — fixes recorded by Claude Code and Codex (`hooks/learnings.py record`)
+- `evolved_rules.md` — learnings confirmed 3+ times (`hooks/learnings.py evolve`); the self-healer
+  loads it before every healing round
+
+Learned rules are never written into plugin files — those are replaced on every install and tracked
+in git.
 
 ## Development
 
-When modifying this plugin, files in `skills/` and `agents/` are the most important. Each file contains instructions for a specific phase of the build. The orchestrator is `commands/onecommand.md`.
+When modifying this plugin, files in `skills/` and `agents/` are the most important. Each skill has
+exactly one instruction file, `skills/<name>/SKILL.md` — never add a second copy next to it (the
+installer warns about them). Each file contains instructions for a specific phase of the build. The orchestrator is `commands/onecommand.md`.
 
 Releasing: bump `version` in `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and
 `PLUGIN_VERSION` in `install.sh` together. New skills must also be added to `BUNDLED_SKILLS` in

@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.4.0"
+PLUGIN_VERSION="1.4.1"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=false
@@ -168,7 +168,8 @@ fi
 ok "python3, rsync, cmp available"
 
 for manifest in "$REPO_ROOT/.claude-plugin/plugin.json" "$REPO_ROOT/commands/onecommand.md" \
-                "$REPO_ROOT/hooks/quality-gate.sh" "$REPO_ROOT/hooks/acceptance-report.py"; do
+                "$REPO_ROOT/hooks/quality-gate.sh" "$REPO_ROOT/hooks/acceptance-report.py" \
+                "$REPO_ROOT/hooks/learnings.py"; do
   if [ ! -f "$manifest" ]; then
     err "Not a OneCommand checkout: $manifest missing (REPO_ROOT=$REPO_ROOT)"
     exit 1
@@ -211,6 +212,20 @@ echo '{"version":"1.0","builds":[]}'        | write_if_missing "$BRAIN_DIR/episo
 echo '{"version":"1.0","knowledge":[]}'     | write_if_missing "$BRAIN_DIR/semantic_memory.json"  "brain: semantic_memory.json"
 echo '{"version":"1.0","patterns":[]}'      | write_if_missing "$BRAIN_DIR/pattern_library.json"  "brain: pattern_library.json"
 echo '{"version":"1.0","preferences":{}}'   | write_if_missing "$BRAIN_DIR/user_preferences.json" "brain: user_preferences.json"
+
+# Learned rules live in ~/.onecommand/memory/evolved_rules.md since v1.4.1. Rebuild it from
+# cross_learnings.json so rules promoted by older versions (written into skill files) survive.
+if [ "$DRY_RUN" = true ]; then
+  debug "dry-run: would rebuild evolved_rules.md from cross_learnings.json"
+elif ! evolve_out="$(ONECOMMAND_MEMORY_DIR="$MEMORY_DIR" python3 "$REPO_ROOT/hooks/learnings.py" evolve 2>&1)"; then
+  warn "Could not rebuild evolved rules: $evolve_out"
+else
+  debug "$evolve_out"
+  case "$evolve_out" in
+    *promoted*) ok "Evolved rules → ~/.onecommand/memory/evolved_rules.md" ;;
+    *)          skip "Evolved rules" ;;
+  esac
+fi
 
 # config.json — create, or bump only the "version" field and keep everything else.
 CONFIG_FILE="$ONECOMMAND_HOME/config.json"
@@ -403,6 +418,19 @@ else
     sync_dir "$skill_dir" "$CODEX_SKILLS_DIR/$skill_name/" "Codex skill: $skill_name"
   done
 
+  # Second instruction files removed in v1.4.1 — the bundled-skill sync above never deletes,
+  # so clear the stale copies (and the old self-healer sync target) explicitly.
+  for obsolete in self-healer/self-healer.md spec-analyzer/spec-analyzer.md \
+                  delivery-reporter/delivery-reporter.md automation-installer/automation-installer.md \
+                  demo-cleaner/demo-cleaner.md exceed-expectations/exceed-expectations.md \
+                  stack-detector/stack-detector.md store-readiness-checker/store-readiness-checker.md \
+                  onecommand/self-healer.md; do
+    if [ -f "$CODEX_SKILLS_DIR/$obsolete" ]; then
+      run rm -f "$CODEX_SKILLS_DIR/$obsolete"
+      ok "Removed obsolete Codex file: $obsolete"
+    fi
+  done
+
   # Global /oc-resume and /oc-save Codex skills (user may customise — never overwritten)
   write_if_missing "$CODEX_SKILLS_DIR/oc-resume/SKILL.md" "Codex skill: oc-resume" << 'SKILLEOF'
 ---
@@ -532,6 +560,18 @@ for skill in "${BUNDLED_SKILLS[@]}"; do
   fi
 done
 $all_ok && ok "All ${#BUNDLED_SKILLS[@]} bundled skills present"
+
+# Each skill has exactly one instruction file. A second *.md next to SKILL.md is
+# never loaded and drifts out of sync — that is how learnings got lost before v1.4.1.
+for skill_dir in "${REPO_ROOT}/skills"/*/; do
+  for extra in "$skill_dir"*.md; do
+    [ -e "$extra" ] || continue
+    case "$(basename "$extra")" in
+      SKILL.md|*-global.md) ;;   # *-global.md: command templates installed by auto-clear
+      *) warn "Second instruction file next to SKILL.md: ${extra#"$REPO_ROOT"/} (merge it into SKILL.md)" ;;
+    esac
+  done
+done
 
 # Skills on disk that the list above does not know about.
 for skill_dir in "${REPO_ROOT}/skills"/*/; do
