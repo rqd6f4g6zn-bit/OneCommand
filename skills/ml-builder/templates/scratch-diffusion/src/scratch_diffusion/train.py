@@ -48,8 +48,20 @@ def main() -> None:
     opt = torch.optim.AdamW(model.parameters(), lr=t["lr"], weight_decay=0.0)
     gen = torch.Generator().manual_seed(cfg["seed"])
 
-    history, started = [], time.time()
-    for step in range(t["steps"]):
+    # Resume after an interruption (container restart, preempted GPU): the checkpoint holds model, EMA,
+    # optimiser, RNG and history; a finished run starts fresh.
+    ckpt = out / "checkpoint.pt"
+    history, started, first_step = [], time.time(), 0
+    if ckpt.exists():
+        state = torch.load(ckpt, weights_only=False)
+        model.load_state_dict(state["model"])
+        ema.load_state_dict(state["ema"])
+        opt.load_state_dict(state["opt"])
+        gen.set_state(state["gen"])
+        history, first_step = state["history"], state["step"]
+        print(f"resuming from step {first_step}/{t['steps']}", flush=True)
+    every = max(50, t["steps"] // 20)
+    for step in range(first_step, t["steps"]):
         lr = t["lr"] * min(1.0, (step + 1) / t["warmup"])
         lr *= 0.5 * (1 + math.cos(math.pi * step / t["steps"])) if step >= t["warmup"] else 1.0
         for g in opt.param_groups:
@@ -71,6 +83,10 @@ def main() -> None:
             history.append([step, round(loss.item(), 4)])
         if (step + 1) % max(1, t["steps"] // 10) == 0:
             print(f"step {step + 1}/{t['steps']} loss {loss.item():.4f}", flush=True)
+        if (step + 1) % every == 0 and step + 1 < t["steps"]:
+            torch.save({"model": model.state_dict(), "ema": ema.state_dict(), "opt": opt.state_dict(),
+                        "gen": gen.get_state(), "history": history, "step": step + 1}, ckpt.with_suffix(".tmp"))
+            ckpt.with_suffix(".tmp").replace(ckpt)
 
     # Sample with the EMA weights and compare colour statistics with the held-out test set.
     n = t["samples"]
@@ -108,6 +124,7 @@ def main() -> None:
         "nn_distance_test": round(nn_test, 4), "nn_ratio": round(nn_samples / max(nn_noise, 1e-9), 4),
     }
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    ckpt.unlink(missing_ok=True)  # finished: the next run of this config starts fresh
     print(json.dumps({k: v for k, v in metrics.items() if k != "loss_history"}, indent=2))
 
 

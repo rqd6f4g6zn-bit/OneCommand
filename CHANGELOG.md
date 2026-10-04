@@ -8,7 +8,9 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 - **Own image and video generators, trained from zero.** Template `skills/ml-builder/templates/scratch-diffusion`:
   U-Net noise predictor (2D for images, 3D for videos — space is downsampled, every frame kept), cosine DDPM
   objective, DDIM sampler, EMA weights, class conditioning from dataset folders, `generate` CLI and
-  `POST /generate` (base64 PNG / MP4). Configs `smoke`, `cpu`, `default`, `video-smoke`, `video-default`.
+  `POST /generate` (base64 PNG / MP4). Configs `smoke`, `cpu`, `default`, `video-smoke`, `video-cpu`,
+  `video-default`. Training writes a checkpoint every 5 % and resumes after an interruption (container restart,
+  preempted GPU) — found when two container restarts killed long CPU runs.
   Metric `nn_ratio`: distance of each sample to its nearest real training item ÷ the same for pure noise (lower is
   better). Trained here on the company's own 70 CRM screenshots (CPU, 6 min, 0.7M parameters): samples show the
   interface's style (white panels, text lines, blue accents), nn_ratio 0.55 — all ML gate steps green.

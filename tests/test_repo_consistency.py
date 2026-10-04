@@ -144,6 +144,6 @@ def test_diffusion_template_compiles_and_is_from_scratch():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert mod.scratch_scan(template) == []
-    for cfg in ("smoke", "cpu", "default", "video-smoke", "video-default"):
+    for cfg in ("smoke", "cpu", "default", "video-smoke", "video-cpu", "video-default"):
         assert (template / "configs" / f"{cfg}.yaml").is_file()
 

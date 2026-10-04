@@ -82,8 +82,9 @@ and say so in the delivery report; from scratch is chosen whenever the user asks
   noise (lower is better; the smoke run must be clearly below 1, e.g. `smoke_min` 0.6–0.7). Data is normalised
   per channel before training (bright or dark data would otherwise sample at the wrong brightness). Samples land in `runs/<run>/samples/`
   (grid.png, clip-N.mp4).
-- Configs: `smoke` (32 px, CPU ~2 min), `cpu` (32 px, ~20 min), `default` (64 px, GPU hours),
-  `video-smoke` (8 frames 32 px), `video-default` (16 frames 64 px, GPU days).
+- Configs: `smoke` (32 px, CPU ~5 min), `cpu` (32 px, ~20 min), `default` (64 px, GPU hours),
+  `video-smoke` (8 frames 32 px, ~12 min), `video-cpu` (~20 min), `video-default` (16 frames 64 px, GPU days).
+  Training checkpoints every 5 % and resumes automatically when started again after an interruption.
 
 | Own data | What a from-scratch generator delivers | Compute |
 |---|---|---|
