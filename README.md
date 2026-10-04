@@ -112,6 +112,15 @@ python3 bench/run.py compare bench/baselines/v1.5.0.json bench/results/<run-id>/
 
 Run it before and after changing a skill or agent — a lower score is a regression.
 
+Headless builds (`claude -p '/onecommand:onecommand "…"'`) should set
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: Claude Code can run parallel phase agents in the background,
+and without it the CLI stops waiting after 600 s. `bench/run.py` sets it.
+
+| Benchmark build | Prompt | Score | Acceptance | Time |
+|---|---|---|---|---|
+| Notes app (v1.5.0) | 2 sentences | 100 | 18/18 | 50 min |
+| CRM enterprise (v1.6.0) | "CRM auf höchstem Niveau" | 100 | 43/43 | 50 min |
+
 ## Output
 
 - **Full frontend** (Next.js + Tailwind + shadcn/ui) — all pages, components, mobile responsive

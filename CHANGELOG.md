@@ -12,6 +12,19 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
   expanded into 22 modules with 43 acceptance criteria. spec-analyzer builds on the draft; `check`
   fails when a blueprint module or criterion is dropped (modules may only be excluded with the user's
   reason). The delivery report states the tier and any excluded modules.
+- **Proven in a real build:** `CRM auf höchstem Niveau` → NovaCRM (25 pages, 65 API routes, 26 models,
+  ~7.5k lines), gate 43/43 incl. the regression run, 50 min — baseline in
+  `bench/baselines/v1.6.0-crm-enterprise.json`. Findings from that run are folded in:
+  - crm blueprint v2: criterion for shared records (role text promised them, nothing tested them, so they
+    were not built); tenant isolation tested across list, detail, search, export and reports (the
+    security audit found a path the single-path criterion missed); SSO rejects unverified e-mails;
+    non-functional security requirements (no default auth secret, CSP and security headers, SSRF checks,
+    real sync outside test mode).
+  - Quality gate records `test-changes` warnings: acceptance test files changed after the first run
+    without an entry in `.onecommand/test-changes.md` (a test was changed silently in the CRM build).
+  - Headless builds: Claude Code may run parallel agents in the background despite
+    `run_in_background: false`; the orchestrator waits for their notifications and `bench/run.py` sets
+    `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`.
 - **Benchmark** (`bench/run.py`, `bench/prompts.json`): builds fixed prompts headless with the plugin
   under test and scores each build from OneCommand's own artefacts (gate verdict, acceptance ratio,
   phases completed) plus wall time, cost, agent and gate-run counts. `compare` flags regressions
