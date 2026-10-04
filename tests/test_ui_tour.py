@@ -57,6 +57,8 @@ def test_valid_spec(tmp_path):
     ({"demo": {**DEMO, "accounts": DEMO["accounts"][:1]}}, "no demo login for role(s): sales"),
     ({"demo": {**DEMO, "accounts": [{"role": "admin", "email": "a@x"}]}}, "needs email and password"),
     ({"demo": {**DEMO, "seed_command": " "}}, "demo.seed_command is empty"),
+    ({"performance_budget": {"lcp": 2500}}, "performance_budget takes lcp_ms, cls and/or page_kb"),
+    ({"performance_budget": {"lcp_ms": -1}}, "non-negative numbers"),
 ])
 def test_invalid_specs(tmp_path, changes, message):
     r = run_tour("validate", "--spec", str(spec_file(tmp_path, **changes)))

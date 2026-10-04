@@ -37,6 +37,11 @@ echo "GATE_EXIT=$?"
 | 0 | all static checks passed | Stage B |
 | 1 | at least one step failed | heal (below) |
 | 3 | no `package.json` (game / OS / Flutter-only) | report "not applicable", stop — those agents verify their own builds |
+
+ML projects (`build_targets` contain `ml`): the same command runs `hooks/ml-gate.py` — install, lint,
+tests, smoke training, metric ≥ `ml.metric.smoke_min`, model card, `POST /predict`. Heal the same way;
+a failed `metric` step is fixed in data, labels or training, never by lowering `smoke_min` or editing
+`metrics.json`.
 | 2 | usage error | fix the invocation |
 
 **Healing round** (max 5 for Stage A):

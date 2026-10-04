@@ -48,11 +48,15 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
   file both sides import; fails on hand-edited types, missing route handlers and untyped handlers/fetches.
 - `hooks/ui-tour.py` (stage `tour`): demo seed, production start with fresh secrets, every page as every
   `demo.accounts` login, screenshots + `.onecommand/tour/review.md`; `review-status` must pass before delivery.
+- `hooks/ml-gate.py`: quality-gate.sh hands specs with build target `ml` to it — install, lint, tests,
+  smoke training, metric ≥ `ml.metric.smoke_min`, model card, `POST /predict`. Same result.json.
+- `hooks/video.py probe|scenes|render|check`: website videos (ffmpeg) — cut, Ken Burns, MP4 + WebM + poster
+  within `max_kb`; used by the `video-producer` skill when `spec.media.videos` is set.
 - Exit codes: 0 passed · 1 failed · 2 usage error · 3 not applicable (no package.json).
 
 ## Domain Blueprints
 
-`skills/domain-blueprints/blueprints/<id>.json` (crm, shop, booking, helpdesk, projects, invoicing)
+`skills/domain-blueprints/blueprints/<id>.json` (crm, shop, booking, helpdesk, projects, invoicing, website)
 hold modules, entities, roles, pages and acceptance criteria per tier (mvp ⊂ pro ⊂ enterprise).
 `hooks/blueprint.py detect|expand|check`: spec-analyzer expands the matching blueprint and builds the
 spec on top; `check` fails when a module or a blueprint criterion (`source` tag) is dropped. New

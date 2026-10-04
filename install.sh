@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.7.0"
+PLUGIN_VERSION="1.8.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=false
@@ -172,7 +172,8 @@ for manifest in "$REPO_ROOT/.claude-plugin/plugin.json" "$REPO_ROOT/commands/one
                 "$REPO_ROOT/hooks/learnings.py" "$REPO_ROOT/hooks/skill-catalog.py" \
                 "$REPO_ROOT/hooks/update.py" "$REPO_ROOT/hooks/hooks.json" "$REPO_ROOT/hooks/checkpoint.py" \
                 "$REPO_ROOT/hooks/playwright-pin.py" "$REPO_ROOT/hooks/blueprint.py" \
-                "$REPO_ROOT/hooks/api-contract.py" "$REPO_ROOT/hooks/ui-tour.py"; do
+                "$REPO_ROOT/hooks/api-contract.py" "$REPO_ROOT/hooks/ui-tour.py" \
+                "$REPO_ROOT/hooks/ml-gate.py" "$REPO_ROOT/hooks/video.py"; do
   if [ ! -f "$manifest" ]; then
     err "Not a OneCommand checkout: $manifest missing (REPO_ROOT=$REPO_ROOT)"
     exit 1
@@ -563,6 +564,8 @@ BUNDLED_SKILLS=(
   "21st-components"
   "acceptance-tester"
   "domain-blueprints"
+  "ml-builder"
+  "video-producer"
 )
 
 all_ok=true

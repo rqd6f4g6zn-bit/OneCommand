@@ -84,6 +84,9 @@ def test_tiers_are_cumulative(tmp_path):
     ("Ticketsystem für unseren Support", "helpdesk", "pro"),
     ("Projektmanagement wie Trello", "projects", "pro"),
     ("Rechnungsprogramm für Freelancer", "invoicing", "pro"),
+    ("Firmenwebseite für einen Handwerksbetrieb", "website", "pro"),
+    ("Webseite im 100k Preissegment mit Videos", "website", "enterprise"),
+    ("Premium Website für unsere Agentur", "website", "enterprise"),
 ])
 def test_detect(prompt, blueprint, tier):
     r = bp("detect", "--prompt", prompt, "--json")
@@ -156,3 +159,15 @@ def test_spec_without_blueprint_passes_check(tmp_path):
 
 def test_unknown_blueprint_is_a_usage_error():
     assert bp("show", "erp").returncode == 2
+
+
+def test_website_carries_performance_budget_media_and_cms_login(tmp_path):
+    out = tmp_path / "spec.json"
+    assert bp("expand", "website", "--tier", "enterprise", "--out", str(out)).returncode == 0
+    spec = json.loads(out.read_text())
+    assert spec["performance_budget"] == {"lcp_ms": 2000, "cls": 0.05, "page_kb": 1200}
+    assert [v["name"] for v in spec["media"]["videos"]] == ["hero", "imagefilm"]
+    assert spec["demo"]["login_path"] == "/admin/login"
+    mvp = json.loads(bp("expand", "website", "--tier", "mvp").stdout)
+    assert "media" not in mvp and mvp["demo"]["accounts"] == [] and mvp["demo"]["login_path"] is None
+

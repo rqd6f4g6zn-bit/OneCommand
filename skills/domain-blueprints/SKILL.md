@@ -21,6 +21,7 @@ python3 "$OC_ROOT/hooks/blueprint.py" list
 | `helpdesk` | Ticket system: tickets, replies, SLA, macros, knowledge base | "Ticketsystem", "Support", "Helpdesk" |
 | `projects` | Project & task management: workspaces, board, comments, time tracking | "Projektmanagement", "Kanban", "wie Trello" |
 | `invoicing` | Invoices & quotes: §14 UStG, gap-free numbers, PDF, dunning, DATEV | "Rechnungsprogramm", "Faktura" |
+| `website` | Corporate / premium website: design system, motion, hero video, case studies, CMS, i18n, SEO, GDPR, WCAG, performance budget | "Webseite", "Firmenwebseite", "Landingpage", "Premium-Website", "100k" |
 
 ## Tiers
 
@@ -30,7 +31,7 @@ Tiers are cumulative: `mvp` ⊂ `pro` ⊂ `enterprise`.
 |---|---|---|
 | `mvp` | "MVP", "Prototyp", "erste Version", "einfaches CRM", "nur das Nötigste" | core modules only |
 | `pro` | nothing about scope (default) | what a paying customer expects from a serious product |
-| `enterprise` | "höchstes Niveau", "Enterprise", "wie Salesforce", "alle Funktionen", "auf max", "mandantenfähig" | everything incl. automation, API, SSO, multi-tenancy |
+| `enterprise` | "höchstes Niveau", "Enterprise", "wie Salesforce", "alle Funktionen", "auf max", "mandantenfähig", "Premium", "100k", "Agenturniveau" | everything incl. automation, API, SSO, multi-tenancy (website: page builder, films, careers, search) |
 
 ## Procedure (spec-analyzer, Phase 1)
 
@@ -71,6 +72,8 @@ Tiers are cumulative: `mvp` ⊂ `pro` ⊂ `enterprise`.
 - `metrics` define every KPI once (definition, period, label, pages); the API contract serves them and the
   UI tour checks the labels — a dashboard and a report can no longer disagree silently.
 - `demo` lists one login per role; the demo seed fills every view for each of them.
+- `performance_budget` (website) is checked by the UI tour on every page; `media.videos` goes to the
+  `video-producer` skill.
 - The delivery report lists blueprint coverage: modules built, modules excluded and why.
 
 ## Large scopes

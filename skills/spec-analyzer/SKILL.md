@@ -217,6 +217,29 @@ Game and OS specs also carry `acceptance_criteria` (feature = an entry of `game_
 
 ---
 
+## AI/ML Project Support
+
+Prompts that ask to **train** something ("KI trainieren", "Modell trainieren", "Machine Learning",
+"fine-tunen", "klassifizieren", "Vorhersage", "Prognose", "Erkennung", "eigenes LLM", "LoRA") are ML
+projects: `"app_type": "ml"`, `"build_targets": ["ml"]` (plus `"web"` only when an app or dashboard
+around the model is wanted). Write the `ml` section exactly as the `ml-builder` skill §1 defines —
+task, package, base model, dataset with license, metric with `target` and `smoke_min`, `sample_input`,
+`sample_expect_keys`. Acceptance criteria: `api` criteria for the inference service and one `manual`
+criterion for the full-training target. No `api_contract`/`demo` unless `web` is a target.
+
+## Websites: media and performance budget
+
+For marketing and corporate websites (blueprint `website`; "Premium", "100k", "Agentur" select the
+enterprise tier) keep the draft's `performance_budget` and `media.videos`:
+
+- `performance_budget`: `{"lcp_ms": 2500, "cls": 0.1, "page_kb": 1500}` — the UI tour measures every page
+  on first visit (no cache, 10 Mbit/s, 40 ms) and fails on a violation. Videos have their own budget.
+- `media.videos`: one entry per video (`name`, `purpose`, `muted`, `max_seconds`, `max_kb`, `source`,
+  `brief`, `captions`). Fill `brief` from the prompt; `video-producer` cuts the footage the user provides in
+  `media.raw_dir` (default `assets/raw`), or builds the video from images or motion graphics.
+- Texts are written for the company in the prompt — never placeholders. Missing facts (address, register
+  number for the Impressum) become an open item in the delivery report, not invented data.
+
 ## Game Project Support
 
 ### Detection

@@ -2,6 +2,31 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.8.0] — 2026-10-04
+
+### Added
+- **AI/ML training projects** (`agents/ml-agent.md`, `skills/ml-builder`, `hooks/ml-gate.py`): prompts that
+  ask to train a model get build target `ml` — data pipeline with a licensed sample, baseline, smoke and
+  full training configs, evaluation, model card, FastAPI inference service, Dockerfile. Templates for
+  tabular, text and image classification, LLM fine-tuning (LoRA) and time series. `quality-gate.sh`
+  hands ML specs to `ml-gate.py`: install → lint → tests → smoke training → metric ≥ `smoke_min` →
+  model card → `POST /predict` (same result.json, so test-agent, self-healer and the report work unchanged).
+- **Video pipeline** (`hooks/video.py`, `skills/video-producer`): `probe`, `scenes` (cut detection),
+  `render` from an edit plan (cut by time, Ken-Burns shots from images, one size/fps, fades, music bed,
+  MP4 H.264 faststart + WebM VP9 + poster, quality stepped down until `max_kb` fits, `videos.json`
+  manifest) and `check` (both formats, poster, faststart, muted loops without audio, budget). Motion
+  graphics via Remotion when there is no footage; credits and licenses per clip.
+- **Website blueprint** (`website`): corporate and premium websites in three tiers — pages, contact with
+  spam protection, GDPR consent, SEO, 404 (mvp); design system, motion with reduced-motion, hero video,
+  case studies, CMS with preview, blog, i18n, performance, WCAG 2.2 AA (pro); page builder, image film
+  with captions, careers with CV upload, newsletter double opt-in, search, lead routing, Lighthouse CI
+  (enterprise, selected by "Premium", "100k", "Agenturniveau"). 21 modules, 25 criteria.
+- **Performance budget in the UI tour** (`spec.performance_budget`: `lcp_ms`, `cls`, `page_kb`): every page
+  is measured on first visit without cache at 10 Mbit/s / 40 ms (desktop); a violation is blocking.
+  report.md shows LCP, CLS and KB per page.
+- `blueprint.py expand` carries `performance_budget` and `media.videos` into the spec and finds the login
+  page of any blueprint (e.g. `/admin/login`).
+
 ## [1.7.0] — 2026-10-04
 
 Screenshots of the CRM built in 1.6.0 showed errors that 43 green acceptance tests missed: a win-rate

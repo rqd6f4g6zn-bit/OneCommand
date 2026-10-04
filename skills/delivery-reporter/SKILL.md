@@ -134,12 +134,27 @@ Tests live in `e2e/acceptance/` — run them yourself with `npx playwright test`
 
 ---
 
+## Model (ML projects only)
+
+<only when the spec has "ml": task, base model, dataset + license; smoke run: metric value vs smoke_min and
+the baseline (from .onecommand/gate/result.json → ml.metric and runs/smoke/metrics.json); full-training
+target as an open manual step with the command (`make train`) and the hardware from ml.hardware;
+curl example for POST /predict with ml.sample_input; link MODEL_CARD.md>
+
+## Videos (websites with media.videos)
+
+<only when public/videos/videos.json exists: one line per video — name, duration, resolution, MP4/WebM size,
+poster — plus where it is used, and a link to assets/CREDITS.md with the source and license of every clip>
+
+---
+
 ## Screenshots
 
 <only when .onecommand/tour/report.json exists: embed the desktop screenshot of every page the first demo account
 visited, plus one mobile screenshot, with relative links into .onecommand/tour/ (copy them to docs/screenshots/
 so they survive cleanup); list the demo logins from spec.demo.accounts with role, e-mail and password;
-state "UI tour: <N> pages × <M> logins, review complete" or the open review findings>
+state "UI tour: <N> pages × <M> logins, review complete" or the open review findings; when spec.performance_budget
+is set, a table of LCP / CLS / KB per page from .onecommand/tour/report.json against the budget>
 
 ---
 

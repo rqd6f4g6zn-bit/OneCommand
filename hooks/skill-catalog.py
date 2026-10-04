@@ -48,7 +48,7 @@ PHASE_NAMES = {
 }
 
 # Every bundled skill must appear here. "when" decides applicability from the spec:
-#   always · web · mobile · game · os · setup (never inside a build) · support (used by
+#   always · web · mobile · game · os · ml · setup (never inside a build) · support (used by
 #   /oc-resume, /oc-save and the orchestrator itself, never handed to phase agents)
 BUNDLED: dict[str, dict[str, Any]] = {
     "spec-analyzer":           {"phases": [1], "when": "always", "use": "prompt → spec with acceptance criteria"},
@@ -69,6 +69,8 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "phaser-builder":          {"phases": [2], "when": "game", "use": "Phaser 3 project (if selected)"},
     "asset-generator":         {"phases": [2], "when": "game", "use": "sprites, models, audio"},
     "os-builder":              {"phases": [2], "when": "os", "use": "custom Linux OS build"},
+    "ml-builder":              {"phases": [2, 4], "when": "ml", "use": "AI/ML training project: data, training, evaluation, model card, inference API (via ml-agent)"},
+    "video-producer":          {"phases": [2, 3], "when": "web", "use": "cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set"},
     "live-integrations":       {"phases": [3], "when": "web", "use": "real e-mail, OAuth, push for production_dependencies"},
     "oc-marketing":            {"phases": [3], "when": "always", "use": "README, landing page, docs (via marketing-agent)"},
     "acceptance-tester":       {"phases": [4, 6], "when": "web", "use": "Playwright suite from acceptance_criteria"},

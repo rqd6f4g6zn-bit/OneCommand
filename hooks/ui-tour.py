@@ -17,6 +17,8 @@ The tour does what a reviewer does:
   5. takes desktop screenshots for every account, mobile screenshots for the first account,
   6. records server errors, uncaught exceptions, failed API calls, "undefined"/"NaN"/"Invalid Date"
      in the visible text, lost sessions, metrics without their spec label (spec.metrics[].shown_on),
+     the performance budget (spec.performance_budget: lcp_ms, cls, page_kb — first visit, no cache,
+     10 Mbit/s and 40 ms, desktop),
      horizontal overflow on mobile and console errors,
   7. writes .onecommand/tour/review.md — the checklist the agent works through by looking at
      every listed screenshot (consistency of numbers and labels, empty views, layout).
@@ -170,6 +172,12 @@ def validate(spec: dict[str, Any]) -> list[str]:
                       f"sees what each role sees")
     if demo.get("seed_command") is not None and not str(demo["seed_command"]).strip():
         errors.append("demo.seed_command is empty")
+    budget = spec.get("performance_budget")
+    if budget is not None:
+        if not isinstance(budget, dict) or not budget or set(budget) - {"lcp_ms", "cls", "page_kb"}:
+            errors.append("performance_budget takes lcp_ms, cls and/or page_kb, e.g. {\"lcp_ms\": 2500, \"cls\": 0.1, \"page_kb\": 1500}")
+        elif any(not isinstance(v, (int, float)) or v < 0 for v in budget.values()):
+            errors.append("performance_budget values must be non-negative numbers")
     return errors
 
 
@@ -324,6 +332,28 @@ async function visit(page, acct, vp, target, pattern) {
   }
   await page.waitForTimeout(cfg.settle_ms);
   rec.status = resp ? resp.status() : null;
+  if (page._ocBudget) {
+    try {
+      rec.performance = await page.evaluate(async () => {
+        let lcp = 0, cls = 0;
+        try { new PerformanceObserver((l) => { for (const e of l.getEntries()) lcp = e.renderTime || e.loadTime || e.startTime; })
+                .observe({ type: 'largest-contentful-paint', buffered: true }); } catch {}
+        try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) cls += e.value; })
+                .observe({ type: 'layout-shift', buffered: true }); } catch {}
+        await new Promise((r) => setTimeout(r, 300));
+        const nav = performance.getEntriesByType('navigation')[0];
+        let bytes = nav ? nav.transferSize : 0;
+        for (const r of performance.getEntriesByType('resource')) {
+          if (!['video', 'audio'].includes(r.initiatorType)) bytes += r.transferSize || 0;  // videos have their own budget
+        }
+        return { lcp_ms: Math.round(lcp), cls: Math.round(cls * 1000) / 1000, page_kb: Math.round(bytes / 1024) };
+      });
+      const b = page._ocBudget, m = rec.performance;
+      if (b.lcp_ms && m.lcp_ms > b.lcp_ms) rec.issues.push(`performance budget: LCP ${m.lcp_ms} ms > ${b.lcp_ms} ms`);
+      if (b.cls !== undefined && m.cls > b.cls) rec.issues.push(`performance budget: CLS ${m.cls} > ${b.cls}`);
+      if (b.page_kb && m.page_kb > b.page_kb) rec.issues.push(`performance budget: ${m.page_kb} KB transferred > ${b.page_kb} KB (without video)`);
+    } catch (e) { rec.warnings.push(`performance not measured: ${String(e.message || e).split('\n')[0]}`); }
+  }
   rec.final_path = new URL(page.url()).pathname;
   shot += 1;
   const file = `${String(shot).padStart(3, '0')}-${slug(acct ? (acct.role || acct.email.split('@')[0]) : 'anon')}-${vp.name}-${slug(target)}.png`;
@@ -398,6 +428,17 @@ async function tour(acct, vp, pages) {
       if (!l.ok) return;
     }
     const page = await ctx.newPage();
+    // Performance budget: first visit (no cache) on a realistic line, desktop only.
+    if (cfg.performance_budget && vp.name === 'desktop' && (!acct || acct.email === cfg.first_account)) {
+      try {
+        const cdp = await ctx.newCDPSession(page);
+        await cdp.send('Network.enable');
+        await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+        await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 40,
+          downloadThroughput: 10 * 1024 * 1024 / 8, uploadThroughput: 5 * 1024 * 1024 / 8 });
+        page._ocBudget = cfg.performance_budget;
+      } catch (e) { /* non-Chromium: measured without throttling */ page._ocBudget = cfg.performance_budget; }
+    }
     const links = new Set();
     for (const p of pages.static) {
       const rec = await visit(page, acct, vp, p);
@@ -513,10 +554,13 @@ def write_reports(out_dir: Path, spec: dict[str, Any], data: dict[str, Any], blo
         md += ["## Blocking", ""] + [f"- ✗ {b}" for b in blocking] + [""]
     if warnings:
         md += ["## Warnings", ""] + [f"- ⚠ {w}" for w in warnings] + [""]
-    md += ["## Pages", "", "| Account | Viewport | Page | HTTP | Screenshot |", "|---|---|---|---|---|"]
+    md += ["## Pages", "", "| Account | Viewport | Page | HTTP | LCP | CLS | KB | Screenshot |",
+           "|---|---|---|---|---|---|---|---|"]
     for v in visits:
+        perf = v.get("performance") or {}
         md.append(f"| {v.get('role') or v.get('account') or 'anonymous'} | {v['viewport']} | {v['path']} | "
-                  f"{v.get('status', '—')} | {v.get('screenshot', '—')} |")
+                  f"{v.get('status', '—')} | {perf.get('lcp_ms', '—')} | {perf.get('cls', '—')} | "
+                  f"{perf.get('page_kb', '—')} | {v.get('screenshot', '—')} |")
     md += ["", "---", "*OneCommand UI-Rundgang · USC Software UG · usc-software-ug.de*"]
     (out_dir / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
@@ -609,6 +653,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             "base_url": base_url.rstrip("/"), "out_dir": str(out_dir), "project_dir": str(project),
             "login_path": login_path, "first_account": accounts[0]["email"] if accounts else None,
             "metric_labels": metric_labels(spec),
+            "performance_budget": spec.get("performance_budget") or None,
             "accounts": accounts, "anonymous": anon, "private": priv,
             "mobile_accounts": max(0, args.mobile_accounts), "mobile_anonymous": not accounts or bool(anon["static"]),
             "desktop": DESKTOP, "mobile": MOBILE, "locale": locale_for(spec.get("ui_language")),

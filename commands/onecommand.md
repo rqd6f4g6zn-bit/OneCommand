@@ -280,6 +280,8 @@ print('web:', 'web' in targets)
 print('mobile:', 'mobile' in targets)
 print('game:', 'game' in targets or app_type == 'game')
 print('os:', 'os' in targets or app_type == 'os')
+print('ml:', 'ml' in targets or app_type == 'ml')
+print('videos:', bool((s.get('media') or {}).get('videos')))
 "
 ```
 
@@ -293,6 +295,18 @@ print('os:', 'os' in targets or app_type == 'os')
 - Exports for: Windows, macOS, Linux, Web, iOS, Android
 
 Skip frontend-agent, backend-agent for pure game projects.
+
+### If `ml` in build_targets OR app_type == "ml":
+
+**ML Agent** (`onecommand:ml-agent`) — builds the AI/ML training project from `spec.ml` (`ml-builder` skill):
+data pipeline with a committed sample, baseline, training with smoke + full configs, evaluation,
+`MODEL_CARD.md`, FastAPI inference service, Dockerfile. It verifies with `quality-gate.sh`, which hands
+ML specs to `hooks/ml-gate.py`: install → lint → tests → smoke training → metric ≥ `ml.metric.smoke_min`
+→ model card → `POST /predict`.
+
+Skip frontend-agent and backend-agent unless `web` is also in build_targets (a dashboard or app around
+the model — then they build it against the inference API after the ML agent, with the API in `api_contract`).
+Phase 4 runs the same gate; the acceptance and tour stages apply only to the web part.
 
 ### If `os` in build_targets OR app_type == "os":
 
@@ -332,6 +346,12 @@ Skip frontend-agent, backend-agent for pure OS projects.
   visual blueprint (information hierarchy, microinteractions) for onboarding,
   pricing, dashboard screens; reimplements in Tamagui/Flutter (not auto-installed
   since 21st.dev components are web-React)
+
+**If `videos` is true (spec.media.videos — premium websites):** also dispatch a phase runner with the
+`video-producer` skill in the same message. It cuts the user's footage from `media.raw_dir` (or builds
+Ken-Burns shots from images, or a Remotion motion-graphics video when there is no footage), renders
+`public/videos/*.mp4|webm|jpg` with `hooks/video.py render` and must pass `hooks/video.py check`. The
+frontend agent embeds them as the skill describes (poster, muted loop, reduced-motion fallback, captions).
 
 Dispatch all agents of this phase in ONE message so they run in parallel. Wait for ALL of them to complete before proceeding.
 

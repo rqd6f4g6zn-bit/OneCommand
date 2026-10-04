@@ -42,7 +42,8 @@ TIER_WORDS = {
     "enterprise": ["höchstem niveau", "höchsten niveau", "höchstes niveau", "hoechstem niveau", "höstem", "hösterm",
                    "enterprise", "konzern", "wie salesforce", "wie hubspot", "wie sap", "alle funktionen",
                    "auf max", "maximal", "top-niveau", "top niveau", "high-end", "mandantenfähig", "mandanten",
-                   "skalierbar für", "profi-niveau", "auf profi"],
+                   "skalierbar für", "profi-niveau", "auf profi", "100k", "100 k", "100.000", "premium",
+                   "agenturniveau", "agentur-niveau", "award", "awwwards", "luxus"],
     # Not plain "einfach": "einfach zu bedienen" describes usability, not scope.
     "mvp": ["mvp", "prototyp", "prototype", "minimal", "basic", "nur das nötigste", "erste version",
             "einfache version", "einfaches crm", "kleine version", "schlanke version"],
@@ -143,6 +144,13 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
     pages = [p for t in upto(tier) for p in bp.get("pages", {}).get(t, [])]
     roles = [r for r in bp.get("roles", []) if in_tier(r, tier)]
     metrics = [{k: v for k, v in m.items() if k != "tier"} for m in bp.get("metrics", []) if in_tier(m, tier)]
+    login = next((p for p in pages if "login" in p), None)
+    extra: dict[str, Any] = {}
+    if bp.get("performance_budget", {}).get(tier):
+        extra["performance_budget"] = bp["performance_budget"][tier]
+    videos = [v for t in upto(tier) for v in bp.get("media", {}).get(t, [])]
+    if videos:
+        extra["media"] = {"videos": videos, "raw_dir": "assets/raw"}
     return {
         "project_name": project_name or bp["id"].upper(),
         "app_type": bp.get("app_type", "web-app"),
@@ -160,11 +168,12 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
         # One demo login per role; the full demo seed gives each of them data on every page (ui-tour checks it).
         "demo": {
             "seed_command": "npm run db:seed",
-            "login_path": "/login" if "/login" in pages else None,
+            "login_path": login,
             "accounts": [{"role": r["id"], "email": f"{r['id']}@demo.example", "password": "Demo1234!"} for r in roles],
         },
         "production_dependencies": bp.get("production_dependencies", {}).get(tier, []),
         "acceptance_criteria": criteria,
+        **extra,
     }
 
 

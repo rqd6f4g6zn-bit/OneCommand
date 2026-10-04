@@ -83,9 +83,10 @@ check("All commands in repo", not missing_cmds,
 # ── 3b. Quality gate scripts ──────────────────────────────────────────────────
 gate_files = ["hooks/quality-gate.sh", "hooks/acceptance-report.py", "hooks/learnings.py",
               "hooks/skill-catalog.py", "hooks/update.py", "hooks/hooks.json", "hooks/checkpoint.py",
-              "hooks/playwright-pin.py", "hooks/blueprint.py", "hooks/api-contract.py", "hooks/ui-tour.py"]
+              "hooks/playwright-pin.py", "hooks/blueprint.py", "hooks/api-contract.py", "hooks/ui-tour.py",
+              "hooks/ml-gate.py", "hooks/video.py"]
 missing_gate = [g for g in gate_files if not (repo / g).exists()]
-check("Build scripts (gate, acceptance, contract, UI tour, learnings, skills, update, checkpoint)", not missing_gate,
+check("Build scripts (gate, ML gate, acceptance, contract, UI tour, video, learnings, skills, update, checkpoint)", not missing_gate,
       f"{len(gate_files)}/{len(gate_files)} present" if not missing_gate else "",
       f"Missing: {missing_gate} — git pull (v1.4.0+) and re-run install.sh")
 

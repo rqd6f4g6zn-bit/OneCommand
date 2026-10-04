@@ -1,0 +1,154 @@
+{
+  "id": "website",
+  "name": "Unternehmenswebseite / Premium-Website",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["webseite", "website", "homepage", "landingpage", "landing page", "unternehmenswebseite", "firmenwebseite", "internetauftritt", "webauftritt", "corporate website", "markenwebseite", "agenturwebseite", "portfolio-seite", "imagewebseite"],
+  "summary": "Marken- und Unternehmenswebseite auf Agenturniveau: Designsystem, Motion, Hero-Video, Referenzen, CMS für die Redaktion, Mehrsprachigkeit, SEO, Barrierefreiheit, DSGVO und ein hartes Performance-Budget.",
+  "roles": [
+    {"id": "editor", "name": "Redaktion", "can": "Seiten, Referenzen, Artikel und Stellen im CMS pflegen, Vorschau, veröffentlichen", "tier": "pro"},
+    {"id": "admin", "name": "Admin", "can": "alles inkl. Benutzer, Formular-Empfänger, Integrationen", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "Lead", "fields": ["name", "email", "company", "message", "source_page", "consent", "createdAt"], "tier": "mvp"},
+    {"name": "Page", "fields": ["slug", "locale", "title", "description", "blocks", "status(draft|published)", "publishedAt"], "tier": "pro"},
+    {"name": "CaseStudy", "fields": ["slug", "locale", "client", "industry", "challenge", "solution", "results", "cover", "video", "status"], "tier": "pro"},
+    {"name": "Article", "fields": ["slug", "locale", "title", "excerpt", "body", "author", "cover", "publishedAt", "status"], "tier": "pro"},
+    {"name": "MediaAsset", "fields": ["file", "alt", "credit", "license", "width", "height"], "tier": "pro"},
+    {"name": "User", "fields": ["name", "email", "role"], "tier": "pro"},
+    {"name": "Job", "fields": ["slug", "title", "location", "type", "description", "status"], "tier": "enterprise"},
+    {"name": "Application", "fields": ["jobId", "name", "email", "cv", "message", "consent", "createdAt"], "tier": "enterprise"},
+    {"name": "Subscriber", "fields": ["email", "status(pending|confirmed)", "token", "confirmedAt"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "pages-core", "name": "Seiten & Navigation", "tier": "mvp",
+     "features": ["Start, Leistungen, Über uns, Kontakt mit echten Texten (keine Platzhalter)", "Klare Navigation mit Call-to-Action, mobiles Menü", "Footer mit Kontakt, Social, Rechtlichem"],
+     "criteria": [
+       {"title": "Mobile menu opens and reaches every main page", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Viewport 390×844", "Open the menu button 'Menü'", "Click 'Leistungen'"], "expected": ["URL is /leistungen", "Heading 'Leistungen' is visible", "The menu is closed after navigation"]}
+     ]},
+    {"id": "contact", "name": "Kontakt & Leads", "tier": "mvp",
+     "features": ["Kontaktformular mit Validierung", "Spamschutz (Honeypot + Rate-Limit), kein Captcha-Zwang", "E-Mail an das Unternehmen und Bestätigung an den Absender", "Lead wird gespeichert"],
+     "criteria": [
+       {"title": "Valid contact request shows a thank-you and e-mails the company", "verification": "e2e", "start": "/kontakt", "requires_auth": false, "steps": ["Fill Name 'Lena Berg', E-Mail 'lena@example.com', Nachricht 'Wir planen einen Relaunch'", "Accept the privacy notice", "Click 'Anfrage senden'"], "expected": ["Text 'Danke, Lena' is visible", "Outbox contains a mail to the company with 'Wir planen einen Relaunch'", "Outbox contains a confirmation to lena@example.com"]},
+       {"title": "Submission with a filled honeypot is dropped silently", "verification": "api", "steps": ["POST /api/contact with a filled hidden field 'website'"], "expected": ["Status 200", "No lead is stored and no mail is sent"]}
+     ]},
+    {"id": "legal-consent", "name": "Recht & Consent (DSGVO)", "tier": "mvp",
+     "features": ["Impressum und Datenschutzerklärung von jeder Seite erreichbar", "Cookie-Consent: Analyse und Marketing erst nach Zustimmung", "Einstellungen jederzeit änderbar"],
+     "criteria": [
+       {"title": "No analytics request or cookie before consent, loaded after 'Alle akzeptieren'", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Open / in a fresh context", "Record requests and cookies", "Click 'Alle akzeptieren'"], "expected": ["Before consent: no request to the analytics endpoint and no analytics cookie", "After consent: the analytics script is loaded"]},
+       {"title": "Footer of every page links Impressum and Datenschutz", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Visit every page of the sitemap"], "expected": ["Each footer has links 'Impressum' and 'Datenschutz' that return 200"]}
+     ]},
+    {"id": "seo", "name": "SEO & Teilen", "tier": "mvp",
+     "features": ["Eigener Title und Description pro Seite", "Open-Graph-Bild pro Seite", "sitemap.xml, robots.txt, kanonische URLs", "Strukturierte Daten (Organization, LocalBusiness)"],
+     "criteria": [
+       {"title": "Every page has its own title, description and og:image; sitemap lists them", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["GET /sitemap.xml", "Open every URL from the sitemap"], "expected": ["Titles are unique", "Each page has meta description and og:image", "The sitemap contains every public page"]}
+     ]},
+    {"id": "error-pages", "name": "Fehlerseiten", "tier": "mvp",
+     "features": ["404 mit Navigation und Suche/Startseite", "500-Seite ohne technische Details"],
+     "criteria": [
+       {"title": "Unknown URL shows the designed 404 page", "verification": "e2e", "start": "/gibt-es-nicht", "requires_auth": false, "steps": ["Open /gibt-es-nicht"], "expected": ["Status 404", "Text 'Seite nicht gefunden' and a link to the homepage are visible"]}
+     ]},
+    {"id": "design-system", "name": "Designsystem", "tier": "pro",
+     "features": ["Design-Tokens (Farben, Typo-Skala, Abstände, Radien)", "Eigene Schriftpaarung, self-hosted", "Komponenten: Hero, Feature-Grid, Testimonials, Logo-Wall, CTA-Band, Zahlen, FAQ", "Art Direction: Bildsprache, Illustration oder 3D-Akzente konsistent"],
+     "criteria": [
+       {"title": "Design review: every page uses the tokens and type scale, no ad-hoc colours or sizes", "verification": "manual", "steps": ["grep the styles for hex colours and px font sizes outside the token file", "Review the tour screenshots"], "expected": ["No values outside the tokens", "Consistent spacing rhythm on every page"]}
+     ]},
+    {"id": "motion", "name": "Motion & Interaktion", "tier": "pro",
+     "features": ["Scroll-Reveal und Übergänge mit Bedacht", "Micro-Interactions an Buttons und Karten", "prefers-reduced-motion schaltet Animationen und Autoplay ab"],
+     "criteria": [
+       {"title": "With reduced motion all content is visible at once and nothing autoplays", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Emulate prefers-reduced-motion: reduce", "Open / and scroll to the bottom"], "expected": ["No element below the fold has opacity 0", "The hero video is paused and shows its poster"]}
+     ]},
+    {"id": "hero-video", "name": "Hero-Video & Filme", "tier": "pro",
+     "features": ["Stummes Hero-Loop-Video aus eigenem Material oder Bildern geschnitten (video-producer)", "WebM + MP4 + Poster, Größenbudget", "Lazy-Loading für Videos unterhalb des sichtbaren Bereichs"],
+     "criteria": [
+       {"title": "Hero video is muted, inline, has a poster and WebM + MP4 sources", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Open /", "Inspect the hero <video>"], "expected": ["Attributes muted, playsinline and poster are set", "Sources include video/webm and video/mp4", "The poster image loads with status 200"]}
+     ]},
+    {"id": "case-studies", "name": "Referenzen", "tier": "pro",
+     "features": ["Referenzübersicht mit Filter nach Branche", "Detailseiten: Ausgangslage, Lösung, messbare Ergebnisse, Zitat", "Nächste/vorherige Referenz"],
+     "criteria": [
+       {"title": "Filtering by industry narrows the list and a card opens its case study", "verification": "e2e", "start": "/referenzen", "requires_auth": false, "steps": ["Choose filter 'Industrie'", "Click the first card"], "expected": ["Only cards with industry 'Industrie' remain", "Detail page shows heading, 'Ergebnisse' and at least one figure"]}
+     ]},
+    {"id": "cms", "name": "CMS für die Redaktion", "tier": "pro",
+     "features": ["Headless CMS (z. B. Payload oder Sanity) oder Admin mit Entwurf/Vorschau/Veröffentlichen", "Seiten, Referenzen, Artikel ohne Entwickler pflegbar", "Medienverwaltung mit Alt-Text und Lizenz/Credit"],
+     "criteria": [
+       {"title": "Editor changes the homepage headline, previews it and publishes", "verification": "e2e", "start": "/admin", "requires_auth": true, "steps": ["Edit the hero headline to 'Wir bauen Zukunft'", "Open 'Vorschau'", "Click 'Veröffentlichen'"], "expected": ["The preview shows the new headline", "After publishing, / shows 'Wir bauen Zukunft' to visitors"]}
+     ]},
+    {"id": "blog", "name": "Blog / News", "tier": "pro",
+     "features": ["Artikelübersicht mit Kategorien", "Artikelseite mit Autor, Lesezeit, Teilen", "RSS-Feed"],
+     "criteria": [
+       {"title": "Published article appears in the list, its page and the RSS feed", "verification": "e2e", "start": "/blog", "requires_auth": false, "steps": ["Open /blog", "Open the newest article", "GET /rss.xml"], "expected": ["The article page shows title, author and reading time", "rss.xml contains the article"]}
+     ]},
+    {"id": "i18n", "name": "Mehrsprachigkeit", "tier": "pro",
+     "features": ["Deutsch und Englisch, übersetzte Slugs", "Sprachumschalter behält die Seite", "hreflang und lokalisierte Metadaten"],
+     "criteria": [
+       {"title": "Language switch on a subpage leads to the same page in English", "verification": "e2e", "start": "/leistungen", "requires_auth": false, "steps": ["Click 'EN'"], "expected": ["URL is /en/services", "html lang is 'en'", "Head contains hreflang links for de and en"]}
+     ]},
+    {"id": "performance", "name": "Performance-Budget", "tier": "pro",
+     "features": ["LCP ≤ 2,5 s, CLS ≤ 0,1 auf allen Seiten", "Bilder in AVIF/WebP mit responsiven Größen, Fonts preload + swap", "Kein Layout-Shift durch Bilder, Fonts, Consent-Banner"],
+     "criteria": [
+       {"title": "UI tour reports no performance budget violation on any page", "verification": "manual", "steps": ["Run quality-gate.sh --stage tour with spec.performance_budget"], "expected": ["No 'performance budget' issue in .onecommand/tour/report.md"]}
+     ]},
+    {"id": "accessibility", "name": "Barrierefreiheit (WCAG 2.2 AA)", "tier": "pro",
+     "features": ["Skip-Link, sichtbarer Fokus, Tastaturbedienung", "Alt-Texte, Kontraste AA, Überschriften-Hierarchie", "Formulare mit Labels und Fehlermeldungen"],
+     "criteria": [
+       {"title": "axe finds no serious or critical violations on the main pages", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Run @axe-core/playwright on /, /leistungen, /kontakt, /referenzen"], "expected": ["0 violations with impact serious or critical"]},
+       {"title": "First Tab press focuses 'Zum Inhalt springen'", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Press Tab once"], "expected": ["Focused element has text 'Zum Inhalt springen' and a visible focus ring"]}
+     ]},
+    {"id": "page-builder", "name": "Seitenbaukasten", "tier": "enterprise",
+     "features": ["Redaktion baut Landingpages aus Blöcken (Hero, Grid, Zahlen, Testimonials, CTA, Video)", "Block-Varianten aus dem Designsystem, keine freien Styles", "Geplante Veröffentlichung"],
+     "criteria": [
+       {"title": "Editor composes a landing page from blocks and publishes it at its slug", "verification": "e2e", "start": "/admin", "requires_auth": true, "steps": ["Create page 'Messe 2027' with blocks Hero, Zahlen, CTA", "Publish"], "expected": ["/messe-2027 shows the three blocks in that order", "The page appears in sitemap.xml"]}
+     ]},
+    {"id": "films", "name": "Imagefilm & Videothek", "tier": "enterprise",
+     "features": ["Imagefilm und Produktfilme mit Ton, Untertiteln (VTT) und Kapiteln", "Geschnitten aus Rohmaterial oder Motion-Graphics (Remotion)", "Credits und Lizenzen je Clip"],
+     "criteria": [
+       {"title": "Image film plays with German captions on by default", "verification": "e2e", "start": "/unternehmen", "requires_auth": false, "steps": ["Open /unternehmen", "Click play on the image film"], "expected": ["The video has controls and a captions track with srclang 'de' marked default", "Playback starts (currentTime > 0 after 2 s)"]}
+     ]},
+    {"id": "careers", "name": "Karriere", "tier": "enterprise",
+     "features": ["Stellenanzeigen aus dem CMS mit JobPosting-Strukturdaten", "Bewerbungsformular mit Lebenslauf-Upload (PDF ≤ 10 MB)", "Eingangsbestätigung per E-Mail"],
+     "criteria": [
+       {"title": "Application with a PDF CV is accepted and confirmed", "verification": "e2e", "start": "/karriere", "requires_auth": false, "steps": ["Open the first job", "Fill name and e-mail, upload cv.pdf", "Click 'Bewerbung senden'"], "expected": ["Text 'Bewerbung eingegangen' is visible", "Outbox contains a confirmation to the applicant"]},
+       {"title": "Upload of a non-PDF or a file over 10 MB is rejected", "verification": "api", "steps": ["POST /api/applications with cv.exe", "POST with a 12 MB PDF"], "expected": ["Status 422 with a message for each"]}
+     ]},
+    {"id": "newsletter", "name": "Newsletter", "tier": "enterprise",
+     "features": ["Anmeldung mit Double-Opt-in", "Abmeldung per Link"],
+     "criteria": [
+       {"title": "Subscription is active only after the confirmation link", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Subscribe with 'max@example.com'", "Open the link from the outbox mail"], "expected": ["Before the link: status pending", "After the link: 'Anmeldung bestätigt' and status confirmed"]}
+     ]},
+    {"id": "search", "name": "Seitensuche", "tier": "enterprise",
+     "features": ["Suche über Seiten, Referenzen, Artikel und Stellen", "Tastaturkürzel und Trefferhervorhebung"],
+     "criteria": [
+       {"title": "Search finds a case study and an article by keyword", "verification": "e2e", "start": "/suche", "requires_auth": false, "steps": ["Search 'Relaunch'"], "expected": ["Results contain the case study and the article with 'Relaunch' highlighted"]}
+     ]},
+    {"id": "lead-routing", "name": "Lead-Weiterleitung", "tier": "enterprise",
+     "features": ["Leads per Webhook an CRM (z. B. HubSpot, Pipedrive, eigenes CRM)", "Quelle/Kampagne (UTM) am Lead", "Wiederholung bei Fehlern"],
+     "criteria": [
+       {"title": "Contact request is forwarded to the CRM webhook with its UTM source", "verification": "api", "steps": ["Open /kontakt?utm_source=linkedin and submit the form", "Inspect the webhook receiver"], "expected": ["One POST with name, e-mail, message and utm_source 'linkedin'"]}
+     ]},
+    {"id": "quality-ops", "name": "Qualitätssicherung im Betrieb", "tier": "enterprise",
+     "features": ["Lighthouse-CI-Budgets in der Pipeline", "Visuelle Regressionstests der Hauptseiten", "Uptime- und Fehler-Monitoring"],
+     "criteria": [
+       {"title": "CI fails when a Lighthouse budget or a visual snapshot regresses", "verification": "manual", "steps": ["Open the CI workflow"], "expected": ["A Lighthouse CI job with budgets for performance ≥ 95, accessibility ≥ 95, SEO = 100", "Playwright screenshot comparison for /, /leistungen, /kontakt"]}
+     ]}
+  ],
+  "non_functional": [
+    {"tier": "mvp", "text": "Keine Platzhaltertexte, Lorem ipsum oder Stockfoto-Wasserzeichen; jeder Text ist für das Unternehmen geschrieben"},
+    {"tier": "mvp", "text": "Responsive von 360 px bis 2560 px; keine horizontale Scrollbar"},
+    {"tier": "mvp", "text": "Fonts self-hosted (keine Google-Fonts-Requests ohne Consent)"},
+    {"tier": "pro", "text": "Statisch generiert oder gecacht (SSG/ISR); TTFB unter 200 ms aus dem CDN"},
+    {"tier": "pro", "text": "Bilder: AVIF/WebP, responsive srcset, Alt-Text Pflicht im CMS, Lizenz/Credit je Medium"},
+    {"tier": "enterprise", "text": "Lighthouse ≥ 95 in Performance, Barrierefreiheit, Best Practices; SEO = 100"},
+    {"tier": "enterprise", "text": "Visuelle Abnahme: jede Seite einzeln im Screenshot-Review des UI-Rundgangs freigegeben"}
+  ],
+  "performance_budget": {
+    "mvp": {"lcp_ms": 2500, "cls": 0.1, "page_kb": 1500},
+    "pro": {"lcp_ms": 2500, "cls": 0.1, "page_kb": 1500},
+    "enterprise": {"lcp_ms": 2000, "cls": 0.05, "page_kb": 1200}
+  },
+  "media": {
+    "pro": [{"name": "hero", "purpose": "hero loop on /", "muted": true, "max_seconds": 12, "max_kb": 4000, "source": "footage | images | motion-graphics"}],
+    "enterprise": [{"name": "imagefilm", "purpose": "/unternehmen", "muted": false, "max_seconds": 90, "max_kb": 15000, "captions": true, "source": "footage | motion-graphics"}]
+  },
+  "production_dependencies": {"mvp": ["email"], "pro": ["email", "storage"], "enterprise": ["email", "storage"]},
+  "pages": {"mvp": ["/", "/leistungen", "/ueber-uns", "/kontakt", "/impressum", "/datenschutz"], "pro": ["/referenzen", "/referenzen/[slug]", "/blog", "/blog/[slug]", "/en", "/admin/login", "/admin"], "enterprise": ["/unternehmen", "/karriere", "/karriere/[slug]", "/suche"]}
+}

@@ -12,6 +12,7 @@
 #   tour    demo seed → production server → every page as every demo login, screenshots
 #           (hooks/ui-tour.py; skipped when the spec has no "demo" section)
 #   all     static, then e2e, then tour (each only runs when the previous one passed)
+#   (AI/ML projects — build_targets contain "ml" — are handed to hooks/ml-gate.py whatever the stage)
 #
 # Output (default <project>/.onecommand/gate/):
 #   result.json      machine-readable result of every step
@@ -47,7 +48,7 @@ STEP_TIMEOUT="${OC_GATE_STEP_TIMEOUT:-900}"   # seconds per step
 E2E_TIMEOUT="${OC_GATE_E2E_TIMEOUT:-1800}"     # seconds for the Playwright run
 
 usage() {
-  sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,33p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 while [ $# -gt 0 ]; do
@@ -93,6 +94,12 @@ cd "$PROJECT_DIR" || exit 2
 if ! command -v python3 &>/dev/null; then
   echo "[gate] python3 is required" >&2
   exit 2
+fi
+
+# AI/ML training projects (spec build_targets contain "ml") have their own verdict: install, lint,
+# tests, smoke training, metric threshold, model card, inference API. Same result.json format.
+if [ -f .onecommand-spec.json ] && python3 -c 'import json,sys; s=json.load(open(".onecommand-spec.json")); sys.exit(0 if "ml" in (s.get("build_targets") or []) and isinstance(s.get("ml"), dict) else 1)' 2>/dev/null; then
+  exec python3 "$SCRIPT_DIR/ml-gate.py" --project-dir "$PROJECT_DIR" --out "$OUT_DIR"
 fi
 
 STEPS_FILE="$OUT_DIR/.steps.tsv"

@@ -100,10 +100,36 @@ So every build now ends with what a reviewer does:
 
 See [the CRM showcase](docs/showcase/crm/README.md) for the screenshots and what they revealed.
 
+## Trains AI Models
+
+"Trainiere eine KI, die unsere Support-Tickets nach Kategorie sortiert" builds a complete ML project
+(`ml-agent`, `ml-builder` skill): data pipeline with a licensed sample, baseline, training with smoke
+and full configs, evaluation, model card and a FastAPI inference service — for tabular data, text,
+images, LLM fine-tuning (LoRA) and time series. `hooks/ml-gate.py` is its verdict: the smoke training
+must actually learn (metric above `smoke_min`) and `POST /predict` must answer. The full training run
+and the hardware it needs are listed in the delivery report.
+
+## Premium Websites, Videos Included
+
+"Webseite im 100k-Preissegment" selects the enterprise tier of the `website` blueprint: design system,
+motion, hero video, case studies, CMS with preview, page builder, image film, careers, i18n, SEO,
+GDPR consent and WCAG 2.2 AA. The UI tour enforces a **performance budget** on every page (LCP, CLS,
+transferred KB on first visit at 10 Mbit/s).
+
+Videos are cut by OneCommand itself (`video-producer` skill, `hooks/video.py`): it finds scene cuts in
+your raw footage, assembles the edit, turns photos into Ken-Burns shots or renders motion graphics when
+there is no footage, and encodes MP4 + WebM + poster within a size budget.
+
+```bash
+python3 hooks/video.py scenes assets/raw/drone.mp4          # where to cut
+python3 hooks/video.py render --plan video/plan.json --out-dir public/videos
+python3 hooks/video.py check public/videos                   # formats, faststart, silent loops, budget
+```
+
 ## Knows the Domain
 
 Short prompts are enough for common business systems. OneCommand ships domain blueprints for
-**CRM, online shop, appointment booking, helpdesk, project management and invoicing** — what a
+**CRM, online shop, appointment booking, helpdesk, project management, invoicing and corporate/premium websites** — what a
 professional expects from each, as modules with concrete acceptance criteria:
 
 | Prompt says | Tier | Example: CRM |
