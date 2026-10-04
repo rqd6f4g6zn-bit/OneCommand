@@ -162,9 +162,9 @@ Pick up **exactly** from the phase shown. Execute the remaining phases in order.
 | Phase | What it does |
 |---|---|
 | 3 | Integration (API verify, Docker, .env.example) + Marketing (README, landing page) |
-| 4 | Tests + Self-healing (up to 5 auto-iterations, brain logs every fix) |
+| 4 | Quality gate + acceptance tests (Playwright, from spec) + self-healing — verdict in `.onecommand/gate/result.json` |
 | 5 | Automations (GitHub Actions CI, git hooks, Makefile) |
-| 6 | Quality pass (security audit OWASP, dark mode, a11y, store readiness) |
+| 6 | Quality pass (security audit OWASP, dark mode, a11y, store readiness) + final regression gate |
 | 7 | Self-improvement + Brain reflection (episodic memory, preference update) |
 | 8 | Delivery report → ONECOMMAND-DELIVERY.md |
 
@@ -172,4 +172,5 @@ Pick up **exactly** from the phase shown. Execute the remaining phases in order.
 - Skip every phase already in `phases_completed`
 - Skip files that already exist on disk — do not overwrite
 - Do not ask the user for input — everything is in the resume brief
-- After Phase 4 and Phase 6 complete → invoke auto-clear SAVE again
+- After every phase → checkpoint (context-manager CHECKPOINT + auto-clear SAVE, silent) and continue immediately — never stop for /clear
+- Run each phase in subagents exactly as `commands/onecommand.md` describes (pass `OC_ROOT` and `PROJECT_DIR`; resolve `OC_ROOT` from `working_memory["plugin_root"]`, or — for builds started before v1.4.0 — exactly like pre-flight step 4 of `commands/onecommand.md`)

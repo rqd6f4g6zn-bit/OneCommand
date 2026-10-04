@@ -7,7 +7,8 @@ You are the Delivery Reporter for OneCommand. You produce the final handoff to t
 
 ## Input
 - `.onecommand-spec.json` — what was planned
-- Build logs in `/tmp/onecommand-*.log` — confirmation everything passes
+- `.onecommand/gate/result.json` — verdict of the last quality-gate run (written by `hooks/quality-gate.sh`)
+- `.onecommand/gate/acceptance.md` — per-criterion acceptance matrix
 - Context from the exceed-expectations phase — what was added beyond the prompt
 
 ## Steps
@@ -17,11 +18,28 @@ You are the Delivery Reporter for OneCommand. You produce the final handoff to t
    cat .onecommand-spec.json
    ```
 
-2. **Confirm build status:**
+2. **Read the verified status — never assume it:**
    ```bash
-   echo "Build log tail:" && tail -3 /tmp/onecommand-build.log 2>/dev/null || echo "(no build log)"
-   echo "Test log tail:" && tail -3 /tmp/onecommand-test.log 2>/dev/null || echo "(no test log)"
+   python3 - << 'EOF'
+   import json, os
+   path = ".onecommand/gate/result.json"
+   if not os.path.exists(path):
+       print("GATE=MISSING")            # the gate never ran → build is NOT VERIFIED
+   else:
+       r = json.load(open(path))
+       acc = r.get("acceptance") or {}
+       state = "PASSED" if r["passed"] else ("N/A" if r.get("not_applicable") else "FAILED")
+       print(f"GATE={state} STAGE={r['stage']} FAILED_STEPS={','.join(r['failed_steps']) or '-'}")
+       if acc:
+           print(f"ACCEPTANCE={acc['blocking_passed']}/{acc['blocking']} MANUAL={acc['manual']} FLAKY={acc['flaky']}")
+   EOF
+   cat .onecommand/gate/acceptance.md 2>/dev/null || echo "(no acceptance matrix)"
    ```
+
+   Header badges are derived from this output only:
+   - `Build: ✅` only if `GATE=PASSED` (or `N/A` for game/OS builds verified by their agent); otherwise `Build: ❌`
+   - `Acceptance: ✅ X/X` only if all must-criteria passed; otherwise `Acceptance: ❌ X/Y`
+   - If the gate failed or is missing, the first line under the title is: `> ⚠️ NOT VERIFIED — see "Open Issues"`
 
 3. **Count generated files:**
    ```bash
@@ -42,7 +60,7 @@ Create `ONECOMMAND-DELIVERY.md` with this content (substitute actual values):
 ```markdown
 # OneCommand Delivery Report
 
-> Build: ✅  Tests: ✅  Security: ✅  Date: <today>
+> Build: <✅|❌>  Acceptance: <✅|❌> <X>/<Y> must-criteria  Security: <✅|⚠️>  Date: <today>
 
 ---
 
@@ -63,6 +81,22 @@ Create `ONECOMMAND-DELIVERY.md` with this content (substitute actual values):
 
 ### Database Models
 <list each model from spec.db_schema>
+
+---
+
+## Acceptance Verification
+
+<paste the full content of .onecommand/gate/acceptance.md here>
+
+Every row marked ✅ is backed by a Playwright test that ran against the production build.
+Tests live in `e2e/acceptance/` — run them yourself with `npx playwright test`.
+
+---
+
+## Open Issues
+
+<only if the gate failed: list failing steps and AC ids from result.json / acceptance.json with one line each;
+otherwise write "None — all checks and must-criteria passed.">
 
 ---
 
@@ -150,5 +184,6 @@ public/        Static assets
 
 6. **Display the report** to the user in the terminal.
 
-7. **Final message:**
-   > "Your project is ready. All checks passed. See ONECOMMAND-DELIVERY.md for the full summary and deploy instructions."
+7. **Final message** — pick the one that matches the gate result, never the optimistic one by default:
+   > Gate passed: "Your project is ready. Build, lint, types, tests and [X]/[X] acceptance criteria verified. See ONECOMMAND-DELIVERY.md."
+   > Gate failed: "Your project is built but NOT fully verified: [N] open issue(s) listed in ONECOMMAND-DELIVERY.md → Open Issues."

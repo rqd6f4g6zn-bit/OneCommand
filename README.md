@@ -38,16 +38,36 @@ OneCommand runs 8 phases automatically:
 | 1. Spec | Analyzes your prompt → structured project spec |
 | 2. Frontend + Backend | Parallel generation: full UI + API + DB + auth |
 | 3. Integration + Marketing | Connect systems, generate README + landing page |
-| 4. Tests + Self-Healing | Run checks, fix errors automatically (up to 5 iterations) |
+| 4. Quality Gate + Acceptance | Build, lint, types, unit tests — then every acceptance criterion from the spec as a Playwright test against the running app; self-healing until green |
 | 5. Automations | Git hooks, GitHub Actions CI/CD, Makefile |
-| 6. Exceed Expectations | Dark mode, PWA, accessibility, security audit |
+| 6. Exceed Expectations | Dark mode, PWA, accessibility, security audit — then a final regression gate |
 | 7. Self-Improvement | Learn from this run for better future builds |
 | 8. Delivery | Complete report + deploy instructions |
+
+The whole run needs no manual steps: every phase runs in its own subagent, so the build never
+pauses for `/clear`. State is checkpointed to disk after each phase — if anything interrupts the
+build, `/oc-resume` continues where it stopped.
+
+## Definition of Done
+
+Phase 1 writes **acceptance criteria** into `.onecommand-spec.json` — concrete, observable results per
+feature ("after login, /dashboard shows heading 'Dashboard'", "GET /api/workouts without a session
+returns 401"). Phase 4 turns each one into a Playwright test and runs it against the production
+build with a real database. A build is only reported as complete when every `must` criterion
+passes; otherwise the delivery report says **NOT VERIFIED** and lists what is open.
+
+The verdict comes from `hooks/quality-gate.sh`, not from an agent's judgement:
+
+```bash
+bash hooks/quality-gate.sh --stage all --project-dir ~/Desktop/MyApp
+# → .onecommand/gate/result.json, errors.txt, acceptance.md
+```
 
 ## Output
 
 - **Full frontend** (Next.js + Tailwind + shadcn/ui) — all pages, components, mobile responsive
 - **Complete backend** (API routes, auth, DB schema, migrations, seed data)
+- **Acceptance suite** (`e2e/acceptance/`, one Playwright test per criterion, runnable with `npx playwright test`)
 - **Automation** (Git hooks, GitHub Actions, Makefile)
 - **Documentation** (README, CHANGELOG, landing page)
 - **Security** (OWASP audit, rate limiting, input validation)

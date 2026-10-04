@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.3.7"
+PLUGIN_VERSION="1.4.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=false
@@ -167,7 +167,8 @@ if [ ${#missing_tools[@]} -gt 0 ]; then
 fi
 ok "python3, rsync, cmp available"
 
-for manifest in "$REPO_ROOT/.claude-plugin/plugin.json" "$REPO_ROOT/commands/onecommand.md"; do
+for manifest in "$REPO_ROOT/.claude-plugin/plugin.json" "$REPO_ROOT/commands/onecommand.md" \
+                "$REPO_ROOT/hooks/quality-gate.sh" "$REPO_ROOT/hooks/acceptance-report.py"; do
   if [ ! -f "$manifest" ]; then
     err "Not a OneCommand checkout: $manifest missing (REPO_ROOT=$REPO_ROOT)"
     exit 1
@@ -271,6 +272,8 @@ run mkdir -p "$CLAUDE_PLUGINS_DIR" "$CLAUDE_COMMANDS_DIR"
 sync_dir "${REPO_ROOT}/" "$OC_CLAUDE_DIR/" "Claude Code plugin files → $(tilde "$OC_CLAUDE_DIR")" \
   --delete \
   --exclude='.git' \
+  --exclude='.gitignore' \
+  --exclude='__pycache__' \
   --exclude='install.sh' \
   --exclude='.codex-plugin' \
   --exclude='README.md' \
@@ -391,6 +394,8 @@ else
   run mkdir -p "$CODEX_SKILLS_DIR"
 
   sync_dir "${REPO_ROOT}/.codex-plugin/skills/onecommand/" "$OC_CODEX_SKILL_DIR/" "Codex skill: onecommand"
+  # Quality gate + acceptance report — the Codex skill calls them from here.
+  sync_dir "${REPO_ROOT}/hooks/" "$OC_CODEX_SKILL_DIR/hooks/" "Codex hooks: quality gate" --delete --exclude='__pycache__'
 
   # Bundled skills — synced by content so upgrades reach existing installs.
   for skill_dir in "${REPO_ROOT}/skills"/*/; do
@@ -514,6 +519,7 @@ BUNDLED_SKILLS=(
   "collab-protocol"
   "auto-clear"
   "21st-components"
+  "acceptance-tester"
 )
 
 all_ok=true

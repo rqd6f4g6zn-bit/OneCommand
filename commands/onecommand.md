@@ -91,7 +91,7 @@ Do NOT re-read this pre-flight section — just continue from Phase N.
 ```
 +==============================================================+
 |              OneCommand — Build Starting                     |
-|   8 phases · Claude + Codex · Self-healing · Auto-exceed    |
+|   8 phases · Claude + Codex · Self-healing · Verified        |
 +==============================================================+
 
 Project prompt: "<$ARGUMENTS>"
@@ -123,7 +123,25 @@ codex --version 2>/dev/null || echo "CODEX_UNAVAILABLE"
 ```
 If Codex is unavailable, note it and plan to use Claude for backend generation instead (still excellent, just not delegated to Codex).
 
-4. **Model strategy** — always follow this split:
+4. **Resolve the plugin root** (`OC_ROOT`) — every subagent needs it to find `hooks/` and `skills/`:
+```bash
+python3 << 'EOF'
+import json, os
+from pathlib import Path
+cands = [os.environ.get("CLAUDE_PLUGIN_ROOT", ""), "${CLAUDE_PLUGIN_ROOT}"]
+try:
+    reg = json.loads((Path.home() / ".claude/plugins/installed_plugins.json").read_text())
+    cands.append(reg["plugins"]["onecommand@local"][0]["installPath"])
+except Exception:
+    pass
+cands += [str(Path.home() / ".claude/plugins/onecommand"), str(Path.home() / "OneCommand")]
+root = next((c for c in cands if c and "${" not in c and (Path(c) / "hooks/quality-gate.sh").exists()), "")
+print(f"OC_ROOT={root}" if root else "OC_ROOT=NOT_FOUND — run install.sh, then /oc-doctor")
+EOF
+```
+Remember the printed `OC_ROOT` for the whole build and store it in working memory as `plugin_root`. If it is `NOT_FOUND`, stop and tell the user to run `/oc-doctor`.
+
+5. **Model strategy** — always follow this split:
 
 | Role | Model | Why |
 |---|---|---|
@@ -132,6 +150,24 @@ If Codex is unavailable, note it and plan to use Claude for backend generation i
 | Frontend, Backend, Mobile, Tests, Marketing | `claude-sonnet-4-6` | Fast + high-quality code generation → saves tokens |
 
 Opus analyses WHAT to build. Sonnet builds it. The combination gives better results than using one model for everything.
+
+---
+
+## Execution Model — one prompt, no manual steps
+
+The build runs from start to finish without asking the user to type anything. **Never stop to ask for `/clear` or `/onecommand --resume`.**
+
+Context stays small because heavy work happens in subagents, not in this conversation:
+
+- **Every phase's work runs in a subagent** (Agent tool). A subagent starts with a fresh context, does the work, and returns only a short summary. Generated code never flows through the orchestrator's context.
+- Named agents (`frontend-agent`, `backend-agent`, `test-agent`, …) are dispatched directly. Skill-only phases are dispatched to a `general-purpose` subagent with this prompt template:
+  > `You are a OneCommand phase runner. OC_ROOT=<path>. PROJECT_DIR=<path>. Read $OC_ROOT/skills/<skill>/SKILL.md and execute it completely inside PROJECT_DIR. Read .onecommand-spec.json for requirements. Do not ask questions — decide and document. Return at most 5 lines, ending with: PHASE_RESULT {"phase": N, "status": "ok|warn|fail", "summary": "<one line>"}`
+- Always pass `OC_ROOT` and `PROJECT_DIR` in every subagent prompt — subagents do not inherit them.
+- Independent subagents of one phase are dispatched **in the same message** so they run in parallel.
+- Subagents cannot dispatch further subagents: a phase runner does its skill's work itself.
+- Never paste file contents or full logs into this conversation. Read summaries and `PHASE_RESULT` lines only.
+
+After every phase: `context-manager` CHECKPOINT, then `auto-clear` SAVE (silent — it writes the resume brief to disk and continues). That keeps a crash, a closed terminal or a manual `/clear` recoverable with `/oc-resume`, without ever interrupting a running build.
 
 ---
 
@@ -144,9 +180,16 @@ Invoke `brain-agent` (runs: agent detection, memory READ, RECALL similar project
 
 This loads all past learnings, finds similar past projects, detects if Codex is available, and sets the collaboration plan — before a single line of code is generated.
 
-Then invoke the `spec-analyzer` skill with: $ARGUMENTS
+Then invoke the `spec-analyzer` skill with: $ARGUMENTS (pass `OC_ROOT` so it can run the validator).
+The spec MUST contain `acceptance_criteria` — the definition of done that Phase 4 verifies with real browser tests.
 
 Then invoke the `stack-detector` skill.
+
+Gate the spec — the build does not start with untestable requirements:
+```bash
+python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
+```
+Exit 1 → fix the reported criteria in `.onecommand-spec.json` and validate again (max 3 rounds). Do not continue to Phase 2 with an invalid spec.
 
 Verify `.onecommand-spec.json` was created:
 ```bash
@@ -158,7 +201,7 @@ Invoke `context-manager` in CHECKPOINT mode.
 Update working_memory with phase summary: `"1": "Spec: [project_name] ([app_type]), [N] features, [stack]"`
 
 Report to user (compact — max 3 lines):
-> "✓ Spec: [project_name] — [N] features, [stack], [deploy_target]"
+> "✓ Spec: [project_name] — [N] features, [M] acceptance criteria ([K] must), [stack], [deploy_target]"
 > "🧠 Brain: [N] past builds in memory. [Similar project note if found]"
 > "🤝 Mode: [dual-agent / claude-only]"
 
@@ -166,6 +209,9 @@ Report to user (compact — max 3 lines):
 
 ## Phase 2: BUILD (Parallel — type-aware)
 > "⚡ **Phase 2/8 — Generating in parallel...**"
+
+Every Phase 2 agent prompt includes `OC_ROOT`, `PROJECT_DIR` and this instruction:
+> "The `acceptance_criteria` in .onecommand-spec.json are the contract. Use the exact UI texts (headings, button labels, error messages) and routes they name. Every criterion must be satisfiable by what you build."
 
 First, determine build targets from the spec:
 ```bash
@@ -230,16 +276,12 @@ Skip frontend-agent, backend-agent for pure OS projects.
   pricing, dashboard screens; reimplements in Tamagui/Flutter (not auto-installed
   since 21st.dev components are web-React)
 
-Wait for ALL dispatched agents to complete before proceeding.
+Dispatch all agents of this phase in ONE message so they run in parallel. Wait for ALL of them to complete before proceeding.
 
 **Checkpoint Phase 2:**
 Invoke `context-manager` in CHECKPOINT mode.
 Update working_memory phase summary.
-
-**→ AUTO-CLEAR after Phase 2:**
-Invoke `auto-clear` skill in SAVE mode.
-This saves the full resume brief and file manifest to disk, then prints the /clear instruction box.
-**STOP here and wait for the user to /clear and /onecommand --resume.**
+Invoke `auto-clear` in SAVE mode (silent) — then continue immediately with Phase 3.
 
 Report (compact — max 2 lines):
 > "Game: [engine], [N] scenes/scripts, [N] assets." OR
@@ -251,17 +293,22 @@ Report (compact — max 2 lines):
 ## Phase 3: INTEGRATION + MARKETING
 > "🔗 **Phase 3/8 — Integrating systems + generating docs...**"
 
-### 3a: Live Integrations (dispatch in parallel with 3b)
+Dispatch 3a, 3b and 3c as three subagents in ONE message (parallel).
 
-Invoke the `live-integrations` skill. It reads `production_dependencies` from the spec and generates:
+### 3a: Live Integrations (phase runner subagent → `live-integrations` skill)
+
+The `live-integrations` skill reads `production_dependencies` from the spec and generates:
 - Real email sending (Resend SDK): verification email, password reset email, full API routes
 - Social Login: NextAuth Google/GitHub/Apple providers, social login buttons component, OAuth PrismaAdapter schema
 - Firebase Admin SDK: push notification service, `/api/notifications/register` route, Flutter PushNotificationService
 - Flutter Social Login: google_sign_in + sign_in_with_apple, social login API routes
 
 Only generates what is listed in `production_dependencies` — no unused integrations.
+Every integration also implements the `ONECOMMAND_E2E=1` test mode (e-mail → local outbox, payments → test mode, credentials login next to OAuth), so Phase 4 can verify these flows end-to-end.
 
-### 3b: Integration (you handle this directly)
+### 3b: Integration (`general-purpose` subagent)
+
+Dispatch a subagent with `OC_ROOT`, `PROJECT_DIR` and the following steps as its task. It returns a `PHASE_RESULT` line listing how many mismatches it fixed.
 
 1. Read the frontend API client:
 ```bash
@@ -356,24 +403,30 @@ Invoke `context-manager` in BUDGET mode. ← print compact status, not full hist
 
 Run the post-generate hook:
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/hooks/post-generate.sh"
+bash "$OC_ROOT/hooks/post-generate.sh"
 ```
 
-Then dispatch `test-agent`. The test-agent runs all checks and invokes `self-healer` automatically for up to 5 iterations.
+Then dispatch `test-agent` with `OC_ROOT`, `PROJECT_DIR` and `MODE=full`. It:
+1. runs `hooks/quality-gate.sh --stage static` (install, prisma, typecheck, lint, build, unit tests — real exit codes),
+2. generates the Playwright acceptance suite from `acceptance_criteria` (`acceptance-tester` skill),
+3. runs `hooks/quality-gate.sh --stage e2e` against the production build with a real database,
+4. heals with `self-healer` until everything is green (max 5 rounds per stage).
 
 Do not display interim healer details to the user — just show:
-> "Running checks... [iteration N if healing needed]"
+> "Running checks... [round N if healing needed]"
+
+**The verdict comes from the gate, not from the agent's wording:**
+```bash
+python3 -c "import json; r=json.load(open('.onecommand/gate/result.json')); a=r.get('acceptance') or {}; print('GATE', 'PASSED' if r['passed'] else 'FAILED', '| must', a.get('blocking_passed','-'), '/', a.get('blocking','-'))"
+```
 
 When test-agent completes:
-- All errors fixed → invoke `brain-agent` WRITE to save error patterns to brain
+- Invoke `brain-agent` WRITE to save the error patterns it fixed
 - Invoke `context-manager` in CHECKPOINT mode
-
-**→ AUTO-CLEAR after Phase 4:**
-Invoke `auto-clear` skill in SAVE mode.
-**STOP here and wait for the user to /clear and /onecommand --resume.**
+- Invoke `auto-clear` in SAVE mode (silent) — then continue immediately with Phase 5
 
 Report (1 line):
-> "✅ All checks passed." or "⚠️ [N] issues remain — documented in ONECOMMAND-DELIVERY.md."
+> "✅ Gate passed — [X]/[X] acceptance criteria verified in the browser." or "⚠️ Gate failed — [N] issues, documented in ONECOMMAND-DELIVERY.md."
 
 ---
 
@@ -381,7 +434,7 @@ Report (1 line):
 > "⚙️ **Phase 5/8 — Installing automations...**"
 
 Invoke `context-manager` in BUDGET mode.
-Invoke the `automation-installer` skill.
+Dispatch a phase runner subagent for the `automation-installer` skill. The CI workflow it writes must run the same checks as the gate, including `npx playwright test` for the acceptance suite.
 
 **Checkpoint Phase 5:** Invoke `context-manager` in CHECKPOINT mode.
 Report (1 line): "✓ Git hooks, GitHub Actions CI, Makefile installed."
@@ -393,29 +446,30 @@ Report (1 line): "✓ Git hooks, GitHub Actions CI, Makefile installed."
 
 Invoke `context-manager` in BUDGET mode.
 
-Run all four in parallel:
+Dispatch all four as subagents in ONE message (parallel):
 
-**exceed-expectations skill** — dark mode, PWA, a11y, error boundaries
+**exceed-expectations** (phase runner) — dark mode, PWA, a11y, error boundaries
 
 **security-agent** — OWASP audit + fixes
 
-**demo-cleaner skill** — removes all placeholder/demo content, fixes spelling
+**demo-cleaner** (phase runner) — removes all placeholder/demo content, fixes spelling
 
-**store-readiness-checker skill** (if mobile in build_targets):
+**store-readiness-checker** (phase runner, if mobile in build_targets):
 - Validates all iOS App Store requirements
 - Validates all Google Play requirements
 - Fixes: bundle ID com.example, targetSdk, permissions, icon sizes
 - Blocks delivery if critical items unresolved
 
+### 6b: Final regression gate
+
+Phase 6 changed code after Phase 4 verified it. Re-verify before delivery: dispatch `test-agent` with `OC_ROOT`, `PROJECT_DIR` and `MODE=regression`. It runs `quality-gate.sh --stage all` and heals any regression the quality pass introduced. The delivery report reads this final `result.json`.
+
 **Checkpoint Phase 6:**
 Invoke `context-manager` in CHECKPOINT mode.
-
-**→ AUTO-CLEAR after Phase 6:**
-Invoke `auto-clear` skill in SAVE mode.
-**STOP here and wait for the user to /clear and /onecommand --resume.**
+Invoke `auto-clear` in SAVE mode (silent) — then continue immediately with Phase 7.
 
 Report (1 line):
-> "✓ Quality: [N exceeded]. Security: clean. Store: iOS ✓ / Android ✓."
+> "✓ Quality: [N exceeded]. Security: clean. Store: iOS ✓ / Android ✓. Regression gate: ✅ [X]/[X]."
 
 ---
 
@@ -440,7 +494,7 @@ Report (1 line): "🧠 Brain updated: [N] builds in memory, [N] patterns learned
 > "📦 **Phase 8/8 — Preparing delivery...**"
 
 Invoke `context-manager` in BUDGET mode.
-Invoke the `delivery-reporter` skill.
+Invoke the `delivery-reporter` skill. Its status badges come from `.onecommand/gate/result.json` and the acceptance matrix from `.onecommand/gate/acceptance.md` — a build whose gate failed is reported as NOT VERIFIED, never as complete.
 
 ---
 

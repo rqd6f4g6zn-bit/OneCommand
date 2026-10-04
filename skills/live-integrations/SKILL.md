@@ -757,6 +757,26 @@ EOF
 
 ---
 
+## E2E test mode (`ONECOMMAND_E2E=1`)
+
+Phase 4 verifies acceptance criteria against the production build. External services must not block that — and must not be faked away inside the tests either. Every integration therefore ships a test mode that the app switches on when `process.env.ONECOMMAND_E2E === '1'` (set by the Playwright `webServer`):
+
+| Integration | Test-mode behaviour |
+|---|---|
+| E-mail (Resend) | `lib/email.ts` writes each message as JSON (`to`, `subject`, `html`, `links`) to `.onecommand/outbox/<timestamp>-<to>.json` instead of calling Resend. Tests read the newest file to follow verification / reset links. |
+| OAuth (Google/GitHub/Apple) | A NextAuth `Credentials` provider is registered **only** in test mode, so login flows can be tested without a real IdP. Never enabled in production. |
+| Payments (Stripe) | Uses `STRIPE_SECRET_KEY` test keys if present; otherwise `lib/payments.ts` returns a deterministic fake checkout session that redirects to the success URL. |
+| Push (Firebase) | `sendPush()` appends the payload to `.onecommand/outbox/push.jsonl` instead of calling FCM. |
+
+```ts
+// lib/e2e.ts
+export const isE2E = process.env.ONECOMMAND_E2E === '1' && process.env.VERCEL_ENV !== 'production';
+```
+
+Guard every test-mode branch with `isE2E`. A test mode that can be switched on in a real production deployment is a security bug.
+
+---
+
 ## Completion signal
 
 Report:

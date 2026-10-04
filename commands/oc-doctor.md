@@ -80,6 +80,13 @@ check("All commands in repo", not missing_cmds,
       f"{len(required_cmds)-len(missing_cmds)}/{len(required_cmds)} present",
       f"Missing: {missing_cmds} — git pull or re-run install.sh")
 
+# ── 3b. Quality gate scripts ──────────────────────────────────────────────────
+gate_files = ["hooks/quality-gate.sh", "hooks/acceptance-report.py"]
+missing_gate = [g for g in gate_files if not (repo / g).exists()]
+check("Quality gate scripts", not missing_gate,
+      "quality-gate.sh + acceptance-report.py" if not missing_gate else "",
+      f"Missing: {missing_gate} — git pull (v1.4.0+) and re-run install.sh")
+
 # ── 4. Claude Code: enabledPlugins ────────────────────────────────────────────
 settings_path = HOME / ".claude" / "settings.json"
 enabled = False
@@ -196,6 +203,7 @@ EOF
 | 1 | Repo found (`$CLAUDE_PLUGIN_ROOT` → registry `installPath` → `~/OneCommand` → `~/.claude/plugins/onecommand`) | Plugin can't load if installPath is wrong |
 | 2 | `plugin.json` readable + has version | Claude Code reads metadata from here |
 | 3 | All 5 commands in `commands/` | `/onecommand`, `/oc-resume`, `/oc-save`, `/onecommand-status`, `/oc-doctor` available |
+| 3b | `hooks/quality-gate.sh` + `hooks/acceptance-report.py` present | Phase 4 verdict and acceptance matrix come from these |
 | 4 | `enabledPlugins[onecommand@local] === true` | Plugin must be enabled in settings.json |
 | 5 | `installed_plugins.json` version matches | Mismatch causes silent load failure |
 | 6 | Brain files initialized | Needed for build state, learning |

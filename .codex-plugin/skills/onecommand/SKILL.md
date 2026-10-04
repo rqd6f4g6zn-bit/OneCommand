@@ -107,6 +107,13 @@ Verify `.onecommand-spec.json` was created:
 cat .onecommand-spec.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Spec: {d[\"project_name\"]} ({d[\"app_type\"]})')"
 ```
 
+The spec MUST contain `acceptance_criteria` (see `spec-analyzer` → Acceptance Criteria). Validate it — do not start Phase 2 with an invalid spec:
+```bash
+OC_ROOT="$HOME/.codex/skills/onecommand"   # install.sh syncs hooks/ here
+python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
+```
+Exit 1 → fix the reported criteria and validate again.
+
 ---
 
 ## Phase 2: FRONTEND + BACKEND + MOBILE (Parallel)
@@ -204,24 +211,24 @@ volumes:
 ---
 
 ## Phase 4: TESTS + SELF-HEALING
-> "🧪 Phase 4/8 — Running tests, self-healing errors..."
+> "🧪 Phase 4/8 — Quality gate + acceptance tests, self-healing errors..."
 
+Never decide pass/fail with `cmd | tee log; echo $?` — that prints the exit code of `tee`. The gate script reports real exit codes and writes `.onecommand/gate/result.json`, the only verdict.
+
+**Stage A — static** (install, prisma, typecheck, lint, build, unit tests):
 ```bash
-npm install 2>&1 | tee /tmp/onecommand-install.log
+OC_ROOT="$HOME/.codex/skills/onecommand"
+bash "$OC_ROOT/hooks/quality-gate.sh" --stage static; echo "GATE_EXIT=$?"
 ```
 
+**Stage B — acceptance** (web builds, after Stage A is green): follow the `acceptance-tester` skill to generate one Playwright test per criterion (title starts with the AC id), then:
 ```bash
-npx tsc --noEmit 2>&1 | tee /tmp/onecommand-typecheck.log
+bash "$OC_ROOT/hooks/quality-gate.sh" --stage e2e; echo "GATE_EXIT=$?"
 ```
 
-```bash
-npm run build 2>&1 | tee /tmp/onecommand-build.log
-echo "BUILD_EXIT: $?"
-```
+**If GATE_EXIT is not 0**, read `.onecommand/gate/errors.txt` and use the `self-healer` skill with it. Re-run the same stage. Max 5 healing rounds per stage. Fix the application, never weaken tests or edit `acceptance_criteria`. Finish with `--stage all` after any change in Stage B.
 
-**If errors found**, use the `onecommand-self-healer` skill with the error output. Repeat up to 5 times until all exit 0.
-
-After each fix attempt, re-run the full check sequence. Do not proceed to Phase 5 until build succeeds or 5 iterations are exhausted.
+If the gate still fails after the budget, continue but the delivery report must mark the build **NOT VERIFIED** and list the failing steps / AC ids.
 
 ---
 

@@ -1,25 +1,33 @@
 ---
 name: auto-clear
-description: Automatically saves complete build state to disk after Phase 2, 4, and 6, then instructs the user to run /clear. After /clear, a single /onecommand --resume command restores full context and continues from the next phase. Nothing is ever lost — disk is the source of truth.
+description: Saves complete build state to disk after every phase (silently — the build never stops for it), so a crash, a closed terminal or a manual /clear is recoverable. /oc-resume or /onecommand --resume restores full context and continues from the next phase. Nothing is ever lost — disk is the source of truth.
 model: claude-opus-4-7
 ---
 
-You are the Auto-Clear system for OneCommand. Your job is to make `/clear` safe — save everything to disk so the conversation can be wiped and resumed without losing a single byte of progress.
+You are the Auto-Clear system for OneCommand. Your job is to make `/clear` (and any interruption) safe — save everything to disk so the conversation can be wiped and resumed without losing a single byte of progress.
+
+**You never interrupt a running build.** Since v1.4.0 the orchestrator keeps its own context small by running every phase in a subagent, so no `/clear` is needed during a build. SAVE is a silent checkpoint: write state, print one line, return.
 
 ## Why This Exists
 
-A full 8-phase build accumulates ~40,000–80,000 tokens of conversation. After `/clear` those are gone. Without this skill, that means starting over. With this skill, clearing the conversation costs nothing because **everything important lives on disk**, not in the conversation.
+Builds can be interrupted: the terminal closes, the machine sleeps, the user runs `/clear` on their own. Without this skill, that means starting over. With this skill, an interruption costs nothing because **everything important lives on disk**, not in the conversation.
 
 ## Two Modes
 
-- **SAVE** — Called after Phase 2, 4, 6. Saves complete state. Instructs user to /clear.
+- **SAVE** — Called after every phase. Saves complete state silently and returns; the build continues immediately.
 - **RESUME** — Called when `/onecommand --resume` is typed after a /clear. Restores full context.
 
 ---
 
 ## MODE: SAVE
 
-Run after Phase 2, 4, or 6 completes.
+Run after every phase completes. Steps 1–3 only, then print exactly one line and return to the orchestrator:
+
+```
+[auto-clear:SAVE] ✓ Phase <N> saved — resumable with /oc-resume
+```
+
+Never print a "/clear now" box, never ask the user to do anything, never stop the build.
 
 ### Step 1: Read all current state
 
@@ -98,9 +106,9 @@ errors_fixed = [e for e in wm.get("errors_log", []) if e.get("fixed")]
 # Phase descriptions for remaining phases
 remaining_descriptions = {
     3: "Integration (API verify, Docker, .env) + Marketing (README, landing page)",
-    4: "Tests + Self-healing (up to 5 iterations)",
+    4: "Quality gate (hooks/quality-gate.sh) + acceptance tests from the spec + self-healing",
     5: "Automations (GitHub Actions CI, git hooks, Makefile)",
-    6: "Quality pass (security audit, dark mode, a11y, store readiness)",
+    6: "Quality pass (security audit, dark mode, a11y, store readiness) + final regression gate",
     7: "Self-improvement + Brain reflection",
     8: "Delivery report (ONECOMMAND-DELIVERY.md)",
 }
@@ -173,7 +181,9 @@ print(f"[auto-clear:SAVE] Brief size: {len(brief)} chars")
 EOF
 ```
 
-### Step 4: Print the auto-clear instruction box
+### Step 4 (manual `/oc-save` only): Print the instruction box
+
+Only when the **user** explicitly asked to save (via `/oc-save`) — never during an automatic SAVE from the orchestrator:
 
 ```bash
 python3 << 'EOF'
@@ -337,9 +347,8 @@ After this output, **immediately continue building from the phase indicated** in
 ## Integration Rules
 
 ### When SAVE runs:
-- After Phase 2 completes
-- After Phase 4 completes
-- After Phase 6 completes
+- After every phase (1–8), silently, as the last step of the phase checkpoint
+- When the user runs `/oc-save` (only then with the Step 4 box)
 
 ### When RESUME runs:
 - When `$ARGUMENTS` contains `--resume`
@@ -351,5 +360,5 @@ After this output, **immediately continue building from the phase indicated** in
 - The DB schema (already migrated)
 - Any test that already passed
 
-### Token budget after resume:
-After RESUME, the conversation context is empty (after /clear). The resume brief loads ~200 tokens. Each subsequent phase adds ~300 tokens (via context-manager BUDGET). A complete build from Phase 3 to 8 uses only ~1,800 tokens of context — compared to ~30,000 without auto-clear.
+### Token budget:
+Phases run in subagents, so the orchestrator only accumulates `PHASE_RESULT` lines and checkpoint output (~300 tokens per phase). After a RESUME the resume brief adds ~200 tokens. No `/clear` is needed during a build.
