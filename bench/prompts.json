@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "description": "Fixed prompts for OneCommand benchmark runs. 'core' runs on every plugin change, 'extended' covers the non-web build types.",
+  "sets": {
+    "core": ["notes", "shop", "team-tasks"],
+    "extended": ["notes", "shop", "team-tasks", "booking", "habit-mobile", "platformer", "server-os"]
+  },
+  "prompts": [
+    {
+      "id": "notes",
+      "type": "web",
+      "prompt": "Notiz-App: Registrierung und Login mit E-Mail und Passwort, Notizen anlegen, bearbeiten und löschen, Suche in den eigenen Notizen. Jeder Nutzer sieht nur seine eigenen Notizen."
+    },
+    {
+      "id": "shop",
+      "type": "web",
+      "prompt": "Online-Shop für Kaffeebohnen: Produktkatalog mit Kategorien und Filter, Warenkorb, Checkout mit Stripe (Testmodus), Bestellhistorie für Kunden und ein Admin-Bereich zum Pflegen der Produkte."
+    },
+    {
+      "id": "team-tasks",
+      "type": "web",
+      "prompt": "Team-Aufgabenverwaltung: Workspaces mit Einladung per E-Mail, Rollen Owner/Member, Projekte mit Kanban-Board (To do, In Arbeit, Erledigt), Aufgaben zuweisen, Fälligkeitsdatum, Kommentare."
+    },
+    {
+      "id": "booking",
+      "type": "web",
+      "prompt": "Terminbuchung für einen Friseursalon: Dienstleistungen mit Dauer und Preis, freie Zeitslots pro Mitarbeiter, Online-Buchung ohne Konto mit Bestätigungs-E-Mail, Stornierung per Link, Kalenderansicht für den Salon."
+    },
+    {
+      "id": "habit-mobile",
+      "type": "mobile",
+      "prompt": "Habit-Tracker als iOS- und Android-App mit Web-Backend: Gewohnheiten anlegen, täglich abhaken, Streaks, Erinnerungen per Push-Benachrichtigung, Statistik der letzten 30 Tage."
+    },
+    {
+      "id": "platformer",
+      "type": "game",
+      "prompt": "2D-Jump'n'Run im Browser: drei Level, Spielfigur mit Laufen und Springen, Münzen sammeln, Gegner, Highscore-Liste, Hauptmenü und Game-Over-Bildschirm."
+    },
+    {
+      "id": "server-os",
+      "type": "os",
+      "prompt": "Minimales Server-Betriebssystem auf Alpine-Basis mit nginx, PostgreSQL, gehärtetem SSH (nur Schlüssel), Firewall und automatischen Sicherheitsupdates, testbar in QEMU."
+    }
+  ]
+}
