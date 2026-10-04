@@ -2,6 +2,29 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.9.0] — 2026-10-04
+
+### Added
+- **Train an own model from zero on own data.** "Eigenes Modell", "von null", "von Grund auf" set
+  `ml.from_scratch`: own architecture, own tokenizer, random initialisation, trained only on the user's data.
+- **`hooks/dataset.py`** (`build`, `check`, `stats`): the user's raw files (.txt .md .html .csv .jsonl, or one
+  folder per label) → cleaned, personal data replaced ([EMAIL] [TELEFON] [IBAN] [URL-MIT-TOKEN]), exact and
+  near duplicates removed (MinHash), split by document (stratified per label), `manifest.json` with SHA-256
+  of every input and output, `DATASHEET.md`. `check` fails on edited splits and on text in two splits.
+- **ML gate for from-scratch models:** `dataset` (manifest valid, splits disjoint), `scratch` (no
+  `from_pretrained("<hub id>")`, `pretrained=True`, torchvision weights, `torch.hub`, hub downloads in `src/`;
+  own checkpoints are fine), `learning` (training loss falls by `min_loss_drop`), `artifact` (weights file
+  written); `predict_path` for APIs like `/generate`.
+- **Tested template `skills/ml-builder/templates/scratch-lm`:** GPT (decoder-only transformer) + byte-level BPE
+  tokenizer trained on the train split, AdamW/warmup/cosine, safetensors, unigram baseline
+  (`perplexity_ratio`), `generate` CLI, `POST /generate`; configs `smoke` (gate), `cpu` (~10 min), `default`
+  (GPU). Trained here on the plugin's own documentation (670k characters): smoke run 0.3M parameters in
+  21 s, training loss 6.92 → 4.48, perplexity 0.41× the unigram baseline — the gate passes all 12 steps.
+
+### Fixed
+- Template: `numpy` is required by safetensors (found by the real run); `download.pytorch.org` blocked →
+  `uv sync --no-sources` documented as fallback.
+
 ## [1.8.0] — 2026-10-04
 
 ### Added

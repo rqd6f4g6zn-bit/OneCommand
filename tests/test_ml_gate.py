@@ -186,3 +186,96 @@ def test_quality_gate_hands_ml_projects_to_the_ml_gate(tmp_path):
     out = run(["bash", str(HOOKS / "quality-gate.sh"), "--project-dir", str(p), "--stage", "all"], timeout=300)
     assert out.returncode == 0, out.stdout + out.stderr
     assert "ML GATE PASSED" in out.stdout and result(p)["stage"] == "ml"
+
+
+# ─── from scratch: own data, own weights ──────────────────────────────────────
+
+SCRATCH_TRAIN = '''
+import json, math, os
+from pathlib import Path
+DROP = float(os.environ.get("DROP", "0.5"))
+os.makedirs("runs/smoke", exist_ok=True)
+Path("runs/smoke/model.safetensors").write_bytes(b"weights")
+Path("model.json").write_text(json.dumps({"0": [0, 0], "1": [2, -2]}))
+json.dump({"accuracy": 0.9, "loss_first": 4.0, "loss_last": 4.0 * (1 - DROP)}, open("runs/smoke/metrics.json", "w"))
+'''
+
+
+def scratch_project(tmp_path: Path, src: str = "def build():\n    return None\n", drop: float = 0.5,
+                    dataset: bool = True, artifact: str = "runs/smoke/model.safetensors") -> Path:
+    p = project(tmp_path, commands={"train": f"DROP={drop} {PY} scratch_train.py"})
+    (p / "scratch_train.py").write_text(SCRATCH_TRAIN)
+    (p / "src" / "own").mkdir(parents=True)
+    (p / "src" / "own" / "model.py").write_text(src)
+    if dataset:
+        raw = p / "data" / "raw"
+        raw.mkdir(parents=True)
+        for i in range(12):
+            (raw / f"{i}.txt").write_text(f"Eigener Text Nummer {i}: " + "Wartung und Betrieb der Anlage. " * (i + 3))
+        r = py("dataset.py", "build", "--input", str(raw), "--out", str(p / "data" / "processed"), "--near-dup", "1.0")
+        assert r.returncode == 0, r.stdout + r.stderr
+    spec = json.loads((p / ".onecommand-spec.json").read_text())
+    spec["ml"].update(from_scratch=True, min_loss_drop=0.2, artifact=artifact)
+    write_json(p / ".onecommand-spec.json", spec)
+    return p
+
+
+def steps(p: Path) -> dict:
+    return {s["step"]: s["status"] for s in result(p)["steps"]}
+
+
+def test_from_scratch_model_with_own_data_passes(tmp_path):
+    p = scratch_project(tmp_path)
+    r = gate(p)
+    assert r.returncode == 0, r.stdout + (p / ".onecommand/gate/errors.txt").read_text()
+    s = steps(p)
+    assert s["dataset"] == s["scratch"] == s["learning"] == s["artifact"] == "pass"
+    assert "training loss 4.000 → 2.000 (50% lower)" in r.stdout
+
+
+def test_pretrained_weights_are_rejected_but_own_checkpoints_are_fine(tmp_path):
+    src = ('from transformers import AutoModel\n'
+           'own = AutoModel.from_pretrained("runs/smoke")        # own checkpoint: fine\n'
+           'bad = AutoModel.from_pretrained("bert-base-german-cased")\n'
+           'import torchvision\n'
+           'net = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.DEFAULT)\n'
+           '# old = timm.create_model("x", pretrained=True)   comments are ignored\n')
+    p = scratch_project(tmp_path, src=src)
+    r = gate(p)
+    assert r.returncode == 1 and steps(p)["scratch"] == "fail"
+    errors = (p / ".onecommand/gate/errors.txt").read_text()
+    assert "model.py:3: from_pretrained() with a hub model id" in errors
+    assert "model.py:5: torchvision pretrained weights" in errors
+    assert "model.py:2:" not in errors and "model.py:6:" not in errors
+
+
+def test_model_that_does_not_learn_fails_the_learning_step(tmp_path):
+    p = scratch_project(tmp_path, drop=0.05)
+    assert gate(p).returncode == 1
+    assert steps(p)["learning"] == "fail"
+    assert "needs a drop of at least 20%" in (p / ".onecommand/gate/errors.txt").read_text()
+
+
+def test_missing_dataset_manifest_and_artifact(tmp_path):
+    p = scratch_project(tmp_path, dataset=False, artifact="runs/smoke/missing.safetensors")
+    r = gate(p)
+    assert r.returncode == 1
+    s = steps(p)
+    assert s["dataset"] == "fail" and s["artifact"] == "fail"
+    assert "build the own dataset with hooks/dataset.py build" in r.stdout
+
+
+def test_edited_dataset_split_fails(tmp_path):
+    p = scratch_project(tmp_path)
+    with open(p / "data/processed/train.jsonl", "a") as fh:
+        fh.write('{"id": "x", "text": "nachträglich eingefügt", "source": "x"}\n')
+    assert gate(p).returncode == 1 and steps(p)["dataset"] == "fail"
+
+
+def test_custom_predict_path(tmp_path):
+    p = project(tmp_path)
+    spec = json.loads((p / ".onecommand-spec.json").read_text())
+    spec["ml"]["predict_path"] = "/generate"
+    write_json(p / ".onecommand-spec.json", spec)
+    r = gate(p)  # the stdlib server answers any POST path
+    assert r.returncode == 0, r.stdout

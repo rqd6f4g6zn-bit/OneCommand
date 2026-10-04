@@ -109,6 +109,19 @@ images, LLM fine-tuning (LoRA) and time series. `hooks/ml-gate.py` is its verdic
 must actually learn (metric above `smoke_min`) and `POST /predict` must answer. The full training run
 and the hardware it needs are listed in the delivery report.
 
+### Your own model, from zero
+
+Ask for an own model ("eigene KI von null mit unseren Daten") and OneCommand trains one without any
+pretrained weights: `hooks/dataset.py` turns your files into a clean, documented dataset (personal data
+replaced, duplicates removed, manifest with hashes, datasheet), the `scratch-lm` template trains an own GPT
+with an own tokenizer, and the ML gate proves it: no pretrained weights in the code, the loss falls, the
+model beats its baseline, the weights exist and the API answers.
+
+```bash
+python3 hooks/dataset.py build --input data/raw --out data/processed --task text
+uv run python -m scratch_lm.train --config configs/cpu.yaml        # ~10 min on a laptop CPU
+```
+
 ## Premium Websites, Videos Included
 
 "Webseite im 100k-Preissegment" selects the enterprise tier of the `website` blueprint: design system,

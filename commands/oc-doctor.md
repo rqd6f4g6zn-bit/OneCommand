@@ -84,7 +84,7 @@ check("All commands in repo", not missing_cmds,
 gate_files = ["hooks/quality-gate.sh", "hooks/acceptance-report.py", "hooks/learnings.py",
               "hooks/skill-catalog.py", "hooks/update.py", "hooks/hooks.json", "hooks/checkpoint.py",
               "hooks/playwright-pin.py", "hooks/blueprint.py", "hooks/api-contract.py", "hooks/ui-tour.py",
-              "hooks/ml-gate.py", "hooks/video.py"]
+              "hooks/ml-gate.py", "hooks/video.py", "hooks/dataset.py"]
 missing_gate = [g for g in gate_files if not (repo / g).exists()]
 check("Build scripts (gate, ML gate, acceptance, contract, UI tour, video, learnings, skills, update, checkpoint)", not missing_gate,
       f"{len(gate_files)}/{len(gate_files)} present" if not missing_gate else "",

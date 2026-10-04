@@ -1,0 +1,36 @@
+[project]
+name = "scratch-lm"
+version = "0.1.0"
+description = "Own language model trained from scratch on own data (OneCommand template)"
+requires-python = ">=3.11"
+dependencies = [
+  "torch>=2.4",
+  "tokenizers>=0.20",
+  "safetensors>=0.4",
+  "numpy>=1.26",
+  "pyyaml>=6",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.6", "pytest>=8", "httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scratch_lm"]
+
+# CPU wheels by default (small, run everywhere); on a GPU machine remove this source or use the cu12x index.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[tool.ruff]
+line-length = 120

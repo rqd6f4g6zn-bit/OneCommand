@@ -117,3 +117,18 @@ def test_no_heredoc_inside_command_substitution(script: Path):
     offenders = [f"{script.name}:{n}" for n, line in enumerate(script.read_text().splitlines(), 1)
                  if not line.lstrip().startswith("#") and re.search(r"\$\([^)]*<<", line)]
     assert not offenders, offenders
+
+
+def test_ml_templates_compile_and_stay_free_of_pretrained_weights():
+    import py_compile
+    template = REPO / "skills" / "ml-builder" / "templates" / "scratch-lm"
+    files = sorted(template.rglob("*.py"))
+    assert len(files) >= 8
+    for f in files:
+        py_compile.compile(str(f), doraise=True)
+    spec = __import__("importlib.util").util.spec_from_file_location("ml_gate", REPO / "hooks" / "ml-gate.py")
+    mod = __import__("importlib.util").util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.scratch_scan(template) == []
+    for cfg in ("smoke", "cpu", "default"):
+        assert (template / "configs" / f"{cfg}.yaml").is_file()

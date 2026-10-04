@@ -1,0 +1,401 @@
+#!/usr/bin/env python3
+"""OneCommand dataset builder — the user's own data, ready to train a model from scratch.
+
+A model trained from zero is only as good and as lawful as its data. This turns raw
+files into a clean, documented, reproducible dataset:
+
+  collect   .txt .md .html .htm .jsonl .json .csv files (and folders per label)
+  clean     Unicode NFC, control characters, whitespace, minimum length
+  scrub     personal data → [EMAIL] [TELEFON] [IBAN] [URL-MIT-TOKEN] (default on)
+  dedup     exact duplicates and near duplicates (MinHash over word 5-grams)
+  split     train / val / test by document (stratified per label for classification),
+            no document in two splits
+  record    manifest.json (input + output SHA-256, counts, labels, size estimate) and
+            DATASHEET.md (provenance, processing, statistics, open questions)
+
+Subcommands
+-----------
+build   --input data/raw --out data/processed --task text|classification
+check   --dir data/processed   files unchanged since build, splits disjoint, no test text in train
+stats   --dir data/processed   print the manifest summary
+
+Exit codes: 0 ok · 1 check failed / dataset too small · 2 usage error
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import html
+import io
+import json
+import random
+import re
+import sys
+import unicodedata
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterator
+
+TEXT_EXT = {".txt", ".md", ".markdown", ".rst"}
+HTML_EXT = {".html", ".htm"}
+TABLE_EXT = {".csv", ".tsv", ".jsonl", ".json"}
+PII = [
+    ("EMAIL", re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")),
+    ("IBAN", re.compile(r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,4})?\b")),
+    ("URL-MIT-TOKEN", re.compile(r"https?://\S*?(?:token|key|secret|password|sig)=\S+", re.I)),
+    ("TELEFON", re.compile(r"(?<![\w/])(?:\+\d{1,3}[\s/-]?|\b0)\(?\d{2,5}\)?[\s/-]?\d{3,}(?:[\s-]?\d{2,})*\b")),
+]
+SPLIT_NAMES = ("train", "val", "test")
+
+
+class DataError(Exception):
+    pass
+
+
+# ─── collect ──────────────────────────────────────────────────────────────────
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def strip_html(text: str) -> str:
+    text = re.sub(r"(?is)<(script|style|noscript|nav|footer|header)\b.*?</\1>", " ", text)
+    text = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</h[1-6]>|</li>", "\n", text)
+    return html.unescape(re.sub(r"<[^>]+>", " ", text))
+
+
+def read_rows(path: Path, text_field: str, label_field: str | None) -> Iterator[dict[str, Any]]:
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    if path.suffix in (".csv", ".tsv"):
+        reader = csv.DictReader(io.StringIO(raw), delimiter="\t" if path.suffix == ".tsv" else ",")
+        if not reader.fieldnames or text_field not in reader.fieldnames:
+            raise DataError(f"{path}: no column '{text_field}' (columns: {', '.join(reader.fieldnames or [])})")
+        for i, row in enumerate(reader):
+            yield {"text": row.get(text_field) or "", "label": row.get(label_field) if label_field else None,
+                   "source": f"{path.name}:{i + 2}"}
+    else:
+        items = json.loads(raw) if path.suffix == ".json" else [json.loads(l) for l in raw.splitlines() if l.strip()]
+        if isinstance(items, dict):
+            items = items.get("data") or items.get("items") or [items]
+        for i, item in enumerate(items):
+            if not isinstance(item, dict) or text_field not in item:
+                raise DataError(f"{path}: record {i + 1} has no field '{text_field}'")
+            yield {"text": str(item[text_field]), "label": item.get(label_field) if label_field else None,
+                   "source": f"{path.name}:{i + 1}"}
+
+
+def collect(root: Path, task: str, text_field: str, label_field: str) -> tuple[list[dict[str, Any]], list[Path]]:
+    if not root.exists():
+        raise DataError(f"input not found: {root}")
+    files = sorted(p for p in (root.rglob("*") if root.is_dir() else [root]) if p.is_file() and not p.name.startswith("."))
+    docs: list[dict[str, Any]] = []
+    used: list[Path] = []
+    for path in files:
+        ext = path.suffix.lower()
+        # classification from folders: data/raw/<label>/<file>.txt
+        folder_label = path.parent.name if task == "classification" and path.parent != root else None
+        if ext in TEXT_EXT or ext in HTML_EXT:
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if ext in HTML_EXT:
+                text = strip_html(text)
+            if task == "classification" and not folder_label:
+                continue  # loose text files carry no label
+            docs.append({"text": text, "label": folder_label, "source": str(path.relative_to(root if root.is_dir() else root.parent))})
+            used.append(path)
+        elif ext in TABLE_EXT:
+            rows = list(read_rows(path, text_field, label_field if task == "classification" else None))
+            for r in rows:
+                if task == "classification" and r["label"] in (None, ""):
+                    r["label"] = folder_label
+            docs.extend(rows)
+            used.append(path)
+    return docs, used
+
+
+# ─── clean / scrub / dedup ────────────────────────────────────────────────────
+
+def clean(text: str) -> str:
+    text = unicodedata.normalize("NFC", text)
+    text = "".join(ch for ch in text if ch in "\n\t" or unicodedata.category(ch)[0] != "C")
+    text = re.sub(r"[ \t ]+", " ", text)
+    text = re.sub(r" *\n *", "\n", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def scrub(text: str, counts: Counter) -> str:
+    for name, pattern in PII:
+        text, n = pattern.subn(f"[{name}]", text)
+        counts[name] += n
+    return text
+
+
+def shingles(text: str, n: int = 5) -> set[str]:
+    words = re.findall(r"\w+", text.lower())
+    return {" ".join(words[i:i + n]) for i in range(max(1, len(words) - n + 1))}
+
+
+def minhash(sh: set[str], perms: int = 64) -> tuple[int, ...]:
+    return tuple(min(int.from_bytes(hashlib.blake2b(f"{p}:{s}".encode(), digest_size=8).digest(), "big") for s in sh)
+                 for p in range(perms))
+
+
+def dedup(docs: list[dict[str, Any]], near: float) -> tuple[list[dict[str, Any]], int, int]:
+    seen: set[str] = set()
+    exact_drop = 0
+    kept = []
+    for d in docs:
+        key = hashlib.sha256(re.sub(r"\W+", " ", d["text"].lower()).strip().encode()).hexdigest()
+        if key in seen:
+            exact_drop += 1
+            continue
+        seen.add(key)
+        kept.append(d)
+    if near >= 1.0:
+        return kept, exact_drop, 0
+    bands, rows = 16, 4
+    buckets: dict[tuple[int, tuple[int, ...]], int] = {}
+    sigs: list[tuple[int, ...]] = []
+    result = []
+    near_drop = 0
+    for d in kept:
+        sig = minhash(shingles(d["text"]))
+        dup = False
+        candidates = {buckets[(b, sig[b * rows:(b + 1) * rows])] for b in range(bands)
+                      if (b, sig[b * rows:(b + 1) * rows]) in buckets}
+        for c in candidates:
+            if sum(a == b for a, b in zip(sig, sigs[c])) / len(sig) >= near:
+                dup = True
+                break
+        if dup:
+            near_drop += 1
+            continue
+        idx = len(sigs)
+        sigs.append(sig)
+        for b in range(bands):
+            buckets.setdefault((b, sig[b * rows:(b + 1) * rows]), idx)
+        result.append(d)
+    return result, exact_drop, near_drop
+
+
+# ─── split / write ────────────────────────────────────────────────────────────
+
+def split(docs: list[dict[str, Any]], ratios: tuple[float, float, float], seed: int,
+          stratify: bool) -> dict[str, list[dict[str, Any]]]:
+    rnd = random.Random(seed)
+    groups: dict[Any, list[dict[str, Any]]] = defaultdict(list)
+    for d in docs:
+        groups[d["label"] if stratify else None].append(d)
+    out: dict[str, list[dict[str, Any]]] = {k: [] for k in SPLIT_NAMES}
+    for key in sorted(groups, key=str):
+        items = groups[key]
+        rnd.shuffle(items)
+        n = len(items)
+        n_val = max(1 if n >= 3 else 0, round(n * ratios[1]))
+        n_test = max(1 if n >= 3 else 0, round(n * ratios[2]))
+        out["val"] += items[:n_val]
+        out["test"] += items[n_val:n_val + n_test]
+        out["train"] += items[n_val + n_test:]
+    for k in SPLIT_NAMES:
+        rnd.shuffle(out[k])
+    return out
+
+
+def text_key(text: str) -> str:
+    return hashlib.sha256(re.sub(r"\W+", " ", text.lower()).strip().encode()).hexdigest()
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    root, out = Path(args.input).resolve(), Path(args.out).resolve()
+    ratios = tuple(float(x) for x in args.split.split(","))
+    if len(ratios) != 3 or abs(sum(ratios) - 1) > 1e-6 or min(ratios) < 0:
+        raise DataError("--split needs three ratios that add up to 1, e.g. 0.8,0.1,0.1")
+    docs, used = collect(root, args.task, args.text_field, args.label_field)
+    total_in = len(docs)
+    pii: Counter = Counter()
+    cleaned = []
+    too_short = 0
+    for d in docs:
+        text = clean(d["text"])
+        if not args.no_pii_scrub:
+            text = scrub(text, pii)
+        if len(text) < args.min_chars:
+            too_short += 1
+            continue
+        label = d.get("label")
+        if args.task == "classification":
+            if label in (None, ""):
+                too_short += 1
+                continue
+            label = str(label).strip()
+        cleaned.append({**d, "text": text, "label": label})
+    kept, exact_drop, near_drop = dedup(cleaned, args.near_dup)
+    if not kept:
+        raise DataError("no usable documents left after cleaning — check --input, --text-field and --min-chars")
+    parts = split(kept, ratios, args.seed, args.task == "classification")
+    out.mkdir(parents=True, exist_ok=True)
+    outputs = {}
+    for name in SPLIT_NAMES:
+        path = out / f"{name}.jsonl"
+        with open(path, "w", encoding="utf-8") as fh:
+            for i, d in enumerate(parts[name]):
+                rec = {"id": f"{name}-{i:06d}", "text": d["text"], "source": d["source"]}
+                if args.task == "classification":
+                    rec["label"] = d["label"]
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        outputs[name] = {"file": path.name, "sha256": sha256(path), "records": len(parts[name]),
+                         "chars": sum(len(d["text"]) for d in parts[name])}
+    labels = Counter(d["label"] for d in kept) if args.task == "classification" else None
+    chars = sum(len(d["text"]) for d in kept)
+    manifest = {
+        "version": 1, "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "task": args.task, "seed": args.seed, "split": dict(zip(SPLIT_NAMES, ratios)),
+        "input": {"root": str(root), "files": [{"path": str(p.relative_to(root) if root.is_dir() else p.name),
+                                                "sha256": sha256(p), "bytes": p.stat().st_size} for p in used]},
+        "processing": {"records_in": total_in, "too_short_or_unlabelled": too_short, "exact_duplicates": exact_drop,
+                       "near_duplicates": near_drop, "near_dup_threshold": args.near_dup,
+                       "pii_scrubbed": dict(pii) if not args.no_pii_scrub else "disabled", "min_chars": args.min_chars},
+        "outputs": outputs, "records": len(kept), "chars": chars, "approx_tokens": chars // 4,
+        "labels": dict(sorted(labels.items())) if labels else None,
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_datasheet(out, manifest)
+
+    warnings = []
+    if labels:
+        small = [l for l, n in labels.items() if n < 10]
+        if small:
+            warnings.append(f"classes with fewer than 10 examples: {', '.join(small)} — collect more or merge classes")
+        if max(labels.values()) > 10 * min(labels.values()):
+            warnings.append("class imbalance above 10:1 — use class weights or collect more of the small classes")
+    if args.task == "text" and chars < 1_000_000:
+        warnings.append(f"{chars:,} characters is a very small corpus for a language model from scratch "
+                        f"(aim for 10M+ characters; small models still learn style and vocabulary)")
+    for w in warnings:
+        print(f"  ⚠ {w}")
+    print(f"[dataset] {len(kept)} records ({chars:,} chars, ~{chars // 4:,} tokens) → "
+          + ", ".join(f"{k} {v['records']}" for k, v in outputs.items())
+          + f" · removed: {too_short} short/unlabelled, {exact_drop} exact + {near_drop} near duplicates"
+          + (f" · PII scrubbed: {sum(pii.values())}" if not args.no_pii_scrub else ""))
+    if len(kept) < args.min_records:
+        print(f"  ✗ only {len(kept)} records, need at least {args.min_records}")
+        return 1
+    return 0
+
+
+def write_datasheet(out: Path, m: dict[str, Any]) -> None:
+    p = m["processing"]
+    lines = [
+        "# Datasheet", "",
+        f"Built {m['created_at']} by `hooks/dataset.py` (seed {m['seed']}). Regenerate with the same input to reproduce.", "",
+        "## Provenance", "",
+        "| File | Bytes | SHA-256 |", "|---|---|---|",
+        *[f"| {f['path']} | {f['bytes']} | `{f['sha256'][:16]}…` |" for f in m["input"]["files"]], "",
+        "Owner, license / right to use, and how the data was collected: **to be completed by the project owner.**", "",
+        "## Processing", "",
+        f"- Records in: {p['records_in']}; removed as too short or unlabelled: {p['too_short_or_unlabelled']}",
+        f"- Exact duplicates removed: {p['exact_duplicates']}; near duplicates (≥ {p['near_dup_threshold']}): {p['near_duplicates']}",
+        f"- Personal data replaced: {p['pii_scrubbed']}",
+        "", "## Result", "",
+        f"- {m['records']} records, {m['chars']:,} characters (~{m['approx_tokens']:,} tokens)",
+        *[f"- {k}: {v['records']} records, {v['chars']:,} chars" for k, v in m["outputs"].items()],
+    ]
+    if m.get("labels"):
+        lines += ["", "## Labels", "", "| Label | Records |", "|---|---|", *[f"| {k} | {v} |" for k, v in m["labels"].items()]]
+    lines += ["", "## Known limitations", "", "- To be completed: gaps, biases, languages, time range of the data."]
+    (out / "DATASHEET.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# ─── check / stats ────────────────────────────────────────────────────────────
+
+def load_manifest(directory: Path) -> dict[str, Any]:
+    path = directory / "manifest.json"
+    if not path.exists():
+        raise DataError(f"{path} not found — build the dataset with `dataset.py build` first")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def check_dataset(directory: Path) -> list[str]:
+    m = load_manifest(directory)
+    problems = []
+    keys: dict[str, set[str]] = {}
+    ids: dict[str, set[str]] = {}
+    for name, info in m["outputs"].items():
+        path = directory / info["file"]
+        if not path.exists():
+            problems.append(f"{info['file']} is missing")
+            continue
+        if sha256(path) != info["sha256"]:
+            problems.append(f"{info['file']} changed since the build (hash differs) — rebuild instead of editing splits")
+        recs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        keys[name] = {text_key(r["text"]) for r in recs}
+        ids[name] = {r["id"] for r in recs}
+    for a, b in (("train", "val"), ("train", "test"), ("val", "test")):
+        if a in keys and b in keys:
+            overlap = keys[a] & keys[b]
+            if overlap:
+                problems.append(f"{len(overlap)} text(s) in both {a} and {b} — test results would be inflated")
+            if ids[a] & ids[b]:
+                problems.append(f"record ids shared by {a} and {b}")
+    if m["outputs"].get("test", {}).get("records", 0) == 0:
+        problems.append("test split is empty — too little data for an honest evaluation")
+    return problems
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    problems = check_dataset(Path(args.dir).resolve())
+    for p in problems:
+        print(f"  ✗ {p}")
+    if problems:
+        print(f"[dataset] {len(problems)} problem(s)")
+        return 1
+    m = load_manifest(Path(args.dir).resolve())
+    print(f"[dataset] ok — {m['records']} records, splits disjoint, files unchanged since {m['created_at']}")
+    return 0
+
+
+def cmd_stats(args: argparse.Namespace) -> int:
+    m = load_manifest(Path(args.dir).resolve())
+    print(json.dumps({k: m[k] for k in ("task", "records", "chars", "approx_tokens", "labels", "processing")},
+                     indent=2, ensure_ascii=False))
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("build")
+    p.add_argument("--input", default="data/raw")
+    p.add_argument("--out", default="data/processed")
+    p.add_argument("--task", choices=("text", "classification"), default="text")
+    p.add_argument("--text-field", default="text")
+    p.add_argument("--label-field", default="label")
+    p.add_argument("--split", default="0.8,0.1,0.1")
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--min-chars", type=int, default=20)
+    p.add_argument("--min-records", type=int, default=10)
+    p.add_argument("--near-dup", type=float, default=0.9, help="MinHash similarity treated as duplicate (1.0 = off)")
+    p.add_argument("--no-pii-scrub", action="store_true", help="keep e-mails, phone numbers and IBANs (only with consent)")
+    p.set_defaults(func=cmd_build)
+    p = sub.add_parser("check")
+    p.add_argument("--dir", default="data/processed")
+    p.set_defaults(func=cmd_check)
+    p = sub.add_parser("stats")
+    p.add_argument("--dir", default="data/processed")
+    p.set_defaults(func=cmd_stats)
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except DataError as exc:
+        print(f"[dataset] {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

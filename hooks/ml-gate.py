@@ -21,7 +21,15 @@ Spec section (written by spec-analyzer, see skills/ml-builder):
     "commands": {"install": "uv sync", …}       # optional overrides, null skips a step
   }
 
-Steps: install → lint → test → train (smoke) → metric → model-card → serve.
+From scratch ("from_scratch": true — an own model, no pretrained weights):
+    "from_scratch": true, "data_manifest": "data/processed/manifest.json",
+    "min_loss_drop": 0.1, "artifact": "runs/smoke/model.safetensors", "predict_path": "/generate"
+  adds: dataset (hooks/dataset.py check: files unchanged, splits disjoint), scratch (no
+  from_pretrained / pretrained=True / torch.hub / hub downloads in src/), learning (metrics
+  loss_last ≤ loss_first × (1 − min_loss_drop)) and artifact (the trained weights exist).
+
+Steps: install → lint → test → [dataset → scratch] → train (smoke) → metric → [learning → artifact]
+       → model-card → serve.
 Output: <project>/.onecommand/gate/result.json + errors.txt + <step>.log — the same
 format as quality-gate.sh, so test-agent, self-healer and the delivery report
 read it unchanged.
@@ -149,6 +157,47 @@ def read_metric(project: Path, ml: dict[str, Any]) -> tuple[dict[str, Any] | Non
             "higher_is_better": higher, "smoke_passed": ok, "file": str(path.relative_to(project))}, None
 
 
+# Loading weights or vocabularies someone else trained. Local paths (./, runs/, artifacts/, models/,
+# checkpoints/) and variables are fine — that is the project's own model.
+PRETRAINED = [
+    (re.compile(r"""\.from_pretrained\(\s*(['"])(?!\.{0,2}/|runs/|artifacts/|models?/|checkpoints?/|outputs?/)[^'"]+\1"""),
+     "from_pretrained() with a hub model id"),
+    (re.compile(r"pretrained\s*=\s*True"), "pretrained=True"),
+    (re.compile(r"weights\s*=\s*(?!None\b)[\w.]*(?:Weights|DEFAULT|IMAGENET)[\w.]*"), "torchvision pretrained weights"),
+    (re.compile(r"torch\.hub\.load\("), "torch.hub.load()"),
+    (re.compile(r"\b(?:hf_hub_download|snapshot_download)\("), "Hugging Face Hub download"),
+    (re.compile(r"SentenceTransformer\(\s*['\"]"), "pretrained SentenceTransformer"),
+]
+
+
+def scratch_scan(project: Path) -> list[str]:
+    hits = []
+    roots = [d for d in (project / "src", project / "scripts") if d.is_dir()] or [project]
+    for root in roots:
+        for path in sorted(root.rglob("*.py")):
+            if any(part in {".venv", "node_modules", "tests", ".onecommand"} for part in path.parts):
+                continue
+            for n, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                for pattern, what in PRETRAINED:
+                    if pattern.search(line) and not line.lstrip().startswith("#"):
+                        hits.append(f"{path.relative_to(project)}:{n}: {what} — {line.strip()[:120]}")
+    return hits
+
+
+def dataset_check(project: Path, manifest: str) -> list[str]:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("oc_dataset", Path(__file__).with_name("dataset.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    path = project / manifest
+    if not path.exists():
+        return [f"{manifest} not found — build the own dataset with hooks/dataset.py build"]
+    try:
+        return mod.check_dataset(path.parent)
+    except Exception as exc:  # noqa: BLE001 — report any broken manifest as a finding
+        return [f"{manifest}: {exc}"]
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -202,18 +251,19 @@ def serve_check(gate: Gate, ml: dict[str, Any], start_timeout: int) -> bool:
             gate.record("serve", "fail", None, time.monotonic() - started, logfile, "spec ml.sample_input is missing")
             gate.fail_text("serve", "Add ml.sample_input (a request body for POST /predict) to the spec.")
             return False
-        status, body = http("POST", f"{base}/predict", sample, timeout=120)
+        path = ml.get("predict_path") or "/predict"
+        status, body = http("POST", f"{base}{path}", sample, timeout=120)
         problem = None
         if status != 200:
-            problem = f"POST /predict returned {status}: {body[:500]}"
+            problem = f"POST {path} returned {status}: {body[:500]}"
         else:
             try:
                 payload = json.loads(body)
             except ValueError:
-                payload, problem = None, f"POST /predict did not return JSON: {body[:300]}"
+                payload, problem = None, f"POST {path} did not return JSON: {body[:300]}"
             missing = [k for k in ml.get("sample_expect_keys") or [] if not isinstance(payload, dict) or k not in payload]
             if payload is not None and missing:
-                problem = f"POST /predict response lacks {', '.join(missing)}: {body[:300]}"
+                problem = f"POST {path} response lacks {', '.join(missing)}: {body[:300]}"
         if problem:
             gate.record("serve", "fail", None, time.monotonic() - started, logfile, problem.split(":")[0])
             gate.fail_text("serve", problem)
@@ -231,6 +281,40 @@ def serve_check(gate: Gate, ml: dict[str, Any], start_timeout: int) -> bool:
                 except ProcessLookupError:
                     pass
         fh.close()
+
+
+def learning_check(gate: Gate, project: Path, ml: dict[str, Any]) -> bool:
+    """A model trained from zero must visibly learn: the training loss falls, and its weights exist."""
+    ok = True
+    path = project / (ml.get("metrics_file") or "runs/smoke/metrics.json")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    first, last = data.get("loss_first"), data.get("loss_last")
+    drop = float(ml.get("min_loss_drop", 0.1))
+    if not isinstance(first, (int, float)) or not isinstance(last, (int, float)):
+        gate.record("learning", "fail", reason="metrics need loss_first and loss_last for a from-scratch model")
+        gate.fail_text("learning", f"Write loss_first and loss_last (training loss at the first and last step) "
+                                   f"to {path.relative_to(project)}.")
+        ok = False
+    elif last > first * (1 - drop):
+        reason = f"training loss {first:.3f} → {last:.3f}, needs a drop of at least {drop:.0%}"
+        gate.record("learning", "fail", reason=reason)
+        gate.fail_text("learning", reason + " — the model does not learn (learning rate, data, masking, labels)")
+        ok = False
+    else:
+        gate.record("learning", "pass", reason=f"training loss {first:.3f} → {last:.3f} ({1 - last / first:.0%} lower)")
+    artifact = ml.get("artifact")
+    if artifact:
+        if (project / artifact).exists():
+            kb = (project / artifact).stat().st_size / 1024
+            gate.record("artifact", "pass", reason=f"{artifact} ({kb:,.0f} KB)")
+        else:
+            gate.record("artifact", "fail", reason=f"{artifact} was not written")
+            gate.fail_text("artifact", f"The trained weights {artifact} are missing after training.")
+            ok = False
+    return ok
 
 
 def model_card_check(gate: Gate, ml: dict[str, Any]) -> None:
@@ -291,6 +375,25 @@ def main(argv: list[str] | None = None) -> int:
                 gate.log(f"❌ ML GATE FAILED — errors: {gate.out / 'errors.txt'}")
                 return 1
 
+    scratch = bool(ml.get("from_scratch"))
+    if scratch or ml.get("data_manifest"):
+        problems = dataset_check(project, ml.get("data_manifest") or "data/processed/manifest.json")
+        if problems:
+            gate.record("dataset", "fail", reason=problems[0])
+            gate.fail_text("dataset", "\n".join(problems))
+            ok = False
+        else:
+            gate.record("dataset", "pass")
+    if scratch:
+        hits = scratch_scan(project)
+        if hits:
+            gate.record("scratch", "fail", reason=f"{len(hits)} use(s) of pretrained weights in a from-scratch model")
+            gate.fail_text("scratch", "The spec says from_scratch: the model must start from random weights.\n"
+                                      + "\n".join(hits))
+            ok = False
+        else:
+            gate.record("scratch", "pass", reason="no pretrained weights or hub downloads in the code")
+
     metric = None
     command = command_for(ml, "train", 0)
     if command is None:
@@ -313,6 +416,9 @@ def main(argv: list[str] | None = None) -> int:
             gate.record("metric", "pass", reason=f"{metric['name']} = {metric['value']:.4f}{target}")
     else:
         ok = False
+
+    if scratch and any(s["step"] == "train" and s["status"] == "pass" for s in gate.steps):
+        ok = learning_check(gate, project, ml) and ok
 
     model_card_check(gate, ml)
     if ml.get("serve", True):

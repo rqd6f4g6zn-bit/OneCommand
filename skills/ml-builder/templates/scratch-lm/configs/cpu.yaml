@@ -1,0 +1,7 @@
+# CPU run: ~3M parameters, about 10 minutes on 4 cores — a usable small model without a GPU.
+run: cpu
+data_dir: data/processed
+seed: 42
+vocab_size: 4000
+model: {n_layer: 4, n_head: 4, n_embd: 192, block_size: 128, dropout: 0.1}
+train: {steps: 2000, batch_size: 32, lr: 0.0015, warmup: 100, eval_every: 250, eval_batches: 30, weight_decay: 0.1}

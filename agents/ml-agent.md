@@ -18,9 +18,13 @@ describes, for the spec's `ml.task`.
    `~/.onecommand/memory/evolved_rules.md` if it exists.
 2. Create the layout from ml-builder §3 with `uv init --package` (Python 3.11), add the task's
    dependencies (`uv add …`) and the dev group (`uv add --dev ruff pytest httpx`). Pin CPU wheels for
-   torch in the smoke path when no GPU is present (`--index https://download.pytorch.org/whl/cpu`).
-3. Put a small, license-compatible `data/sample/` in place and write `scripts/download_data.py` for
-   the full dataset.
+   torch in the smoke path when no GPU is present (`--index https://download.pytorch.org/whl/cpu`); if that
+   host is blocked, install from PyPI with `uv sync --no-sources` and set `ml.commands.install` to it.
+3. Data: with `ml.from_scratch` (an own model) build the dataset from the user's files with
+   `python3 "$OC_ROOT/hooks/dataset.py" build --input data/raw --out data/processed --task <text|classification>`
+   and start a language model from `$OC_ROOT/skills/ml-builder/templates/scratch-lm` (ml-builder §0) — no
+   pretrained weights anywhere. Otherwise put a small, license-compatible `data/sample/` in place and write
+   `scripts/download_data.py` for the full dataset.
 4. Implement data → baseline → model → train → evaluate → predict → serve. The smoke config must finish
    on CPU in under 5 minutes and write `ml.metrics_file` with `ml.metric.name`.
 5. Tests: data schema and split, predict on the sample input, the API via `httpx`/`TestClient`.

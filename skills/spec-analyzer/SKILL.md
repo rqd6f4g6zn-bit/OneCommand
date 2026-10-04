@@ -227,6 +227,10 @@ task, package, base model, dataset with license, metric with `target` and `smoke
 `sample_expect_keys`. Acceptance criteria: `api` criteria for the inference service and one `manual`
 criterion for the full-training target. No `api_contract`/`demo` unless `web` is a target.
 
+"Von null", "von Grund auf", "eigenes Modell", "eigene Architektur", "mit unseren eigenen Daten
+trainieren" → `"from_scratch": true` with `data_manifest`, `min_loss_drop`, `artifact` (ml-builder §0).
+The user's data goes to `data/raw/`; ask for nothing — build the pipeline, document what is missing.
+
 ## Websites: media and performance budget
 
 For marketing and corporate websites (blueprint `website`; "Premium", "100k", "Agentur" select the

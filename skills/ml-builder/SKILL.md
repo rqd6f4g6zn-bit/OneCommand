@@ -1,6 +1,6 @@
 ---
 name: ml-builder
-description: Builds complete AI/ML training projects from a prompt — data pipeline, training with configs, evaluation against a target metric, experiment records, model card and a FastAPI inference service. Templates for tabular classification/regression, text classification, image classification, LLM fine-tuning (LoRA) and time-series forecasting. Verified by hooks/ml-gate.py (smoke training must actually learn). Used by ml-agent.
+description: Builds complete AI/ML training projects from a prompt — including models trained from zero on the user's own data (own architecture, own tokenizer, random initialisation, no pretrained weights). Dataset building from raw files (hooks/dataset.py), training with configs, evaluation against a baseline, model card, FastAPI inference. Fine-tuning templates for tabular, text, image, LLM (LoRA) and time series; a tested from-scratch language-model template. Verified by hooks/ml-gate.py. Used by ml-agent.
 ---
 
 You are the ML Builder of OneCommand. "Train an AI that sorts our support tickets" must end in a
@@ -8,6 +8,68 @@ project that **trains, evaluates, explains and serves** a model — not in a not
 
 The verdict comes from `hooks/ml-gate.py` (called through `quality-gate.sh`): install → lint → tests →
 **smoke training** → **metric ≥ smoke threshold** → model card → **POST /predict answers**.
+
+## 0. Two kinds of "eigene KI"
+
+| The prompt says | Mode | What is built |
+|---|---|---|
+| "von null", "von Grund auf", "eigenes Modell", "ohne fremde Modelle", "eigene Architektur", "selbst trainiert" | **from scratch** (`"from_scratch": true`) | own architecture, own tokenizer/vocabulary, random initialisation, trained only on the user's data |
+| "anpassen", "fine-tunen", "auf Basis von", "mit GPT/BERT/Llama", or nothing said | fine-tuning | a pretrained base model adapted to the data (§2) — far less data and compute |
+
+When the prompt is unclear, prefer fine-tuning for small data (< ~1M words or < ~1,000 labelled examples)
+and say so in the delivery report; from scratch is chosen whenever the user asks for an own model.
+
+### From scratch: own data → own model
+
+1. **Data first** (the user's own files in `data/raw/`, any mix of .txt .md .html .csv .jsonl, or one folder per
+   label for classification):
+   ```bash
+   python3 "$OC_ROOT/hooks/dataset.py" build --input data/raw --out data/processed --task text            # language model
+   python3 "$OC_ROOT/hooks/dataset.py" build --input data/raw --out data/processed --task classification  # labels
+   ```
+   It cleans, removes exact and near duplicates, replaces personal data with [EMAIL]/[TELEFON]/[IBAN]
+   (only `--no-pii-scrub` with documented consent), splits by document (stratified per label) and writes
+   `manifest.json` (hashes) and `DATASHEET.md` — complete the owner/license/limitations lines in it.
+   No data at all yet → build a collection path (upload form, export script, crawler of the company's
+   own site with robots.txt respected) and a small, clearly labelled synthetic sample to prove the pipeline.
+2. **Size the model to the data** (rule of thumb for language models: ~20 training tokens per parameter;
+   `manifest.json` → `approx_tokens`):
+
+   | Own data | Model (template config) | Hardware |
+   |---|---|---|
+   | < 1M tokens | `smoke` (0.3M params) / `cpu` (3M) — learns style and vocabulary | CPU, minutes |
+   | 1–100M tokens | `default` (~20M params) | 1 GPU, ~1 h |
+   | > 100M tokens | scale `n_layer`/`n_embd` (e.g. 12×768 ≈ 85M) | multi-GPU, hours to days |
+
+   Classification from scratch: a small CNN (images) or MLP/1D-CNN/transformer encoder (text, with the own
+   tokenizer) — same rules: random init, own vocabulary, baseline comparison.
+3. **Start from the tested template** for language models:
+   `cp -r "$OC_ROOT/skills/ml-builder/templates/scratch-lm/." .` — a GPT (decoder-only transformer, causal
+   attention, weight tying), a byte-level BPE tokenizer trained on the train split only, AdamW + warmup +
+   cosine, safetensors checkpoints, a unigram baseline (`perplexity_ratio` = model / baseline perplexity,
+   lower is better), `generate` CLI and `POST /generate`. Configs: `smoke` (gate, ~30 s), `cpu` (~10 min),
+   `default` (GPU). Rename the package, keep the structure.
+4. **Spec fields** for the gate:
+   ```json
+   "ml": {"task": "language-model", "package": "firmen_lm", "from_scratch": true,
+          "metric": {"name": "perplexity_ratio", "target": 0.3, "smoke_min": 0.9, "higher_is_better": false},
+          "metrics_file": "runs/smoke/metrics.json", "data_manifest": "data/processed/manifest.json",
+          "min_loss_drop": 0.3, "artifact": "runs/smoke/model.safetensors", "predict_path": "/generate",
+          "sample_input": {"prompt": "Unser Service", "max_new_tokens": 30},
+          "sample_expect_keys": ["text", "new_tokens"]}
+   ```
+   The gate then also checks: the dataset is unchanged and its splits are disjoint, **no pretrained weights**
+   anywhere in `src/` (`from_pretrained("<hub id>")`, `pretrained=True`, torchvision weights, `torch.hub`,
+   hub downloads — own checkpoints under `runs/` are fine), the training loss fell by `min_loss_drop`, and
+   the weights file exists.
+5. **Honest results:** a small model on a small corpus produces text in the style of the data, not facts.
+   The model card says how many parameters and tokens, what it beats (baseline) and what it cannot do.
+
+### PyTorch installation
+
+The template pins CPU wheels from `download.pytorch.org` (small, no CUDA). If that host is blocked
+(sandboxes, corporate proxies), install from PyPI instead: `uv sync --no-sources` — set
+`ml.commands.install` accordingly. On a GPU machine use the CUDA index of the installed driver.
 
 ## 1. Spec section (Phase 1, spec-analyzer)
 
