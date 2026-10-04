@@ -377,7 +377,8 @@ def route_files(project: Path) -> list[tuple[tuple[str, ...], Path]]:
         if not app_dir.is_dir():
             continue
         for dirpath, dirnames, filenames in os.walk(app_dir):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+            # Folders like app/api/test/ are real URL segments — skip only build output here.
+            dirnames[:] = [d for d in dirnames if d not in {"node_modules", ".next"}]
             for fn in filenames:
                 if re.match(r"^route\.(ts|tsx|js|mjs)$", fn):
                     rel = Path(dirpath).relative_to(app_dir).parts

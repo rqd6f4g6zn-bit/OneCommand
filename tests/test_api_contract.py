@@ -235,3 +235,16 @@ def test_check_without_contract_is_not_applicable(tmp_path):
 
 def test_missing_spec_is_a_usage_error(tmp_path):
     assert check(tmp_path).returncode == 2
+
+
+def test_routes_under_folders_named_like_test_dirs_are_found(tmp_path):
+    # A real build had app/api/test/outbox/route.ts; "test" was skipped like a test folder.
+    c = {"endpoints": [{"name": "Outbox", "method": "GET", "path": "/api/test/outbox", "consumer": "external",
+                        "response": {"mails": "unknown[]"}}]}
+    spec(tmp_path, contract=c, metrics=None)
+    contract("types", "--project-dir", str(tmp_path))
+    write(tmp_path, "app/api/test/outbox/route.ts", 'import type { OutboxResponse } from "@/lib/api-contract";\n'
+                                                    "export async function GET() { return Response.json({ mails: [] } satisfies OutboxResponse); }\n")
+    r = check(tmp_path)
+    assert r.returncode == 0, r.stdout
+

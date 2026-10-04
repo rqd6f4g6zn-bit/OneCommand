@@ -51,6 +51,10 @@ a failed `metric` step is fixed in data, labels or training, never by lowering `
 
 Lint errors are failures. Fix them — do not disable rules or add `eslint-disable` comments to get green.
 
+Never edit files under `$OC_ROOT` (the plugin: hooks, skills, agents). When a gate script is wrong for this
+project, report it in the final report as a plugin finding and work around it in the project — a real build
+once patched `hooks/api-contract.py` itself.
+
 A failing `contract` step means frontend and backend drifted from `api_contract`: regenerate the types
 (`python3 "$OC_ROOT/hooks/api-contract.py" types`) when the spec changed, type the route handler with
 `satisfies <Name>Response`, type the UI fetch with `<Name>Response`. A contract **warning** (`pick(…, [several

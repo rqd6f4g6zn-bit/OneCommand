@@ -27,6 +27,11 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 - `blueprint.py expand` carries `performance_budget` and `media.videos` into the spec and finds the login
   page of any blueprint (e.g. `/admin/login`).
 
+### Fixed
+- API contract: route handlers under folders named like test directories (`app/api/test/…`) were not
+  found. Found by the first real v1.7.0 build, whose agent patched the plugin file itself — test-agent now
+  reports plugin bugs instead of editing `$OC_ROOT`.
+
 ## [1.7.0] — 2026-10-04
 
 Screenshots of the CRM built in 1.6.0 showed errors that 43 green acceptance tests missed: a win-rate
