@@ -43,7 +43,7 @@ def test_fresh_install(home, fake_bin):
     assert (home / ".codex" / "skills" / "acceptance-tester" / "SKILL.md").exists()
     assert "⚠" not in out.stdout, out.stdout
     plugin = home / ".claude" / "plugins" / "onecommand"
-    for dev_only in ("tests", ".github", "docs", ".git", "install.sh"):
+    for dev_only in ("tests", "bench", ".github", "docs", ".git", "install.sh"):
         assert not (plugin / dev_only).exists(), f"{dev_only} must not be installed"
 
 

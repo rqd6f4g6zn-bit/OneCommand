@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.5.0"
+PLUGIN_VERSION="1.5.1"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=false
@@ -170,7 +170,8 @@ ok "python3, rsync, cmp available"
 for manifest in "$REPO_ROOT/.claude-plugin/plugin.json" "$REPO_ROOT/commands/onecommand.md" \
                 "$REPO_ROOT/hooks/quality-gate.sh" "$REPO_ROOT/hooks/acceptance-report.py" \
                 "$REPO_ROOT/hooks/learnings.py" "$REPO_ROOT/hooks/skill-catalog.py" \
-                "$REPO_ROOT/hooks/update.py" "$REPO_ROOT/hooks/hooks.json" "$REPO_ROOT/hooks/checkpoint.py"; do
+                "$REPO_ROOT/hooks/update.py" "$REPO_ROOT/hooks/hooks.json" "$REPO_ROOT/hooks/checkpoint.py" \
+                "$REPO_ROOT/hooks/playwright-pin.py"; do
   if [ ! -f "$manifest" ]; then
     err "Not a OneCommand checkout: $manifest missing (REPO_ROOT=$REPO_ROOT)"
     exit 1
@@ -302,6 +303,7 @@ sync_dir "${REPO_ROOT}/" "$OC_CLAUDE_DIR/" "Claude Code plugin files → $(tilde
   --exclude='NOTICE' \
   --exclude='docs' \
   --exclude='tests' \
+  --exclude='bench' \
   --exclude='.github' \
   --exclude='CHANGELOG.md'
 

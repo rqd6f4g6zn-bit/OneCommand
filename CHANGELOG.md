@@ -2,6 +2,29 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.5.1] — 2026-10-04
+
+### Added
+- **Benchmark** (`bench/run.py`, `bench/prompts.json`): builds fixed prompts headless with the plugin
+  under test and scores each build from OneCommand's own artefacts (gate verdict, acceptance ratio,
+  phases completed) plus wall time, cost, agent and gate-run counts. `compare` flags regressions
+  between two runs. Sets: `core` (3 web apps) and `extended` (+ booking, mobile, game, OS).
+  Baseline from the first real build: `bench/baselines/v1.5.0.json` (score 100, 18/18, 50 min).
+- **`hooks/playwright-pin.py`**: pins `@playwright/test` to the version whose browsers are actually
+  installed (`playwright install --dry-run` reports the needed revision without downloading).
+  The acceptance-tester runs it right after installing Playwright.
+- **Dependency audit in the gate**: `npm/pnpm audit` on production dependencies runs in the static
+  stage, so vulnerable packages are fixed while building instead of by a late security pass that
+  forces a full re-verification. Critical advisories fail the gate; high ones are recorded as
+  `warnings` in `result.json` and shown in the delivery report (`--audit-level high` makes them
+  blocking). `--no-audit` / `OC_GATE_AUDIT=0`; an unreachable registry skips it — the JSON verdict
+  never mistakes a failed audit request for "no advisories".
+
+### Changed
+- acceptance-tester: table of Playwright pitfalls that each cost a healing round in the real build
+  (duplicate toasts, empty-list assertions, re-registering users, hover-only buttons, URL races).
+- self-healer: categories for audit failures and browser mismatches.
+
 ## [1.5.0] — 2026-10-04
 
 ### Added

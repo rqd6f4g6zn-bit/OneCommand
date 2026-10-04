@@ -62,6 +62,13 @@ verification step otherwise.
 build, with local changes or on another branch. A commit that failed to install is not retried until
 a newer one appears. Codex runs the same script in its pre-flight.
 
+## Benchmark
+
+`bench/run.py run --set core --skip-permissions` builds the prompts in `bench/prompts.json`
+headless (`claude --plugin-dir . -p '/onecommand:onecommand "…"'`) and scores them; `compare`
+against `bench/baselines/` shows regressions. Builds run sequentially (they share
+`~/.onecommand/brain`). Use it to verify changes to skills, agents or the orchestrator.
+
 ## Dependencies (required plugins)
 
 These plugins must be installed for full functionality:

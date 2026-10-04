@@ -81,6 +81,18 @@ such as superpowers or marketing-skills). Each external skill gets an explicit d
 uses it and for what, or why it does not fit this project. Every phase's agents receive the skills
 assigned to them. The plan is saved to `.onecommand/skill-plan.md` in the project.
 
+## Benchmark
+
+`bench/run.py` measures OneCommand itself: it builds fixed prompts headless and scores each build
+from the gate verdict, the acceptance ratio and the completed phases (0–100), plus time and cost.
+
+```bash
+python3 bench/run.py run --set core --skip-permissions   # 3 web apps, ~2-3 h, sandbox/VM only
+python3 bench/run.py compare bench/baselines/v1.5.0.json bench/results/<run-id>/results.json
+```
+
+Run it before and after changing a skill or agent — a lower score is a regression.
+
 ## Output
 
 - **Full frontend** (Next.js + Tailwind + shadcn/ui) — all pages, components, mobile responsive
