@@ -174,12 +174,15 @@ fi
 # Write plan-aware config to Codex config
 mkdir -p ~/.codex
 
+# The OneCommand checkout: the path install.sh registered, else ~/OneCommand.
+OC_REPO="$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.claude/plugins/installed_plugins.json")))["plugins"]["onecommand@local"][0]["installPath"])' 2>/dev/null || echo "$HOME/OneCommand")"
+
 if ! grep -q "onecommand" ~/.codex/config.toml 2>/dev/null; then
-cat >> ~/.codex/config.toml << 'TOMLEOF'
+cat >> ~/.codex/config.toml << TOMLEOF
 
 [plugins."onecommand@local"]
 enabled = true
-path = "/Users/g.urban/OneComand"
+path = "${OC_REPO}"
 TOMLEOF
 echo "config.toml aktualisiert"
 else

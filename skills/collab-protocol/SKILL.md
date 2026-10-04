@@ -1,7 +1,7 @@
 ---
 name: collab-protocol
 description: Claude + Codex collaboration protocol. Detects available agents, distributes tasks, creates task handoff files, and merges results. Falls back to Claude-only mode gracefully if Codex is unavailable.
-model: claude-opus-4-7
+model: opus
 ---
 
 ## How collaboration works

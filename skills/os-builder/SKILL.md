@@ -1,7 +1,7 @@
 ---
 name: os-builder
 description: Generates a complete custom Linux-based operating system. Supports Alpine-based server OS, Buildroot embedded OS, and Debian-based desktop OS. Produces all config files, build scripts, Docker test environment, and ISO generation workflow.
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 # OS Builder Skill

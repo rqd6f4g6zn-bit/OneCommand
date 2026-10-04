@@ -1,7 +1,7 @@
 ---
 name: asset-generator
 description: Generates all game assets programmatically: SVG/PNG sprites, procedural textures, 3D geometry (GLB via pygltflib), Blender Python scripts for complex models, sprite sheets, and audio asset manifest.
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 # Game Asset Generator

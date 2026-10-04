@@ -1,7 +1,7 @@
 ---
 name: brain-agent
 description: OneCommand's intelligence orchestrator. Runs at build start (READ memories, detect similar projects), after each phase (CHECKPOINT + pattern update), and at build end (REFLECT, update episodic memory, evolve skill patterns). Also handles Claude+Codex collaboration detection and task distribution.
-model: claude-opus-4-7
+model: opus
 tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - brain-core

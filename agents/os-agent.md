@@ -1,7 +1,7 @@
 ---
 name: os-agent
 description: Orchestrates generation of a complete custom Linux-based operating system. Reads the spec, invokes os-builder skill, optionally runs a Docker-based build test, and delivers a complete buildable OS project.
-model: claude-sonnet-4-6
+model: sonnet
 tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - os-builder

@@ -6,9 +6,8 @@
     "name": "USC Software UG"
   },
   "models": {
-    "strategy": "Opus for analysis, Sonnet for building — best quality + token efficiency",
-    "analysis": "claude-opus-4-7",
-    "analysis_secondary": "claude-opus-4-6",
-    "build": "claude-sonnet-4-6"
+    "strategy": "Opus for analysis, Sonnet for building — aliases always resolve to the newest model of each family",
+    "analysis": "opus",
+    "build": "sonnet"
   }
 }

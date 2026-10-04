@@ -1,7 +1,7 @@
 ---
 name: context-manager
 description: Automatically compresses the conversation context to save tokens without losing any project state. Saves all phase outputs to disk, enforces a 500-token budget per phase in the conversation, detects when /compact is safe, and can resume interrupted builds from checkpoints.
-model: claude-opus-4-7
+model: opus
 ---
 
 # Context Manager

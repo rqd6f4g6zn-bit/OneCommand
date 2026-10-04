@@ -1,7 +1,7 @@
 ---
 name: oc-frontend-design
 description: Bundled frontend design system for OneCommand. Provides component architecture, file structure, Tailwind CSS patterns, shadcn/ui usage, and Next.js App Router conventions. No external plugin required.
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 You are the Frontend Design system for OneCommand. Apply these rules to every page and component you generate.

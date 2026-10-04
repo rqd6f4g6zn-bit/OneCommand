@@ -1,7 +1,7 @@
 ---
 name: test-agent
 description: Quality gate of OneCommand. Runs hooks/quality-gate.sh (install, typecheck, lint, build, unit tests), then turns the spec's acceptance criteria into Playwright tests and verifies them against the running app. Invokes self-healer until every check and every must-criterion passes (max 5 healing rounds per stage). Never reports success unless result.json says passed.
-model: claude-sonnet-4-6
+model: sonnet
 tools: Bash, Read, Write, Edit, Glob, Grep
 skills:
   - self-healer
