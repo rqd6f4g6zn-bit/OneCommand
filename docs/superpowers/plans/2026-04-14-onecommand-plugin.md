@@ -13,7 +13,7 @@
 ## File Map
 
 ```
-/Users/g.urban/OneComand/
+~/OneCommand/
 ├── .claude-plugin/
 │   └── plugin.json                          # Plugin manifest
 ├── commands/
@@ -1384,8 +1384,8 @@ Commands are available as `/onecommand` and `/onecommand-status`.
 
 Install locally:
 ```bash
-# From Claude Code:
-/plugin install /Users/g.urban/OneComand
+git clone https://github.com/rqd6f4g6zn-bit/OneCommand.git ~/OneCommand
+cd ~/OneCommand && ./install.sh
 ```
 
 Then test:
@@ -1404,8 +1404,8 @@ Build complete, production-ready software systems from a single prompt.
 ## Install
 
 ```bash
-# In Claude Code
-/plugin install /Users/g.urban/OneComand
+git clone https://github.com/rqd6f4g6zn-bit/OneCommand.git ~/OneCommand
+cd ~/OneCommand && ./install.sh
 ```
 
 ## Usage
@@ -1455,7 +1455,7 @@ git commit -m "feat: add CLAUDE.md and README"
 - [ ] **Step 1: Verify all files exist**
 
 ```bash
-find /Users/g.urban/OneComand -not -path '*/.git/*' -not -path '*/docs/*' -type f | sort
+find ~/OneCommand -not -path '*/.git/*' -not -path '*/docs/*' -type f | sort
 ```
 
 Expected output:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -85,13 +86,17 @@ def test_models_use_aliases_not_pinned_ids(path: Path):
             f"pinned model id '{m.group(1)}' goes stale — use an alias"
 
 
-def test_no_machine_specific_paths():
+def test_no_personal_names_or_machine_paths():
+    """Docs, skills and install instructions name the company (USC Software UG), never a person
+    or the home directory of one machine."""
+    personal = re.compile(r"/Users/[A-Za-z][^/\s]*|g\.urban|geronemo", re.I)
+    tracked = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True).stdout.split()
     offenders = []
-    for path in list(REPO.glob("**/*.md")) + list(REPO.glob("**/*.py")) + list(REPO.glob("**/*.sh")):
-        if "docs" in path.parts or "tests" in path.parts or "node_modules" in path.parts:
+    for rel in tracked:
+        if rel.startswith("tests/") or not rel.endswith((".md", ".py", ".sh", ".json", ".ts", ".js", ".toml")):
             continue
-        if "/Users/g.urban" in path.read_text(errors="replace"):
-            offenders.append(str(path.relative_to(REPO)))
+        for m in personal.finditer((REPO / rel).read_text(errors="replace")):
+            offenders.append(f"{rel}: {m.group(0)}")
     assert not offenders, offenders
 
 
