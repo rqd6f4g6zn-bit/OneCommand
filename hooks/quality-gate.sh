@@ -179,6 +179,27 @@ sys.exit(0 if sys.argv[1] in deps else 1)
 PYEOF
 }
 
+# ensure_database_url — use the project's own DATABASE_URL (.env.local, then .env, as
+# Next.js does) and fall back to the local Postgres default only for postgres schemas.
+ensure_database_url() {
+  [ -n "${DATABASE_URL:-}" ] && return 0
+  local f value
+  for f in .env.local .env; do
+    [ -f "$f" ] || continue
+    value="$(sed -n 's/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}DATABASE_URL[[:space:]]*=[[:space:]]*//p' "$f" | tail -1)"
+    value="${value%\"}"; value="${value#\"}"; value="${value%\'}"; value="${value#\'}"
+    if [ -n "$value" ]; then
+      export DATABASE_URL="$value"
+      debug "DATABASE_URL from $f"
+      return 0
+    fi
+  done
+  if grep -qE 'provider[[:space:]]*=[[:space:]]*"postgres(ql)?"' prisma/schema.prisma 2>/dev/null; then
+    export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/devdb"
+    debug "DATABASE_URL defaulted to local Postgres"
+  fi
+}
+
 file_hash() {
   if command -v shasum &>/dev/null; then shasum -a 256 "$@" 2>/dev/null
   else sha256sum "$@" 2>/dev/null; fi
@@ -243,7 +264,7 @@ stage_static() {
 
   # 2. prisma generate
   if [ -f prisma/schema.prisma ]; then
-    export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/devdb}"
+    ensure_database_url
     run_step prisma "$STEP_TIMEOUT" "${EXEC[@]}" prisma generate || failed=1
   else
     skip_step prisma "no prisma/schema.prisma"
@@ -296,7 +317,7 @@ compose_file() {
 
 prepare_database() {
   [ -f prisma/schema.prisma ] || { skip_step database "no prisma/schema.prisma"; return 0; }
-  export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/devdb}"
+  ensure_database_url
 
   local cf
   if cf="$(compose_file)" && command -v docker &>/dev/null && docker info &>/dev/null \

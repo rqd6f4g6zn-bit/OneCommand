@@ -121,7 +121,7 @@ cd "$PROJECT_DIR"
 ```bash
 codex --version 2>/dev/null || echo "CODEX_UNAVAILABLE"
 ```
-If Codex is unavailable, note it and plan to use Claude for backend generation instead (still excellent, just not delegated to Codex).
+If Codex is unavailable, note it and plan to use Claude for backend generation instead (still excellent, just not delegated to Codex). Mention once, in one line, that `codex-setup` (bundled skill) installs Codex for dual-agent builds — do not run it now; it is interactive and not part of a build.
 
 4. **Resolve the plugin root** (`OC_ROOT`) — every subagent needs it to find `hooks/` and `skills/`:
 ```bash
@@ -141,7 +141,13 @@ EOF
 ```
 Remember the printed `OC_ROOT` for the whole build and store it in working memory as `plugin_root`. If it is `NOT_FOUND`, stop and tell the user to run `/oc-doctor`.
 
-5. **Model strategy** — always follow this split:
+5. **Update status** — OneCommand installs updates automatically at session start (SessionStart hook). Check whether one arrived since this session began:
+```bash
+python3 "$OC_ROOT/hooks/update.py" check --quiet 2>/dev/null || true
+```
+If it prints "update available", say in one line that it installs at the next session start (or now with `/oc-update`), then continue the build with the current version — never update in the middle of a build.
+
+6. **Model strategy** — always follow this split:
 
 | Role | Model | Why |
 |---|---|---|
@@ -163,6 +169,7 @@ Context stays small because heavy work happens in subagents, not in this convers
 - Named agents (`frontend-agent`, `backend-agent`, `test-agent`, …) are dispatched directly. Skill-only phases are dispatched to a `general-purpose` subagent with this prompt template:
   > `You are a OneCommand phase runner. OC_ROOT=<path>. PROJECT_DIR=<path>. Read $OC_ROOT/skills/<skill>/SKILL.md and execute it completely inside PROJECT_DIR. Read .onecommand-spec.json for requirements. Do not ask questions — decide and document. Return at most 5 lines, ending with: PHASE_RESULT {"phase": N, "status": "ok|warn|fail", "summary": "<one line>"}`
 - Always pass `OC_ROOT` and `PROJECT_DIR` in every subagent prompt — subagents do not inherit them.
+- **Always pass the phase's skills.** Before dispatching phase N, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase N` and paste its output into every subagent prompt of that phase, with: "Read each listed SKILL.md and apply it where it fits your task." This is how bundled and user-installed skills reach the agents that do the work.
 - Independent subagents of one phase are dispatched **in the same message** so they run in parallel.
 - Subagents cannot dispatch further subagents: a phase runner does its skill's work itself.
 - Never paste file contents or full logs into this conversation. Read summaries and `PHASE_RESULT` lines only.
@@ -184,6 +191,23 @@ Then invoke the `spec-analyzer` skill with: $ARGUMENTS (pass `OC_ROOT` so it can
 The spec MUST contain `acceptance_criteria` — the definition of done that Phase 4 verifies with real browser tests.
 
 Then invoke the `stack-detector` skill.
+
+**Skill plan — every available skill is considered.** OneCommand's bundled skills are mapped to phases automatically; skills the user has installed elsewhere (personal `~/.claude/skills`, project `.claude/skills`, other enabled plugins such as superpowers or marketing-skills) must each get an explicit decision:
+```bash
+python3 "$OC_ROOT/hooks/skill-catalog.py" scan --oc-root "$OC_ROOT"
+```
+For every external skill the scan lists, decide: which phases (1–8) benefit from it and what for — or why it does not apply to this project. Prefer using a skill over not using it when it fits the spec. Write all decisions to `.onecommand/skill-plan.json`:
+```json
+{"decisions": [
+  {"skill": "superpowers:frontend-design", "phases": [2, 6], "use": "distinctive visual design for all pages"},
+  {"skill": "pdf", "phases": [], "reason": "the spec has no PDF import/export"}
+]}
+```
+Then verify — exit 1 lists every skill still undecided:
+```bash
+python3 "$OC_ROOT/hooks/skill-catalog.py" check
+```
+Do not continue until the check passes. The plan is in `.onecommand/skill-plan.md`.
 
 Gate the spec — the build does not start with untestable requirements:
 ```bash
@@ -261,7 +285,7 @@ Skip frontend-agent, backend-agent for pure OS projects.
 
 **Backend Agent** (`backend-agent`):
 - Generates all API routes, DB schema, auth, seed data
-- Delegates code generation to Codex via `codex:codex-cli-runtime`
+- Delegates code generation to Codex via `codex:codex-cli-runtime`, splitting work as the `collab-protocol` skill defines (handoff files, merge, claude-only fallback when Codex is unavailable)
 
 **If `mobile` in build_targets — also dispatch in parallel:**
 

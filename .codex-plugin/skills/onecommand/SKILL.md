@@ -67,6 +67,12 @@ ls package.json src/ app/ 2>/dev/null | head -5
 If existing code found, ask:
 > "Existing project detected. Build inside it (adapting stack), or create a new subdirectory?"
 
+**Self-update** (Codex has no session hooks, so the check runs here — throttled, never during a running build):
+```bash
+python3 "$HOME/.codex/skills/onecommand/hooks/update.py" auto --quiet
+```
+If it prints "✅ OneCommand updated", tell the user the new version is active from the next Codex session and continue with the current one.
+
 ---
 
 ## Phase 1: SPEC
@@ -113,6 +119,12 @@ OC_ROOT="$HOME/.codex/skills/onecommand"   # install.sh syncs hooks/ here
 python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
 ```
 Exit 1 → fix the reported criteria and validate again.
+
+**Skill plan — consider every available skill** (bundled and user-installed):
+```bash
+python3 "$OC_ROOT/hooks/skill-catalog.py" scan --oc-root "$OC_ROOT" --home "$HOME"
+```
+For every external skill listed, write a decision (phases + use, or reason) to `.onecommand/skill-plan.json`, then `python3 "$OC_ROOT/hooks/skill-catalog.py" check` until it passes. Before each later phase, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase <N>` and apply every listed skill.
 
 ---
 

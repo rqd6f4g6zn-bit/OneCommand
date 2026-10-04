@@ -6,10 +6,10 @@ OneCommand is a Claude Code plugin that builds complete, production-ready softwa
 
 ```
 .claude-plugin/plugin.json   # Plugin manifest
-commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor)
+commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update)
 skills/                      # Reusable skills invoked by agents and commands
 agents/                      # Specialized agents for each build phase
-hooks/                       # post-generate.sh, quality-gate.sh, acceptance-report.py, learnings.py
+hooks/                       # hooks.json (SessionStart auto-update) + build scripts (see below)
 docs/superpowers/            # Design specs and implementation plans
 ```
 
@@ -20,6 +20,7 @@ docs/superpowers/            # Design specs and implementation plans
 - `/oc-save` — Save build state so `/clear` is safe
 - `/oc-resume` — Resume an interrupted build from the last completed phase
 - `/oc-doctor` — Diagnose the installation (registry, commands, brain, Codex)
+- `/oc-update` — Install the latest release now (`check`, `status`, `off`, `on`)
 
 ## Workflow Overview
 
@@ -44,6 +45,22 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
 - `hooks/acceptance-report.py validate` checks a spec's acceptance criteria; `report` maps Playwright
   results (test titles start with `AC-###`) onto them. A missing test counts as a failure.
 - Exit codes: 0 passed · 1 failed · 2 usage error · 3 not applicable (no package.json).
+
+## Skill Plan
+
+`hooks/skill-catalog.py` makes every build consider every skill. `scan` discovers bundled skills
+(mapped to phases via `BUNDLED` in the script) and external ones (`~/.claude/skills`, project
+`.claude/skills`, enabled plugins); the orchestrator decides each external skill in
+`.onecommand/skill-plan.json`; `check` fails while one is undecided; `for-phase N` output goes into
+every subagent prompt. **A new bundled skill must be added to `BUNDLED`** — `install.sh` fails the
+verification step otherwise.
+
+## Auto-Update
+
+`hooks/hooks.json` runs `hooks/update.py auto --quiet` at SessionStart: throttled
+(`update_interval_hours`), fast-forward only, rollback on failed install, skipped during a running
+build, with local changes or on another branch. A commit that failed to install is not retried until
+a newer one appears. Codex runs the same script in its pre-flight.
 
 ## Dependencies (required plugins)
 

@@ -73,7 +73,7 @@ check("plugin.json version", "version" in plugin_meta,
       "Repo missing .claude-plugin/plugin.json — git pull")
 
 # ── 3. Commands present in repo ───────────────────────────────────────────────
-required_cmds = ["onecommand.md", "oc-resume.md", "oc-save.md", "onecommand-status.md", "oc-doctor.md"]
+required_cmds = ["onecommand.md", "oc-resume.md", "oc-save.md", "onecommand-status.md", "oc-doctor.md", "oc-update.md"]
 cmds_dir = repo / "commands"
 missing_cmds = [c for c in required_cmds if not (cmds_dir / c).exists()]
 check("All commands in repo", not missing_cmds,
@@ -81,11 +81,22 @@ check("All commands in repo", not missing_cmds,
       f"Missing: {missing_cmds} — git pull or re-run install.sh")
 
 # ── 3b. Quality gate scripts ──────────────────────────────────────────────────
-gate_files = ["hooks/quality-gate.sh", "hooks/acceptance-report.py", "hooks/learnings.py"]
+gate_files = ["hooks/quality-gate.sh", "hooks/acceptance-report.py", "hooks/learnings.py",
+              "hooks/skill-catalog.py", "hooks/update.py", "hooks/hooks.json"]
 missing_gate = [g for g in gate_files if not (repo / g).exists()]
-check("Quality gate scripts", not missing_gate,
-      "quality-gate.sh + acceptance-report.py + learnings.py" if not missing_gate else "",
+check("Build scripts (gate, acceptance, learnings, skills, update)", not missing_gate,
+      f"{len(gate_files)}/{len(gate_files)} present" if not missing_gate else "",
       f"Missing: {missing_gate} — git pull (v1.4.0+) and re-run install.sh")
+
+# ── 3c. Auto-update (informational) ───────────────────────────────────────────
+try:
+    up = subprocess.run([sys.executable, str(repo / "hooks" / "update.py"), "status"],
+                        capture_output=True, text=True, timeout=10)
+    lines = (up.stdout or up.stderr).strip().splitlines()
+    check("Auto-update", up.returncode == 0, " · ".join(lines)[:160],
+          "Re-run install.sh", optional=True)
+except Exception as e:
+    check("Auto-update", False, str(e), "Re-run install.sh", optional=True)
 
 # ── 4. Claude Code: enabledPlugins ────────────────────────────────────────────
 settings_path = HOME / ".claude" / "settings.json"
@@ -202,8 +213,9 @@ EOF
 |---|---|---|
 | 1 | Repo found (`$CLAUDE_PLUGIN_ROOT` → registry `installPath` → `~/OneCommand` → `~/.claude/plugins/onecommand`) | Plugin can't load if installPath is wrong |
 | 2 | `plugin.json` readable + has version | Claude Code reads metadata from here |
-| 3 | All 5 commands in `commands/` | `/onecommand`, `/oc-resume`, `/oc-save`, `/onecommand-status`, `/oc-doctor` available |
-| 3b | `hooks/quality-gate.sh`, `hooks/acceptance-report.py`, `hooks/learnings.py` present | Phase 4 verdict and acceptance matrix come from these |
+| 3 | All 6 commands in `commands/` | `/onecommand`, `/oc-resume`, `/oc-save`, `/onecommand-status`, `/oc-doctor`, `/oc-update` available |
+| 3c | Auto-update configuration and last check | Shows whether updates install automatically |
+| 3b | `hooks/` build scripts present (gate, acceptance, learnings, skill catalog, update + hooks.json) | Phase 4 verdict and acceptance matrix come from these |
 | 4 | `enabledPlugins[onecommand@local] === true` | Plugin must be enabled in settings.json |
 | 5 | `installed_plugins.json` version matches | Mismatch causes silent load failure |
 | 6 | Brain files initialized | Needed for build state, learning |

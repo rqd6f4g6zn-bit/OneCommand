@@ -19,6 +19,16 @@ file reaches Claude Code and Codex — unchanged files are skipped. It needs `py
 
 Then restart Claude Code and run `/oc-doctor` to confirm the installation is healthy.
 
+### Updates
+
+OneCommand updates itself. At the start of every Claude Code session (at most every 6 hours) it
+checks the tracked branch of your checkout; when a newer release exists it fast-forwards, re-runs
+`install.sh`, and rolls back automatically if that install fails. It never updates while a build is
+in progress, when the checkout has local changes, or when you are on another branch.
+
+- `/oc-update` — update now · `/oc-update check` — only look · `/oc-update off|on` — toggle
+- Settings in `~/.onecommand/config.json`: `auto_update`, `update_branch`, `update_interval_hours`
+
 ## Usage
 
 ```bash
@@ -63,6 +73,14 @@ bash hooks/quality-gate.sh --stage all --project-dir ~/Desktop/MyApp
 # → .onecommand/gate/result.json, errors.txt, acceptance.md
 ```
 
+## Uses Every Skill You Have
+
+Phase 1 builds a skill plan from **all** available skills — OneCommand's bundled ones and every
+skill you installed yourself (`~/.claude/skills`, project `.claude/skills`, other enabled plugins
+such as superpowers or marketing-skills). Each external skill gets an explicit decision: which phase
+uses it and for what, or why it does not fit this project. Every phase's agents receive the skills
+assigned to them. The plan is saved to `.onecommand/skill-plan.md` in the project.
+
 ## Output
 
 - **Full frontend** (Next.js + Tailwind + shadcn/ui) — all pages, components, mobile responsive
@@ -82,6 +100,7 @@ bash hooks/quality-gate.sh --stage all --project-dir ~/Desktop/MyApp
 | `/oc-save` | Save build state so `/clear` is safe at any moment |
 | `/oc-resume` | Continue an interrupted build from the last phase |
 | `/oc-doctor` | Diagnose the installation and print exact fixes |
+| `/oc-update` | Install the latest OneCommand now (also happens automatically) |
 
 Builds are written to `~/Desktop/<ProjectName>` — never into the plugin folder. If the current
 directory already contains a OneCommand spec, that directory is used instead (resume case).

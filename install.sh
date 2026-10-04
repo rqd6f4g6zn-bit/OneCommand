@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.4.1"
+PLUGIN_VERSION="1.5.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=false
@@ -169,7 +169,8 @@ ok "python3, rsync, cmp available"
 
 for manifest in "$REPO_ROOT/.claude-plugin/plugin.json" "$REPO_ROOT/commands/onecommand.md" \
                 "$REPO_ROOT/hooks/quality-gate.sh" "$REPO_ROOT/hooks/acceptance-report.py" \
-                "$REPO_ROOT/hooks/learnings.py"; do
+                "$REPO_ROOT/hooks/learnings.py" "$REPO_ROOT/hooks/skill-catalog.py" \
+                "$REPO_ROOT/hooks/update.py" "$REPO_ROOT/hooks/hooks.json"; do
   if [ ! -f "$manifest" ]; then
     err "Not a OneCommand checkout: $manifest missing (REPO_ROOT=$REPO_ROOT)"
     exit 1
@@ -244,7 +245,11 @@ if os.path.exists(path):
     if not isinstance(cfg, dict):
         print("error:config.json is not a JSON object — left untouched")
         raise SystemExit(0)
-    if cfg.get("version") == version:
+    # Auto-update settings (v1.5.0+): add defaults, never override a user's choice.
+    defaults = {"auto_update": True, "update_branch": "main", "update_interval_hours": 6}
+    missing = {k: v for k, v in defaults.items() if k not in cfg}
+    cfg.update(missing)
+    if cfg.get("version") == version and not missing:
         print("skip")
         raise SystemExit(0)
     old = cfg.get("version", "?")
@@ -252,7 +257,8 @@ if os.path.exists(path):
     cfg["updated_at"] = datetime.now(timezone.utc).isoformat()
     msg = f"updated:v{old} → v{version}"
 else:
-    cfg = {"version": version, "installed_at": datetime.now(timezone.utc).isoformat(), "plan": "unknown"}
+    cfg = {"version": version, "installed_at": datetime.now(timezone.utc).isoformat(), "plan": "unknown",
+           "auto_update": True, "update_branch": "main", "update_interval_hours": 6}
     msg = "created"
 if not dry:
     d = os.path.dirname(path)
@@ -573,6 +579,14 @@ for skill_dir in "${REPO_ROOT}/skills"/*/; do
   done
 done
 
+# Every bundled skill needs a phase mapping, otherwise no build would ever use it.
+if ! mapping_out="$(python3 "$REPO_ROOT/hooks/skill-catalog.py" verify-bundled --oc-root "$REPO_ROOT" 2>&1)"; then
+  while IFS= read -r line; do warn "Skill plan: $line"; done <<< "$mapping_out"
+  all_ok=false
+else
+  ok "All bundled skills mapped to build phases"
+fi
+
 # Skills on disk that the list above does not know about.
 for skill_dir in "${REPO_ROOT}/skills"/*/; do
   skill_name="$(basename "$skill_dir")"
@@ -606,6 +620,7 @@ if [ "$all_ok" = true ]; then
   echo "  Usage in Claude Code:  /onecommand \"your project description\""
   echo "  Usage in Codex:        /einbefehl  \"your project description\""
   echo "  Health check:          /oc-doctor"
+  echo "  Updates:               automatic at session start · /oc-update to update now"
   echo ""
 else
   box "OneCommand — Installed with warnings"
