@@ -151,9 +151,11 @@ If it prints "update available", say in one line that it installs at the next se
 
 | Role | Model | Why |
 |---|---|---|
-| Spec analysis, Stack detection, Self-improvement, Cross-agent sync | `claude-opus-4-7` | Deep reasoning → better requirements extraction |
-| Security audit, Store readiness | `claude-opus-4-6` | Thorough review → catches what Sonnet misses |
-| Frontend, Backend, Mobile, Tests, Marketing | `claude-sonnet-4-6` | Fast + high-quality code generation → saves tokens |
+| Spec analysis, Stack detection, Self-improvement, Cross-agent sync | `opus` | Deep reasoning → better requirements extraction |
+| Security audit, Store readiness | `opus` | Thorough review → catches what Sonnet misses |
+| Frontend, Backend, Mobile, Tests, Marketing | `sonnet` | Fast + high-quality code generation → saves tokens |
+
+Agents and skills declare the aliases `opus` / `sonnet` in their frontmatter, so they always run on the newest model of that family — no pinned IDs that go stale.
 
 Opus analyses WHAT to build. Sonnet builds it. The combination gives better results than using one model for everything.
 
@@ -174,7 +176,9 @@ Context stays small because heavy work happens in subagents, not in this convers
 - Subagents cannot dispatch further subagents: a phase runner does its skill's work itself.
 - Never paste file contents or full logs into this conversation. Read summaries and `PHASE_RESULT` lines only.
 
-After every phase: `context-manager` CHECKPOINT, then `auto-clear` SAVE (silent — it writes the resume brief to disk and continues). That keeps a crash, a closed terminal or a manual `/clear` recoverable with `/oc-resume`, without ever interrupting a running build.
+- **Dispatch every agent in the foreground: `run_in_background: false`.** The next phase needs this phase's result. Agents of the same phase still run in parallel when they are dispatched in ONE message. (Background agents are cut off in headless runs — a real `claude -p` build was terminated mid-Phase 4 this way.)
+
+**After every phase, run its checkpoint command — never skip it.** `hooks/checkpoint.py` writes `working_memory.json`, `resume_brief.md` and the file manifest in one step, so a crash, a closed terminal, a cut-off headless run or a manual `/clear` is recoverable with `/oc-resume`. It prints one line and the build continues.
 
 ---
 
@@ -183,7 +187,12 @@ After every phase: `context-manager` CHECKPOINT, then `auto-clear` SAVE (silent 
 
 **First — boot the brain and collaboration layer:**
 
-Invoke `brain-agent` (runs: agent detection, memory READ, RECALL similar projects, set collab plan).
+Set `PROJECT_DIR` (the current directory, or the subdirectory chosen in pre-flight) and open the build record:
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" --oc-root "$OC_ROOT" start
+```
+
+Dispatch `onecommand:brain-agent` (foreground) — agent detection, memory READ, RECALL similar projects, collab plan. Pass `OC_ROOT` and `PROJECT_DIR`.
 
 This loads all past learnings, finds similar past projects, detects if Codex is available, and sets the collaboration plan — before a single line of code is generated.
 
@@ -220,9 +229,11 @@ Verify `.onecommand-spec.json` was created:
 cat .onecommand-spec.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Spec ready: {d[\"project_name\"]} ({d[\"app_type\"]})')"
 ```
 
-**Checkpoint Phase 1:**
-Invoke `context-manager` in CHECKPOINT mode.
-Update working_memory with phase summary: `"1": "Spec: [project_name] ([app_type]), [N] features, [stack]"`
+**Checkpoint Phase 1 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 1 --summary "Spec: <project_name> (<app_type>), <N> features, <M> criteria, <stack>" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 
 Report to user (compact — max 3 lines):
 > "✓ Spec: [project_name] — [N] features, [M] acceptance criteria ([K] must), [stack], [deploy_target]"
@@ -302,10 +313,11 @@ Skip frontend-agent, backend-agent for pure OS projects.
 
 Dispatch all agents of this phase in ONE message so they run in parallel. Wait for ALL of them to complete before proceeding.
 
-**Checkpoint Phase 2:**
-Invoke `context-manager` in CHECKPOINT mode.
-Update working_memory phase summary.
-Invoke `auto-clear` in SAVE mode (silent) — then continue immediately with Phase 3.
+**Checkpoint Phase 2 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 2 --summary "<N> pages, <N> API routes, build green" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 
 Report (compact — max 2 lines):
 > "Game: [engine], [N] scenes/scripts, [N] assets." OR
@@ -414,16 +426,17 @@ Add `output: 'standalone'` to `next.config.js` if not present.
 
 Dispatch `marketing-agent` to run in parallel with integration work.
 
-**Checkpoint Phase 3:**
-Invoke `context-manager` in CHECKPOINT mode.
+**Checkpoint Phase 3 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 3 --summary "API verified, Docker, README" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 Report (1 line): "✓ Integration: API verified, Docker ready. Marketing: README + landing page."
 
 ---
 
 ## Phase 4: TESTS + SELF-HEALING
 > "🧪 **Phase 4/8 — Running tests and self-healing...**"
-
-Invoke `context-manager` in BUDGET mode. ← print compact status, not full history
 
 Run the post-generate hook:
 ```bash
@@ -445,9 +458,11 @@ python3 -c "import json; r=json.load(open('.onecommand/gate/result.json')); a=r.
 ```
 
 When test-agent completes:
-- Invoke `brain-agent` WRITE to save the error patterns it fixed
-- Invoke `context-manager` in CHECKPOINT mode
-- Invoke `auto-clear` in SAVE mode (silent) — then continue immediately with Phase 5
+- The fixes it made are already recorded by the self-healer (`hooks/learnings.py record`).
+- Checkpoint — use `--status warn` if the gate failed:
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 4 --summary "Gate <PASSED|FAILED>, <X>/<Y> must-criteria" --status ok
+```
 
 Report (1 line):
 > "✅ Gate passed — [X]/[X] acceptance criteria verified in the browser." or "⚠️ Gate failed — [N] issues, documented in ONECOMMAND-DELIVERY.md."
@@ -457,10 +472,13 @@ Report (1 line):
 ## Phase 5: AUTOMATIONS
 > "⚙️ **Phase 5/8 — Installing automations...**"
 
-Invoke `context-manager` in BUDGET mode.
 Dispatch a phase runner subagent for the `automation-installer` skill. The CI workflow it writes must run the same checks as the gate, including `npx playwright test` for the acceptance suite.
 
-**Checkpoint Phase 5:** Invoke `context-manager` in CHECKPOINT mode.
+**Checkpoint Phase 5 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 5 --summary "CI, git hooks, Makefile" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 Report (1 line): "✓ Git hooks, GitHub Actions CI, Makefile installed."
 
 ---
@@ -468,7 +486,6 @@ Report (1 line): "✓ Git hooks, GitHub Actions CI, Makefile installed."
 ## Phase 6: EXCEED EXPECTATIONS + CLEANUP + STORE READINESS
 > "✨ **Phase 6/8 — Quality pass: exceed, clean, secure, store-ready...**"
 
-Invoke `context-manager` in BUDGET mode.
 
 Dispatch all four as subagents in ONE message (parallel):
 
@@ -488,9 +505,11 @@ Dispatch all four as subagents in ONE message (parallel):
 
 Phase 6 changed code after Phase 4 verified it. Re-verify before delivery: dispatch `test-agent` with `OC_ROOT`, `PROJECT_DIR` and `MODE=regression`. It runs `quality-gate.sh --stage all` and heals any regression the quality pass introduced. The delivery report reads this final `result.json`.
 
-**Checkpoint Phase 6:**
-Invoke `context-manager` in CHECKPOINT mode.
-Invoke `auto-clear` in SAVE mode (silent) — then continue immediately with Phase 7.
+**Checkpoint Phase 6 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 6 --summary "Quality pass done, regression gate <PASSED|FAILED> <X>/<Y>" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 
 Report (1 line):
 > "✓ Quality: [N exceeded]. Security: clean. Store: iOS ✓ / Android ✓. Regression gate: ✅ [X]/[X]."
@@ -500,16 +519,19 @@ Report (1 line):
 ## Phase 7: SELF-IMPROVEMENT + BRAIN REFLECTION
 > "🧠 **Phase 7/8 — Updating memory...**"
 
-Invoke `context-manager` in BUDGET mode.
 
-Dispatch `self-improve-agent` (cross-agent sync, skill evolution).
+Dispatch `onecommand:self-improve-agent` (foreground; cross-agent sync, skill evolution).
 
-Then invoke `brain-agent` post-build reflection:
+Then dispatch `onecommand:brain-agent` (foreground) for the post-build reflection:
 - REFLECT mode → save complete episode to episodic memory
 - PREFER mode → update user preferences from this build's decisions
 - Brain growth report → print how many builds/patterns/facts now in memory
 
-**Checkpoint Phase 7:** Invoke `context-manager` in CHECKPOINT mode.
+**Checkpoint Phase 7 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 7 --summary "Memory updated" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 Report (1 line): "🧠 Brain updated: [N] builds in memory, [N] patterns learned."
 
 ---
@@ -517,8 +539,12 @@ Report (1 line): "🧠 Brain updated: [N] builds in memory, [N] patterns learned
 ## Phase 8: DELIVERY
 > "📦 **Phase 8/8 — Preparing delivery...**"
 
-Invoke `context-manager` in BUDGET mode.
 Invoke the `delivery-reporter` skill. Its status badges come from `.onecommand/gate/result.json` and the acceptance matrix from `.onecommand/gate/acceptance.md` — a build whose gate failed is reported as NOT VERIFIED, never as complete.
+
+Close the build record:
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" finish --summary "ONECOMMAND-DELIVERY.md written"
+```
 
 ---
 

@@ -48,13 +48,14 @@ PHASE_NAMES = {
 }
 
 # Every bundled skill must appear here. "when" decides applicability from the spec:
-#   always · web · mobile · game · os · codex (Codex CLI present) · setup (never inside a build)
+#   always · web · mobile · game · os · setup (never inside a build) · support (used by
+#   /oc-resume, /oc-save and the orchestrator itself, never handed to phase agents)
 BUNDLED: dict[str, dict[str, Any]] = {
     "spec-analyzer":           {"phases": [1], "when": "always", "use": "prompt → spec with acceptance criteria"},
     "stack-detector":          {"phases": [1], "when": "always", "use": "confirm or detect the tech stack"},
     "brain-core":              {"phases": [1, 7], "when": "always", "use": "memory recall at start, reflection at end (via brain-agent)"},
-    "context-manager":         {"phases": list(PHASES), "when": "always", "use": "checkpoint after every phase"},
-    "auto-clear":              {"phases": list(PHASES), "when": "always", "use": "silent resumable save after every phase"},
+    "context-manager":         {"phases": [], "when": "support", "use": "context compression helpers — checkpoints are written by hooks/checkpoint.py"},
+    "auto-clear":              {"phases": [], "when": "support", "use": "RESUME mode for /oc-resume and /onecommand --resume"},
     "collab-protocol":         {"phases": [1, 2], "when": "always", "use": "Claude/Codex task split; claude-only fallback"},
     "cross-agent-sync":        {"phases": [1, 7], "when": "always", "use": "load shared learnings, promote confirmed ones"},
     "oc-frontend-design":      {"phases": [2], "when": "web", "use": "layout, typography, spacing rules"},
@@ -224,6 +225,9 @@ def resolve_bundled(entry: dict[str, Any], targets: set[str]) -> None:
     when = rule["when"]
     if when == "setup":
         entry.update(status="not_used", phases=[], use=rule["use"], reason="setup-time skill, not part of a build")
+    elif when == "support":
+        entry.update(status="not_used", phases=[], use=rule["use"],
+                     reason="infrastructure skill used by /oc-resume and /oc-save, not by phase agents")
     elif when == "always" or when in targets:
         entry.update(status="assigned", phases=rule["phases"], use=rule["use"])
     else:
