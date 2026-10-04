@@ -71,7 +71,7 @@ def git_identity() -> dict[str, str]:
 
 def require(tool: str) -> None:
     if shutil.which(tool) is None:
-        pytest.skip(f"{tool} not installed")
+        pytest.skip(f"{tool} not installed", allow_module_level=True)
 
 
 VALID_SPEC = {

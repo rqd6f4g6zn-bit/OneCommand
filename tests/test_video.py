@@ -8,10 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from conftest import py, require, write_json
+import shutil
 
-require("ffmpeg")
-require("ffprobe")
+from conftest import py, write_json
+
+pytestmark = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")),
+                                reason="ffmpeg not installed")
 
 
 def ffmpeg(*args: str) -> None:
