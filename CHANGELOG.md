@@ -11,6 +11,10 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
   `POST /generate` (base64 PNG / MP4). Configs `smoke`, `cpu`, `default`, `video-smoke`, `video-cpu`,
   `video-default`. Training writes a checkpoint every 5 % and resumes after an interruption (container restart,
   preempted GPU) — found when two container restarts killed long CPU runs.
+  Video model trained here from zero on 66 own product clips (camera moves over the CRM screenshots, built
+  with `dataset.py --task videos`): `video-cpu`, 1.07M parameters, 19 min CPU, loss 1.00 → 0.04, nn_ratio 0.60 —
+  all ML gate steps green; frames stay coherent over time. (300 steps left samples as noise; noise-like source
+  clips such as cellular automata are not learnable at this size — the skill says so.)
   Metric `nn_ratio`: distance of each sample to its nearest real training item ÷ the same for pure noise (lower is
   better). Trained here on the company's own 70 CRM screenshots (CPU, 6 min, 0.7M parameters): samples show the
   interface's style (white panels, text lines, blue accents), nn_ratio 0.55 — all ML gate steps green.
