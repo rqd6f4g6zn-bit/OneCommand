@@ -146,7 +146,11 @@ def run_one(p: dict[str, Any], run_dir: Path, args: argparse.Namespace) -> dict[
         return {"id": p["id"], "type": p["type"], "dry_run": True}
 
     print(f"[bench] ▶ {p['id']} ({p['type']}) — log: {log}", flush=True)
-    env = {**os.environ, "ONECOMMAND_AUTO_UPDATE": "0"}  # never self-update the plugin under test
+    env = {**os.environ,
+           "ONECOMMAND_AUTO_UPDATE": "0",               # never self-update the plugin under test
+           # Claude Code may run parallel agents in the background even when the orchestrator asks for
+           # foreground; in -p mode the CLI then kills them after a 600 s ceiling (seen in real builds).
+           "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS": "0"}
     started = time.monotonic()
     with log.open("w") as fh:
         try:

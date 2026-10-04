@@ -177,6 +177,7 @@ Context stays small because heavy work happens in subagents, not in this convers
 - Never paste file contents or full logs into this conversation. Read summaries and `PHASE_RESULT` lines only.
 
 - **Dispatch every agent in the foreground: `run_in_background: false`.** The next phase needs this phase's result. Agents of the same phase still run in parallel when they are dispatched in ONE message. (Background agents are cut off in headless runs — a real `claude -p` build was terminated mid-Phase 4 this way.)
+  Claude Code may still start same-phase agents in the background. Then wait for every agent's completion notification before the checkpoint — never checkpoint or start the next phase while an agent of this phase is still running. Headless runs (`claude -p`) should set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` so the CLI waits for them (the benchmark does).
 
 **After every phase, run its checkpoint command — never skip it.** `hooks/checkpoint.py` writes `working_memory.json`, `resume_brief.md` and the file manifest in one step, so a crash, a closed terminal, a cut-off headless run or a manual `/clear` is recoverable with `/oc-resume`. It prints one line and the build continues.
 

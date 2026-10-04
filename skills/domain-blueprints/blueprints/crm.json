@@ -1,227 +1,1247 @@
 {
   "id": "crm",
   "name": "CRM (Customer Relationship Management)",
-  "version": 1,
+  "version": 2,
   "ui_language": "de",
-  "aliases": ["crm", "customer relationship", "kundenverwaltung", "kundenmanagement", "kundenbeziehung", "vertriebssoftware", "vertriebstool", "sales pipeline", "verkaufspipeline", "lead management", "leadmanagement", "kontaktverwaltung", "salesforce", "hubspot", "pipedrive"],
+  "aliases": [
+    "crm",
+    "customer relationship",
+    "kundenverwaltung",
+    "kundenmanagement",
+    "kundenbeziehung",
+    "vertriebssoftware",
+    "vertriebstool",
+    "sales pipeline",
+    "verkaufspipeline",
+    "lead management",
+    "leadmanagement",
+    "kontaktverwaltung",
+    "salesforce",
+    "hubspot",
+    "pipedrive"
+  ],
   "summary": "Zentrale Verwaltung von Kontakten, Firmen und Verkaufschancen mit Pipeline, Aktivitäten, Aufgaben und Auswertungen für ein Vertriebsteam.",
   "roles": [
-    {"id": "admin", "name": "Administrator", "can": "alles, inkl. Benutzer, Rollen, Pipelines, Felder und Einstellungen"},
-    {"id": "manager", "name": "Vertriebsleiter", "can": "alle Datensätze des eigenen Teams sehen und bearbeiten, Berichte, Ziele", "tier": "pro"},
-    {"id": "sales", "name": "Vertriebsmitarbeiter", "can": "eigene und freigegebene Datensätze sehen und bearbeiten"},
-    {"id": "readonly", "name": "Nur Lesen", "can": "Datensätze ansehen, nichts ändern", "tier": "enterprise"}
+    {
+      "id": "admin",
+      "name": "Administrator",
+      "can": "alles, inkl. Benutzer, Rollen, Pipelines, Felder und Einstellungen"
+    },
+    {
+      "id": "manager",
+      "name": "Vertriebsleiter",
+      "can": "alle Datensätze des eigenen Teams sehen und bearbeiten, Berichte, Ziele",
+      "tier": "pro"
+    },
+    {
+      "id": "sales",
+      "name": "Vertriebsmitarbeiter",
+      "can": "eigene und freigegebene Datensätze sehen und bearbeiten"
+    },
+    {
+      "id": "readonly",
+      "name": "Nur Lesen",
+      "can": "Datensätze ansehen, nichts ändern",
+      "tier": "enterprise"
+    }
   ],
   "entities": [
-    {"name": "User", "fields": ["name", "email", "passwordHash", "role", "teamId", "active"], "tier": "mvp"},
-    {"name": "Contact", "fields": ["firstName", "lastName", "email", "phone", "position", "companyId", "ownerId", "tags", "source", "consentStatus", "createdAt"], "tier": "mvp"},
-    {"name": "Company", "fields": ["name", "domain", "industry", "size", "address", "phone", "ownerId"], "tier": "mvp"},
-    {"name": "Deal", "fields": ["title", "value", "currency", "stageId", "probability", "expectedCloseDate", "status(open|won|lost)", "lostReason", "contactId", "companyId", "ownerId"], "tier": "mvp"},
-    {"name": "Pipeline", "fields": ["name", "isDefault"], "tier": "mvp"},
-    {"name": "Stage", "fields": ["pipelineId", "name", "order", "probability"], "tier": "mvp"},
-    {"name": "Activity", "fields": ["type(call|meeting|email|note)", "subject", "body", "occurredAt", "contactId", "companyId", "dealId", "userId"], "tier": "mvp"},
-    {"name": "Task", "fields": ["title", "dueDate", "done", "assigneeId", "contactId", "dealId"], "tier": "mvp"},
-    {"name": "Team", "fields": ["name", "managerId"], "tier": "pro"},
-    {"name": "Lead", "fields": ["name", "email", "company", "source", "status(new|contacted|qualified|disqualified)", "ownerId", "convertedAt"], "tier": "pro"},
-    {"name": "CustomField", "fields": ["entity", "label", "type", "options", "required"], "tier": "pro"},
-    {"name": "Product", "fields": ["name", "sku", "price", "taxRate", "active"], "tier": "pro"},
-    {"name": "Quote", "fields": ["dealId", "number", "lines", "total", "status", "validUntil"], "tier": "pro"},
-    {"name": "EmailTemplate", "fields": ["name", "subject", "body"], "tier": "pro"},
-    {"name": "AuditLog", "fields": ["entity", "entityId", "userId", "action", "changes", "at"], "tier": "pro"},
-    {"name": "Automation", "fields": ["name", "trigger", "conditions", "actions", "active"], "tier": "enterprise"},
-    {"name": "ApiKey", "fields": ["name", "hash", "scopes", "lastUsedAt"], "tier": "enterprise"},
-    {"name": "Webhook", "fields": ["url", "events", "secret", "active"], "tier": "enterprise"},
-    {"name": "Organization", "fields": ["name", "plan", "settings"], "tier": "enterprise"},
-    {"name": "Quota", "fields": ["userId", "period", "target"], "tier": "enterprise"}
+    {
+      "name": "User",
+      "fields": [
+        "name",
+        "email",
+        "passwordHash",
+        "role",
+        "teamId",
+        "active"
+      ],
+      "tier": "mvp"
+    },
+    {
+      "name": "Contact",
+      "fields": [
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "position",
+        "companyId",
+        "ownerId",
+        "tags",
+        "source",
+        "consentStatus",
+        "createdAt"
+      ],
+      "tier": "mvp"
+    },
+    {
+      "name": "Company",
+      "fields": [
+        "name",
+        "domain",
+        "industry",
+        "size",
+        "address",
+        "phone",
+        "ownerId"
+      ],
+      "tier": "mvp"
+    },
+    {
+      "name": "Deal",
+      "fields": [
+        "title",
+        "value",
+        "currency",
+        "stageId",
+        "probability",
+        "expectedCloseDate",
+        "status(open|won|lost)",
+        "lostReason",
+        "contactId",
+        "companyId",
+        "ownerId"
+      ],
+      "tier": "mvp"
+    },
+    {
+      "name": "Pipeline",
+      "fields": [
+        "name",
+        "isDefault"
+      ],
+      "tier": "mvp"
+    },
+    {
+      "name": "Stage",
+      "fields": [
+        "pipelineId",
+        "name",
+        "order",
+        "probability"
+      ],
+      "tier": "mvp"
+    },
+    {
+      "name": "Activity",
+      "fields": [
+        "type(call|meeting|email|note)",
+        "subject",
+        "body",
+        "occurredAt",
+        "contactId",
+        "companyId",
+        "dealId",
+        "userId"
+      ],
+      "tier": "mvp"
+    },
+    {
+      "name": "Task",
+      "fields": [
+        "title",
+        "dueDate",
+        "done",
+        "assigneeId",
+        "contactId",
+        "dealId"
+      ],
+      "tier": "mvp"
+    },
+    {
+      "name": "Team",
+      "fields": [
+        "name",
+        "managerId"
+      ],
+      "tier": "pro"
+    },
+    {
+      "name": "Lead",
+      "fields": [
+        "name",
+        "email",
+        "company",
+        "source",
+        "status(new|contacted|qualified|disqualified)",
+        "ownerId",
+        "convertedAt"
+      ],
+      "tier": "pro"
+    },
+    {
+      "name": "CustomField",
+      "fields": [
+        "entity",
+        "label",
+        "type",
+        "options",
+        "required"
+      ],
+      "tier": "pro"
+    },
+    {
+      "name": "Product",
+      "fields": [
+        "name",
+        "sku",
+        "price",
+        "taxRate",
+        "active"
+      ],
+      "tier": "pro"
+    },
+    {
+      "name": "Quote",
+      "fields": [
+        "dealId",
+        "number",
+        "lines",
+        "total",
+        "status",
+        "validUntil"
+      ],
+      "tier": "pro"
+    },
+    {
+      "name": "EmailTemplate",
+      "fields": [
+        "name",
+        "subject",
+        "body"
+      ],
+      "tier": "pro"
+    },
+    {
+      "name": "AuditLog",
+      "fields": [
+        "entity",
+        "entityId",
+        "userId",
+        "action",
+        "changes",
+        "at"
+      ],
+      "tier": "pro"
+    },
+    {
+      "name": "Automation",
+      "fields": [
+        "name",
+        "trigger",
+        "conditions",
+        "actions",
+        "active"
+      ],
+      "tier": "enterprise"
+    },
+    {
+      "name": "ApiKey",
+      "fields": [
+        "name",
+        "hash",
+        "scopes",
+        "lastUsedAt"
+      ],
+      "tier": "enterprise"
+    },
+    {
+      "name": "Webhook",
+      "fields": [
+        "url",
+        "events",
+        "secret",
+        "active"
+      ],
+      "tier": "enterprise"
+    },
+    {
+      "name": "Organization",
+      "fields": [
+        "name",
+        "plan",
+        "settings"
+      ],
+      "tier": "enterprise"
+    },
+    {
+      "name": "Quota",
+      "fields": [
+        "userId",
+        "period",
+        "target"
+      ],
+      "tier": "enterprise"
+    }
   ],
   "modules": [
     {
-      "id": "auth", "name": "Anmeldung & Benutzer", "tier": "mvp",
-      "features": ["Login mit E-Mail und Passwort", "Passwort zurücksetzen per E-Mail", "Admin lädt Benutzer ein und vergibt Rollen", "Sitzung endet beim Abmelden"],
+      "id": "auth",
+      "name": "Anmeldung & Benutzer",
+      "tier": "mvp",
+      "features": [
+        "Login mit E-Mail und Passwort",
+        "Passwort zurücksetzen per E-Mail",
+        "Admin lädt Benutzer ein und vergibt Rollen",
+        "Sitzung endet beim Abmelden"
+      ],
       "criteria": [
-        {"title": "Login with valid credentials lands on /dashboard", "verification": "e2e", "start": "/login", "requires_auth": false, "steps": ["Fill e-mail and password of an existing user", "Click 'Anmelden'"], "expected": ["URL is /dashboard", "Heading 'Dashboard' is visible"]},
-        {"title": "Login with a wrong password shows 'E-Mail oder Passwort falsch'", "verification": "e2e", "start": "/login", "requires_auth": false, "steps": ["Fill a registered e-mail and a wrong password", "Click 'Anmelden'"], "expected": ["Text 'E-Mail oder Passwort falsch' is visible", "URL is still /login"]},
-        {"title": "Unauthenticated access to /contacts redirects to /login", "verification": "e2e", "start": "/contacts", "requires_auth": false, "steps": ["Open /contacts without a session"], "expected": ["URL is /login"]},
-        {"title": "Admin invites a user with role 'Vertrieb' who can then log in", "verification": "e2e", "start": "/settings/users", "requires_auth": true, "steps": ["Click 'Benutzer einladen'", "Fill name, e-mail, choose role 'Vertrieb'", "Click 'Einladen'", "Open the invitation link from the e-mail outbox and set a password"], "expected": ["New user appears in the user list with role 'Vertrieb'", "The new user can log in"]}
+        {
+          "title": "Login with valid credentials lands on /dashboard",
+          "verification": "e2e",
+          "start": "/login",
+          "requires_auth": false,
+          "steps": [
+            "Fill e-mail and password of an existing user",
+            "Click 'Anmelden'"
+          ],
+          "expected": [
+            "URL is /dashboard",
+            "Heading 'Dashboard' is visible"
+          ]
+        },
+        {
+          "title": "Login with a wrong password shows 'E-Mail oder Passwort falsch'",
+          "verification": "e2e",
+          "start": "/login",
+          "requires_auth": false,
+          "steps": [
+            "Fill a registered e-mail and a wrong password",
+            "Click 'Anmelden'"
+          ],
+          "expected": [
+            "Text 'E-Mail oder Passwort falsch' is visible",
+            "URL is still /login"
+          ]
+        },
+        {
+          "title": "Unauthenticated access to /contacts redirects to /login",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": false,
+          "steps": [
+            "Open /contacts without a session"
+          ],
+          "expected": [
+            "URL is /login"
+          ]
+        },
+        {
+          "title": "Admin invites a user with role 'Vertrieb' who can then log in",
+          "verification": "e2e",
+          "start": "/settings/users",
+          "requires_auth": true,
+          "steps": [
+            "Click 'Benutzer einladen'",
+            "Fill name, e-mail, choose role 'Vertrieb'",
+            "Click 'Einladen'",
+            "Open the invitation link from the e-mail outbox and set a password"
+          ],
+          "expected": [
+            "New user appears in the user list with role 'Vertrieb'",
+            "The new user can log in"
+          ]
+        }
       ]
     },
     {
-      "id": "contacts", "name": "Kontakte", "tier": "mvp",
-      "features": ["Kontakte anlegen, bearbeiten, löschen", "Liste mit Suche, Filter (Firma, Besitzer, Tag) und Sortierung", "Paginierung", "Tags", "Duplikatwarnung bei gleicher E-Mail", "Kontaktdetailseite mit Timeline"],
+      "id": "contacts",
+      "name": "Kontakte",
+      "tier": "mvp",
+      "features": [
+        "Kontakte anlegen, bearbeiten, löschen",
+        "Liste mit Suche, Filter (Firma, Besitzer, Tag) und Sortierung",
+        "Paginierung",
+        "Tags",
+        "Duplikatwarnung bei gleicher E-Mail",
+        "Kontaktdetailseite mit Timeline"
+      ],
       "criteria": [
-        {"title": "Created contact appears in the list and opens its detail page", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Click 'Neuer Kontakt'", "Fill first name, last name, e-mail", "Click 'Speichern'"], "expected": ["Contact is listed in /contacts", "Clicking it opens /contacts/<id> showing the e-mail"]},
-        {"title": "Contact with an e-mail that already exists shows 'Kontakt mit dieser E-Mail existiert bereits'", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Create a contact with e-mail x@example.com", "Create another contact with the same e-mail"], "expected": ["Text 'Kontakt mit dieser E-Mail existiert bereits' is visible", "Only one contact with that e-mail exists"]},
-        {"title": "Searching and filtering by tag narrows the contact list", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Create two contacts, tag only one with 'VIP'", "Filter by tag 'VIP'", "Search by the other contact's last name"], "expected": ["Tag filter shows only the tagged contact", "Search shows only the matching contact"]},
-        {"title": "Edited contact keeps changes after reload", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Open a contact", "Change the phone number", "Click 'Speichern'", "Reload"], "expected": ["New phone number is shown after reload"]},
-        {"title": "GET /api/contacts without a session returns 401", "verification": "api", "steps": ["GET /api/contacts without cookies"], "expected": ["Status 401"]}
+        {
+          "title": "Created contact appears in the list and opens its detail page",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "Click 'Neuer Kontakt'",
+            "Fill first name, last name, e-mail",
+            "Click 'Speichern'"
+          ],
+          "expected": [
+            "Contact is listed in /contacts",
+            "Clicking it opens /contacts/<id> showing the e-mail"
+          ]
+        },
+        {
+          "title": "Contact with an e-mail that already exists shows 'Kontakt mit dieser E-Mail existiert bereits'",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "Create a contact with e-mail x@example.com",
+            "Create another contact with the same e-mail"
+          ],
+          "expected": [
+            "Text 'Kontakt mit dieser E-Mail existiert bereits' is visible",
+            "Only one contact with that e-mail exists"
+          ]
+        },
+        {
+          "title": "Searching and filtering by tag narrows the contact list",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "Create two contacts, tag only one with 'VIP'",
+            "Filter by tag 'VIP'",
+            "Search by the other contact's last name"
+          ],
+          "expected": [
+            "Tag filter shows only the tagged contact",
+            "Search shows only the matching contact"
+          ]
+        },
+        {
+          "title": "Edited contact keeps changes after reload",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "Open a contact",
+            "Change the phone number",
+            "Click 'Speichern'",
+            "Reload"
+          ],
+          "expected": [
+            "New phone number is shown after reload"
+          ]
+        },
+        {
+          "title": "GET /api/contacts without a session returns 401",
+          "verification": "api",
+          "steps": [
+            "GET /api/contacts without cookies"
+          ],
+          "expected": [
+            "Status 401"
+          ]
+        }
       ]
     },
     {
-      "id": "companies", "name": "Firmen", "tier": "mvp",
-      "features": ["Firmen anlegen und bearbeiten", "Kontakte einer Firma zuordnen", "Firmenseite mit Kontakten, Deals und Aktivitäten"],
+      "id": "companies",
+      "name": "Firmen",
+      "tier": "mvp",
+      "features": [
+        "Firmen anlegen und bearbeiten",
+        "Kontakte einer Firma zuordnen",
+        "Firmenseite mit Kontakten, Deals und Aktivitäten"
+      ],
       "criteria": [
-        {"title": "Contact assigned to a company is listed on the company page", "verification": "e2e", "start": "/companies", "requires_auth": true, "steps": ["Create company 'Muster GmbH'", "Create a contact and choose company 'Muster GmbH'", "Open the company page"], "expected": ["Section 'Kontakte' lists the contact"]},
-        {"title": "Company page shows open deals with their total value", "verification": "e2e", "start": "/companies", "requires_auth": true, "steps": ["Create two open deals of 1000 and 2500 for the company", "Open the company page"], "expected": ["Both deals are listed", "Total '3.500' is shown"]}
+        {
+          "title": "Contact assigned to a company is listed on the company page",
+          "verification": "e2e",
+          "start": "/companies",
+          "requires_auth": true,
+          "steps": [
+            "Create company 'Muster GmbH'",
+            "Create a contact and choose company 'Muster GmbH'",
+            "Open the company page"
+          ],
+          "expected": [
+            "Section 'Kontakte' lists the contact"
+          ]
+        },
+        {
+          "title": "Company page shows open deals with their total value",
+          "verification": "e2e",
+          "start": "/companies",
+          "requires_auth": true,
+          "steps": [
+            "Create two open deals of 1000 and 2500 for the company",
+            "Open the company page"
+          ],
+          "expected": [
+            "Both deals are listed",
+            "Total '3.500' is shown"
+          ]
+        }
       ]
     },
     {
-      "id": "deals", "name": "Deals & Pipeline", "tier": "mvp",
-      "features": ["Deals mit Wert, Phase, Wahrscheinlichkeit und erwartetem Abschlussdatum", "Kanban-Pipeline mit Drag & Drop zwischen Phasen", "Gewonnen/Verloren mit Verlustgrund", "Summe pro Phase", "Standardphasen: Qualifiziert, Angebot, Verhandlung, Gewonnen, Verloren"],
+      "id": "deals",
+      "name": "Deals & Pipeline",
+      "tier": "mvp",
+      "features": [
+        "Deals mit Wert, Phase, Wahrscheinlichkeit und erwartetem Abschlussdatum",
+        "Kanban-Pipeline mit Drag & Drop zwischen Phasen",
+        "Gewonnen/Verloren mit Verlustgrund",
+        "Summe pro Phase",
+        "Standardphasen: Qualifiziert, Angebot, Verhandlung, Gewonnen, Verloren"
+      ],
       "criteria": [
-        {"title": "New deal appears in the first pipeline stage with its value", "verification": "e2e", "start": "/deals", "requires_auth": true, "steps": ["Click 'Neuer Deal'", "Fill title 'Website-Relaunch', value 12000, choose a contact", "Click 'Speichern'"], "expected": ["Card 'Website-Relaunch' is in column 'Qualifiziert'", "Card shows '12.000'"]},
-        {"title": "Dragging a deal to another stage persists after reload", "verification": "e2e", "start": "/deals", "requires_auth": true, "steps": ["Drag deal 'Website-Relaunch' to column 'Angebot'", "Reload"], "expected": ["Card is in column 'Angebot' after reload", "Column sums are updated"]},
-        {"title": "Marking a deal as lost requires a reason", "verification": "e2e", "start": "/deals", "requires_auth": true, "steps": ["Open a deal", "Click 'Verloren' without entering a reason", "Enter reason 'Preis zu hoch' and confirm"], "expected": ["Text 'Bitte einen Grund angeben' is visible on the first attempt", "Deal status is 'Verloren' with reason 'Preis zu hoch'"]},
-        {"title": "Won deal leaves the open pipeline and counts as won revenue", "verification": "e2e", "start": "/deals", "requires_auth": true, "steps": ["Open a deal with value 5000", "Click 'Gewonnen'", "Open /dashboard"], "expected": ["Deal is no longer in an open column", "Dashboard 'Gewonnen diesen Monat' includes 5.000"]}
+        {
+          "title": "New deal appears in the first pipeline stage with its value",
+          "verification": "e2e",
+          "start": "/deals",
+          "requires_auth": true,
+          "steps": [
+            "Click 'Neuer Deal'",
+            "Fill title 'Website-Relaunch', value 12000, choose a contact",
+            "Click 'Speichern'"
+          ],
+          "expected": [
+            "Card 'Website-Relaunch' is in column 'Qualifiziert'",
+            "Card shows '12.000'"
+          ]
+        },
+        {
+          "title": "Dragging a deal to another stage persists after reload",
+          "verification": "e2e",
+          "start": "/deals",
+          "requires_auth": true,
+          "steps": [
+            "Drag deal 'Website-Relaunch' to column 'Angebot'",
+            "Reload"
+          ],
+          "expected": [
+            "Card is in column 'Angebot' after reload",
+            "Column sums are updated"
+          ]
+        },
+        {
+          "title": "Marking a deal as lost requires a reason",
+          "verification": "e2e",
+          "start": "/deals",
+          "requires_auth": true,
+          "steps": [
+            "Open a deal",
+            "Click 'Verloren' without entering a reason",
+            "Enter reason 'Preis zu hoch' and confirm"
+          ],
+          "expected": [
+            "Text 'Bitte einen Grund angeben' is visible on the first attempt",
+            "Deal status is 'Verloren' with reason 'Preis zu hoch'"
+          ]
+        },
+        {
+          "title": "Won deal leaves the open pipeline and counts as won revenue",
+          "verification": "e2e",
+          "start": "/deals",
+          "requires_auth": true,
+          "steps": [
+            "Open a deal with value 5000",
+            "Click 'Gewonnen'",
+            "Open /dashboard"
+          ],
+          "expected": [
+            "Deal is no longer in an open column",
+            "Dashboard 'Gewonnen diesen Monat' includes 5.000"
+          ]
+        }
       ]
     },
     {
-      "id": "activities", "name": "Aktivitäten & Aufgaben", "tier": "mvp",
-      "features": ["Anrufe, Meetings, E-Mails und Notizen protokollieren", "Aufgaben mit Fälligkeitsdatum und Zuständigem", "'Meine Aufgaben' mit überfälligen Aufgaben hervorgehoben", "Chronologische Timeline auf Kontakt, Firma und Deal"],
+      "id": "activities",
+      "name": "Aktivitäten & Aufgaben",
+      "tier": "mvp",
+      "features": [
+        "Anrufe, Meetings, E-Mails und Notizen protokollieren",
+        "Aufgaben mit Fälligkeitsdatum und Zuständigem",
+        "'Meine Aufgaben' mit überfälligen Aufgaben hervorgehoben",
+        "Chronologische Timeline auf Kontakt, Firma und Deal"
+      ],
       "criteria": [
-        {"title": "Logged call appears at the top of the contact timeline", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Open a contact", "Click 'Aktivität erfassen', choose 'Anruf', subject 'Erstgespräch'", "Click 'Speichern'"], "expected": ["Timeline's first entry is 'Anruf · Erstgespräch'"]},
-        {"title": "Overdue task is highlighted in 'Meine Aufgaben'", "verification": "e2e", "start": "/tasks", "requires_auth": true, "steps": ["Create a task due yesterday assigned to me", "Open /tasks"], "expected": ["Task is listed under 'Überfällig'"]},
-        {"title": "Completing a task removes it from open tasks", "verification": "e2e", "start": "/tasks", "requires_auth": true, "steps": ["Tick the checkbox of an open task", "Reload"], "expected": ["Task is no longer listed under open tasks after reload"]}
+        {
+          "title": "Logged call appears at the top of the contact timeline",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "Open a contact",
+            "Click 'Aktivität erfassen', choose 'Anruf', subject 'Erstgespräch'",
+            "Click 'Speichern'"
+          ],
+          "expected": [
+            "Timeline's first entry is 'Anruf · Erstgespräch'"
+          ]
+        },
+        {
+          "title": "Overdue task is highlighted in 'Meine Aufgaben'",
+          "verification": "e2e",
+          "start": "/tasks",
+          "requires_auth": true,
+          "steps": [
+            "Create a task due yesterday assigned to me",
+            "Open /tasks"
+          ],
+          "expected": [
+            "Task is listed under 'Überfällig'"
+          ]
+        },
+        {
+          "title": "Completing a task removes it from open tasks",
+          "verification": "e2e",
+          "start": "/tasks",
+          "requires_auth": true,
+          "steps": [
+            "Tick the checkbox of an open task",
+            "Reload"
+          ],
+          "expected": [
+            "Task is no longer listed under open tasks after reload"
+          ]
+        }
       ]
     },
     {
-      "id": "search", "name": "Globale Suche", "tier": "mvp",
-      "features": ["Eine Suche über Kontakte, Firmen und Deals", "Tastenkürzel zum Öffnen"],
+      "id": "search",
+      "name": "Globale Suche",
+      "tier": "mvp",
+      "features": [
+        "Eine Suche über Kontakte, Firmen und Deals",
+        "Tastenkürzel zum Öffnen"
+      ],
       "criteria": [
-        {"title": "Global search finds contact, company and deal by name", "verification": "e2e", "start": "/dashboard", "requires_auth": true, "steps": ["Create contact 'Lena Berg', company 'Bergwerk AG', deal 'Berg-Projekt'", "Type 'Berg' into the global search"], "expected": ["Results show the contact, the company and the deal in separate groups"]}
+        {
+          "title": "Global search finds contact, company and deal by name",
+          "verification": "e2e",
+          "start": "/dashboard",
+          "requires_auth": true,
+          "steps": [
+            "Create contact 'Lena Berg', company 'Bergwerk AG', deal 'Berg-Projekt'",
+            "Type 'Berg' into the global search"
+          ],
+          "expected": [
+            "Results show the contact, the company and the deal in separate groups"
+          ]
+        }
       ]
     },
     {
-      "id": "dashboard", "name": "Dashboard", "tier": "mvp",
-      "features": ["Kennzahlen: offenes Pipeline-Volumen, gewonnen diesen Monat, Abschlussquote, fällige Aufgaben", "Pipeline nach Phase als Diagramm"],
+      "id": "dashboard",
+      "name": "Dashboard",
+      "tier": "mvp",
+      "features": [
+        "Kennzahlen: offenes Pipeline-Volumen, gewonnen diesen Monat, Abschlussquote, fällige Aufgaben",
+        "Pipeline nach Phase als Diagramm"
+      ],
       "criteria": [
-        {"title": "Dashboard shows the open pipeline value as the sum of open deals", "verification": "e2e", "start": "/dashboard", "requires_auth": true, "steps": ["Create open deals of 1000 and 4000", "Open /dashboard"], "expected": ["'Offene Pipeline' shows 5.000"]}
+        {
+          "title": "Dashboard shows the open pipeline value as the sum of open deals",
+          "verification": "e2e",
+          "start": "/dashboard",
+          "requires_auth": true,
+          "steps": [
+            "Create open deals of 1000 and 4000",
+            "Open /dashboard"
+          ],
+          "expected": [
+            "'Offene Pipeline' shows 5.000"
+          ]
+        }
       ]
     },
     {
-      "id": "permissions", "name": "Rollen, Rechte & Teams", "tier": "pro",
-      "features": ["Vertrieb sieht nur eigene Datensätze", "Vertriebsleiter sieht das ganze Team", "Admin sieht alles", "Datensätze einem anderen Besitzer zuweisen", "Teams verwalten"],
+      "id": "permissions",
+      "name": "Rollen, Rechte & Teams",
+      "tier": "pro",
+      "features": [
+        "Vertrieb sieht nur eigene Datensätze",
+        "Vertriebsleiter sieht das ganze Team",
+        "Admin sieht alles",
+        "Datensätze einem anderen Besitzer zuweisen",
+        "Teams verwalten",
+        "Datensätze mit einzelnen Kollegen oder dem Team teilen (freigeben)"
+      ],
       "criteria": [
-        {"title": "Sales rep does not see contacts owned by another rep", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["As rep A create contact 'Geheim Kunde'", "Log in as rep B (same role, other owner)", "Open /contacts and search 'Geheim'"], "expected": ["No result for 'Geheim Kunde'"]},
-        {"title": "Rep B reading or editing rep A's contact via the API gets 404", "verification": "api", "steps": ["As rep B GET /api/contacts/<id of rep A's contact>", "As rep B PATCH the same contact"], "expected": ["Both requests return 404", "The contact is unchanged"]},
-        {"title": "Manager sees deals of every rep in the team", "verification": "e2e", "start": "/deals", "requires_auth": true, "steps": ["Reps A and B of team 'Nord' each create a deal", "Log in as the manager of team 'Nord'", "Open /deals"], "expected": ["Both deals are visible"]}
+        {
+          "title": "Sales rep does not see contacts owned by another rep",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "As rep A create contact 'Geheim Kunde'",
+            "Log in as rep B (same role, other owner)",
+            "Open /contacts and search 'Geheim'"
+          ],
+          "expected": [
+            "No result for 'Geheim Kunde'"
+          ]
+        },
+        {
+          "title": "Rep B reading or editing rep A's contact via the API gets 404",
+          "verification": "api",
+          "steps": [
+            "As rep B GET /api/contacts/<id of rep A's contact>",
+            "As rep B PATCH the same contact"
+          ],
+          "expected": [
+            "Both requests return 404",
+            "The contact is unchanged"
+          ]
+        },
+        {
+          "title": "Manager sees deals of every rep in the team",
+          "verification": "e2e",
+          "start": "/deals",
+          "requires_auth": true,
+          "steps": [
+            "Reps A and B of team 'Nord' each create a deal",
+            "Log in as the manager of team 'Nord'",
+            "Open /deals"
+          ],
+          "expected": [
+            "Both deals are visible"
+          ]
+        },
+        {
+          "title": "Contact shared with rep B becomes visible to rep B only",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "As rep A open own contact 'Geteilt Kunde'",
+            "Click 'Freigeben', choose rep B, confirm",
+            "Log in as rep B, then as rep C"
+          ],
+          "expected": [
+            "Rep B finds 'Geteilt Kunde' in /contacts",
+            "Rep C does not"
+          ]
+        }
       ]
     },
     {
-      "id": "leads", "name": "Leads & Konvertierung", "tier": "pro",
-      "features": ["Leads mit Status (Neu, Kontaktiert, Qualifiziert, Disqualifiziert)", "Lead in Kontakt + Firma + Deal konvertieren", "Web-Formular erzeugt Leads", "Lead-Quellen auswerten"],
+      "id": "leads",
+      "name": "Leads & Konvertierung",
+      "tier": "pro",
+      "features": [
+        "Leads mit Status (Neu, Kontaktiert, Qualifiziert, Disqualifiziert)",
+        "Lead in Kontakt + Firma + Deal konvertieren",
+        "Web-Formular erzeugt Leads",
+        "Lead-Quellen auswerten"
+      ],
       "criteria": [
-        {"title": "Converting a lead creates contact, company and deal and marks the lead converted", "verification": "e2e", "start": "/leads", "requires_auth": true, "steps": ["Create lead 'Max Hof', company 'Hof KG'", "Click 'Konvertieren', enter deal value 3000", "Confirm"], "expected": ["Contact 'Max Hof' and company 'Hof KG' exist", "A deal of 3.000 exists in the first stage", "Lead shows status 'Konvertiert'"]},
-        {"title": "Public lead form submission creates a lead with source 'Webformular'", "verification": "api", "steps": ["POST the public lead form endpoint with name and e-mail"], "expected": ["Status 201", "Lead list contains the lead with source 'Webformular'"]}
+        {
+          "title": "Converting a lead creates contact, company and deal and marks the lead converted",
+          "verification": "e2e",
+          "start": "/leads",
+          "requires_auth": true,
+          "steps": [
+            "Create lead 'Max Hof', company 'Hof KG'",
+            "Click 'Konvertieren', enter deal value 3000",
+            "Confirm"
+          ],
+          "expected": [
+            "Contact 'Max Hof' and company 'Hof KG' exist",
+            "A deal of 3.000 exists in the first stage",
+            "Lead shows status 'Konvertiert'"
+          ]
+        },
+        {
+          "title": "Public lead form submission creates a lead with source 'Webformular'",
+          "verification": "api",
+          "steps": [
+            "POST the public lead form endpoint with name and e-mail"
+          ],
+          "expected": [
+            "Status 201",
+            "Lead list contains the lead with source 'Webformular'"
+          ]
+        }
       ]
     },
     {
-      "id": "import-export", "name": "Import & Export", "tier": "pro",
-      "features": ["CSV-Import mit Spaltenzuordnung und Vorschau", "Duplikate beim Import überspringen oder aktualisieren", "Export der gefilterten Liste als CSV"],
+      "id": "import-export",
+      "name": "Import & Export",
+      "tier": "pro",
+      "features": [
+        "CSV-Import mit Spaltenzuordnung und Vorschau",
+        "Duplikate beim Import überspringen oder aktualisieren",
+        "Export der gefilterten Liste als CSV"
+      ],
       "criteria": [
-        {"title": "CSV import with column mapping creates contacts and skips duplicates", "verification": "e2e", "start": "/contacts/import", "requires_auth": true, "steps": ["Upload a CSV with 3 rows, one with an existing e-mail", "Map columns 'Vorname', 'Nachname', 'E-Mail'", "Choose 'Duplikate überspringen' and start the import"], "expected": ["Summary shows '2 importiert, 1 übersprungen'", "Two new contacts are listed"]},
-        {"title": "Export downloads the filtered contacts as CSV", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Filter by tag 'VIP'", "Click 'Exportieren'"], "expected": ["A CSV download starts", "It contains exactly the filtered contacts with a header row"]}
+        {
+          "title": "CSV import with column mapping creates contacts and skips duplicates",
+          "verification": "e2e",
+          "start": "/contacts/import",
+          "requires_auth": true,
+          "steps": [
+            "Upload a CSV with 3 rows, one with an existing e-mail",
+            "Map columns 'Vorname', 'Nachname', 'E-Mail'",
+            "Choose 'Duplikate überspringen' and start the import"
+          ],
+          "expected": [
+            "Summary shows '2 importiert, 1 übersprungen'",
+            "Two new contacts are listed"
+          ]
+        },
+        {
+          "title": "Export downloads the filtered contacts as CSV",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "Filter by tag 'VIP'",
+            "Click 'Exportieren'"
+          ],
+          "expected": [
+            "A CSV download starts",
+            "It contains exactly the filtered contacts with a header row"
+          ]
+        }
       ]
     },
     {
-      "id": "custom-fields", "name": "Benutzerdefinierte Felder", "tier": "pro",
-      "features": ["Admin legt Felder für Kontakte, Firmen und Deals an (Text, Zahl, Datum, Auswahl)", "Pflichtfelder", "Felder in Filter und Export"],
+      "id": "custom-fields",
+      "name": "Benutzerdefinierte Felder",
+      "tier": "pro",
+      "features": [
+        "Admin legt Felder für Kontakte, Firmen und Deals an (Text, Zahl, Datum, Auswahl)",
+        "Pflichtfelder",
+        "Felder in Filter und Export"
+      ],
       "criteria": [
-        {"title": "Custom select field appears on the contact form and is saved", "verification": "e2e", "start": "/settings/fields", "requires_auth": true, "steps": ["As admin add field 'Branche' (select: Handel, IT) for contacts", "Create a contact with 'Branche' = 'IT'", "Reload the contact"], "expected": ["Contact shows 'Branche: IT'"]}
+        {
+          "title": "Custom select field appears on the contact form and is saved",
+          "verification": "e2e",
+          "start": "/settings/fields",
+          "requires_auth": true,
+          "steps": [
+            "As admin add field 'Branche' (select: Handel, IT) for contacts",
+            "Create a contact with 'Branche' = 'IT'",
+            "Reload the contact"
+          ],
+          "expected": [
+            "Contact shows 'Branche: IT'"
+          ]
+        }
       ]
     },
     {
-      "id": "reports", "name": "Berichte", "tier": "pro",
-      "features": ["Pipeline nach Phase", "Umsatz und Abschlussquote pro Mitarbeiter", "Aktivitäten pro Mitarbeiter", "Gewichtete Prognose (Wert × Wahrscheinlichkeit)", "Zeitraumfilter und CSV-Export"],
+      "id": "reports",
+      "name": "Berichte",
+      "tier": "pro",
+      "features": [
+        "Pipeline nach Phase",
+        "Umsatz und Abschlussquote pro Mitarbeiter",
+        "Aktivitäten pro Mitarbeiter",
+        "Gewichtete Prognose (Wert × Wahrscheinlichkeit)",
+        "Zeitraumfilter und CSV-Export"
+      ],
       "criteria": [
-        {"title": "Win-rate report per rep matches won and lost deals in the period", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Rep A wins 3 deals and loses 1 this month", "Open 'Abschlussquote', period 'Dieser Monat'"], "expected": ["Rep A shows '75 %'"]},
-        {"title": "Weighted forecast equals the sum of value × stage probability", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Open deals: 10.000 at 50 %, 4.000 at 25 %", "Open 'Prognose'"], "expected": ["Weighted forecast shows 6.000"]}
+        {
+          "title": "Win-rate report per rep matches won and lost deals in the period",
+          "verification": "e2e",
+          "start": "/reports",
+          "requires_auth": true,
+          "steps": [
+            "Rep A wins 3 deals and loses 1 this month",
+            "Open 'Abschlussquote', period 'Dieser Monat'"
+          ],
+          "expected": [
+            "Rep A shows '75 %'"
+          ]
+        },
+        {
+          "title": "Weighted forecast equals the sum of value × stage probability",
+          "verification": "e2e",
+          "start": "/reports",
+          "requires_auth": true,
+          "steps": [
+            "Open deals: 10.000 at 50 %, 4.000 at 25 %",
+            "Open 'Prognose'"
+          ],
+          "expected": [
+            "Weighted forecast shows 6.000"
+          ]
+        }
       ]
     },
     {
-      "id": "email", "name": "E-Mail aus dem CRM", "tier": "pro",
-      "features": ["E-Mail an Kontakte senden, automatisch in der Timeline protokolliert", "Vorlagen mit Platzhaltern ({{vorname}})", "Versand über Resend/SMTP"],
+      "id": "email",
+      "name": "E-Mail aus dem CRM",
+      "tier": "pro",
+      "features": [
+        "E-Mail an Kontakte senden, automatisch in der Timeline protokolliert",
+        "Vorlagen mit Platzhaltern ({{vorname}})",
+        "Versand über Resend/SMTP"
+      ],
       "criteria": [
-        {"title": "E-mail sent from a contact uses the template placeholder and is logged", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Create template 'Willkommen' with body 'Hallo {{vorname}}'", "Open contact 'Lena Berg', click 'E-Mail senden', choose the template, send"], "expected": ["Outbox contains a mail to the contact starting with 'Hallo Lena'", "Timeline shows 'E-Mail · Willkommen'"]}
+        {
+          "title": "E-mail sent from a contact uses the template placeholder and is logged",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "Create template 'Willkommen' with body 'Hallo {{vorname}}'",
+            "Open contact 'Lena Berg', click 'E-Mail senden', choose the template, send"
+          ],
+          "expected": [
+            "Outbox contains a mail to the contact starting with 'Hallo Lena'",
+            "Timeline shows 'E-Mail · Willkommen'"
+          ]
+        }
       ]
     },
     {
-      "id": "products-quotes", "name": "Produkte & Angebote", "tier": "pro",
-      "features": ["Produktkatalog mit Preis und Steuersatz", "Positionen am Deal; Deal-Wert = Summe", "Angebot als PDF mit fortlaufender Nummer"],
+      "id": "products-quotes",
+      "name": "Produkte & Angebote",
+      "tier": "pro",
+      "features": [
+        "Produktkatalog mit Preis und Steuersatz",
+        "Positionen am Deal; Deal-Wert = Summe",
+        "Angebot als PDF mit fortlaufender Nummer"
+      ],
       "criteria": [
-        {"title": "Adding products to a deal sets the deal value to the line total", "verification": "e2e", "start": "/deals", "requires_auth": true, "steps": ["Create product 'Beratung' 1.000 net", "Add 3 × 'Beratung' to a deal"], "expected": ["Deal value shows 3.000"]},
-        {"title": "Generated quote PDF has a sequential number", "verification": "api", "steps": ["Create two quotes via the API", "Download the second PDF"], "expected": ["Second quote number is the first + 1", "Response content-type is application/pdf"]}
+        {
+          "title": "Adding products to a deal sets the deal value to the line total",
+          "verification": "e2e",
+          "start": "/deals",
+          "requires_auth": true,
+          "steps": [
+            "Create product 'Beratung' 1.000 net",
+            "Add 3 × 'Beratung' to a deal"
+          ],
+          "expected": [
+            "Deal value shows 3.000"
+          ]
+        },
+        {
+          "title": "Generated quote PDF has a sequential number",
+          "verification": "api",
+          "steps": [
+            "Create two quotes via the API",
+            "Download the second PDF"
+          ],
+          "expected": [
+            "Second quote number is the first + 1",
+            "Response content-type is application/pdf"
+          ]
+        }
       ]
     },
     {
-      "id": "notifications", "name": "Benachrichtigungen & Erinnerungen", "tier": "pro",
-      "features": ["Erinnerung bei fälligen Aufgaben", "Benachrichtigung bei Zuweisung", "Ungelesen-Zähler"],
+      "id": "notifications",
+      "name": "Benachrichtigungen & Erinnerungen",
+      "tier": "pro",
+      "features": [
+        "Erinnerung bei fälligen Aufgaben",
+        "Benachrichtigung bei Zuweisung",
+        "Ungelesen-Zähler"
+      ],
       "criteria": [
-        {"title": "Assigning a deal to another user creates a notification for them", "verification": "e2e", "start": "/deals", "requires_auth": true, "steps": ["As manager assign a deal to rep B", "Log in as rep B"], "expected": ["Notification badge shows 1", "Notification text names the deal"]}
+        {
+          "title": "Assigning a deal to another user creates a notification for them",
+          "verification": "e2e",
+          "start": "/deals",
+          "requires_auth": true,
+          "steps": [
+            "As manager assign a deal to rep B",
+            "Log in as rep B"
+          ],
+          "expected": [
+            "Notification badge shows 1",
+            "Notification text names the deal"
+          ]
+        }
       ]
     },
     {
-      "id": "audit-gdpr", "name": "Änderungsverlauf & DSGVO", "tier": "pro",
-      "features": ["Änderungsverlauf pro Datensatz (wer, wann, was)", "Einwilligungsstatus je Kontakt", "Auskunft: alle Daten eines Kontakts exportieren", "Löschen/Anonymisieren auf Anfrage"],
+      "id": "audit-gdpr",
+      "name": "Änderungsverlauf & DSGVO",
+      "tier": "pro",
+      "features": [
+        "Änderungsverlauf pro Datensatz (wer, wann, was)",
+        "Einwilligungsstatus je Kontakt",
+        "Auskunft: alle Daten eines Kontakts exportieren",
+        "Löschen/Anonymisieren auf Anfrage"
+      ],
       "criteria": [
-        {"title": "Change history shows who changed which field", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Change a contact's phone", "Open tab 'Verlauf'"], "expected": ["Entry shows the user, 'Telefon' and old → new value"]},
-        {"title": "GDPR erasure anonymises the contact and removes personal data", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["As admin open a contact", "Click 'DSGVO-Löschung' and confirm"], "expected": ["Name shows 'Gelöschter Kontakt'", "E-mail and phone are empty", "Search for the old e-mail finds nothing"]}
+        {
+          "title": "Change history shows who changed which field",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "Change a contact's phone",
+            "Open tab 'Verlauf'"
+          ],
+          "expected": [
+            "Entry shows the user, 'Telefon' and old → new value"
+          ]
+        },
+        {
+          "title": "GDPR erasure anonymises the contact and removes personal data",
+          "verification": "e2e",
+          "start": "/contacts",
+          "requires_auth": true,
+          "steps": [
+            "As admin open a contact",
+            "Click 'DSGVO-Löschung' and confirm"
+          ],
+          "expected": [
+            "Name shows 'Gelöschter Kontakt'",
+            "E-mail and phone are empty",
+            "Search for the old e-mail finds nothing"
+          ]
+        }
       ]
     },
     {
-      "id": "automations", "name": "Workflow-Automatisierung", "tier": "enterprise",
-      "features": ["Regeln: Auslöser (Deal-Phase geändert, Kontakt angelegt, Datum) → Bedingungen → Aktionen (Aufgabe, E-Mail, Feld setzen, Webhook)", "Ausführungsprotokoll"],
+      "id": "automations",
+      "name": "Workflow-Automatisierung",
+      "tier": "enterprise",
+      "features": [
+        "Regeln: Auslöser (Deal-Phase geändert, Kontakt angelegt, Datum) → Bedingungen → Aktionen (Aufgabe, E-Mail, Feld setzen, Webhook)",
+        "Ausführungsprotokoll"
+      ],
       "criteria": [
-        {"title": "Automation creates a follow-up task when a deal enters 'Angebot'", "verification": "e2e", "start": "/settings/automations", "requires_auth": true, "steps": ["Create rule: trigger 'Phase geändert zu Angebot' → action 'Aufgabe: Angebot nachfassen in 3 Tagen'", "Move a deal to 'Angebot'"], "expected": ["Deal has task 'Angebot nachfassen' due in 3 days", "Rule log shows one execution"]}
+        {
+          "title": "Automation creates a follow-up task when a deal enters 'Angebot'",
+          "verification": "e2e",
+          "start": "/settings/automations",
+          "requires_auth": true,
+          "steps": [
+            "Create rule: trigger 'Phase geändert zu Angebot' → action 'Aufgabe: Angebot nachfassen in 3 Tagen'",
+            "Move a deal to 'Angebot'"
+          ],
+          "expected": [
+            "Deal has task 'Angebot nachfassen' due in 3 days",
+            "Rule log shows one execution"
+          ]
+        }
       ]
     },
     {
-      "id": "multi-pipeline", "name": "Mehrere Pipelines & Währungen", "tier": "enterprise",
-      "features": ["Mehrere Pipelines mit eigenen Phasen", "Mehrere Währungen mit Umrechnung in Berichten"],
+      "id": "multi-pipeline",
+      "name": "Mehrere Pipelines & Währungen",
+      "tier": "enterprise",
+      "features": [
+        "Mehrere Pipelines mit eigenen Phasen",
+        "Mehrere Währungen mit Umrechnung in Berichten"
+      ],
       "criteria": [
-        {"title": "Second pipeline with its own stages keeps deals separate", "verification": "e2e", "start": "/settings/pipelines", "requires_auth": true, "steps": ["Create pipeline 'Partner' with stages 'Erstkontakt', 'Vertrag'", "Create a deal in 'Partner'", "Switch the board to the default pipeline"], "expected": ["The partner deal is not shown in the default pipeline"]}
+        {
+          "title": "Second pipeline with its own stages keeps deals separate",
+          "verification": "e2e",
+          "start": "/settings/pipelines",
+          "requires_auth": true,
+          "steps": [
+            "Create pipeline 'Partner' with stages 'Erstkontakt', 'Vertrag'",
+            "Create a deal in 'Partner'",
+            "Switch the board to the default pipeline"
+          ],
+          "expected": [
+            "The partner deal is not shown in the default pipeline"
+          ]
+        }
       ]
     },
     {
-      "id": "integrations", "name": "Kalender- & Postfach-Sync", "tier": "enterprise",
-      "features": ["Google/Outlook-Kalender: Meetings synchronisieren", "Postfach-Sync (Gmail/IMAP): Mails automatisch Kontakten zuordnen"],
+      "id": "integrations",
+      "name": "Kalender- & Postfach-Sync",
+      "tier": "enterprise",
+      "features": [
+        "Google/Outlook-Kalender: Meetings synchronisieren",
+        "Postfach-Sync (Gmail/IMAP): Mails automatisch Kontakten zuordnen"
+      ],
       "criteria": [
-        {"title": "Incoming e-mail from a known address is attached to that contact (test mode)", "verification": "api", "steps": ["Inject a test inbound mail from the contact's address via the test-mode sync endpoint"], "expected": ["Contact timeline lists the mail with its subject"]}
+        {
+          "title": "Incoming e-mail from a known address is attached to that contact (test mode)",
+          "verification": "api",
+          "steps": [
+            "Inject a test inbound mail from the contact's address via the test-mode sync endpoint"
+          ],
+          "expected": [
+            "Contact timeline lists the mail with its subject"
+          ]
+        }
       ]
     },
     {
-      "id": "api-webhooks", "name": "API & Webhooks", "tier": "enterprise",
-      "features": ["REST-API mit API-Schlüsseln und Berechtigungen", "Webhooks für Ereignisse (deal.won, contact.created)", "Signierte Webhook-Payloads", "Rate-Limiting"],
+      "id": "api-webhooks",
+      "name": "API & Webhooks",
+      "tier": "enterprise",
+      "features": [
+        "REST-API mit API-Schlüsseln und Berechtigungen",
+        "Webhooks für Ereignisse (deal.won, contact.created)",
+        "Signierte Webhook-Payloads",
+        "Rate-Limiting"
+      ],
       "criteria": [
-        {"title": "API key with read scope lists contacts but cannot create them", "verification": "api", "steps": ["Create API key with scope 'contacts:read'", "GET /api/v1/contacts with the key", "POST /api/v1/contacts with the key"], "expected": ["GET returns 200", "POST returns 403"]},
-        {"title": "Winning a deal fires a signed deal.won webhook", "verification": "api", "steps": ["Register a webhook for 'deal.won' to the test receiver", "Mark a deal as won"], "expected": ["Receiver got one POST with event 'deal.won'", "Signature header verifies with the webhook secret"]}
+        {
+          "title": "API key with read scope lists contacts but cannot create them",
+          "verification": "api",
+          "steps": [
+            "Create API key with scope 'contacts:read'",
+            "GET /api/v1/contacts with the key",
+            "POST /api/v1/contacts with the key"
+          ],
+          "expected": [
+            "GET returns 200",
+            "POST returns 403"
+          ]
+        },
+        {
+          "title": "Winning a deal fires a signed deal.won webhook",
+          "verification": "api",
+          "steps": [
+            "Register a webhook for 'deal.won' to the test receiver",
+            "Mark a deal as won"
+          ],
+          "expected": [
+            "Receiver got one POST with event 'deal.won'",
+            "Signature header verifies with the webhook secret"
+          ]
+        }
       ]
     },
     {
-      "id": "multi-tenant-sso", "name": "Mandanten & SSO", "tier": "enterprise",
-      "features": ["Mehrere Organisationen strikt getrennt", "SSO via OIDC/SAML", "Feldbasierte Berechtigungen"],
+      "id": "multi-tenant-sso",
+      "name": "Mandanten & SSO",
+      "tier": "enterprise",
+      "features": [
+        "Mehrere Organisationen strikt getrennt",
+        "SSO via OIDC/SAML",
+        "Feldbasierte Berechtigungen"
+      ],
       "criteria": [
-        {"title": "Users of organisation A never see data of organisation B", "verification": "api", "steps": ["Create a contact in org B", "As a user of org A GET /api/contacts and GET /api/contacts/<id of org B contact>"], "expected": ["List does not contain the contact", "Direct access returns 404"]}
+        {
+          "title": "Users of organisation A never see data of organisation B — list, detail, search, export and reports",
+          "verification": "api",
+          "steps": [
+            "Create a contact 'Fremd Kunde' in org B",
+            "As a user of org A: GET /api/contacts, GET /api/contacts/<id>, GET /api/search?q=Fremd, GET /api/contacts/export, GET /api/reports/pipeline"
+          ],
+          "expected": [
+            "None of the responses contains 'Fremd Kunde'",
+            "Direct access returns 404"
+          ]
+        },
+        {
+          "title": "SSO login is rejected when the identity provider reports an unverified e-mail",
+          "verification": "api",
+          "steps": [
+            "Complete the test-mode OIDC flow with email_verified=false"
+          ],
+          "expected": [
+            "Status 403",
+            "No session cookie is set"
+          ]
+        }
       ]
     },
     {
-      "id": "forecasting", "name": "Ziele & Forecast", "tier": "enterprise",
-      "features": ["Umsatzziele pro Mitarbeiter und Zeitraum", "Zielerreichung im Dashboard", "Forecast-Kategorien (Commit, Best Case)"],
+      "id": "forecasting",
+      "name": "Ziele & Forecast",
+      "tier": "enterprise",
+      "features": [
+        "Umsatzziele pro Mitarbeiter und Zeitraum",
+        "Zielerreichung im Dashboard",
+        "Forecast-Kategorien (Commit, Best Case)"
+      ],
       "criteria": [
-        {"title": "Quota attainment shows won revenue against the target", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Set rep A's quota for this month to 20.000", "Rep A wins deals worth 5.000"], "expected": ["Rep A shows '25 % von 20.000'"]}
+        {
+          "title": "Quota attainment shows won revenue against the target",
+          "verification": "e2e",
+          "start": "/reports",
+          "requires_auth": true,
+          "steps": [
+            "Set rep A's quota for this month to 20.000",
+            "Rep A wins deals worth 5.000"
+          ],
+          "expected": [
+            "Rep A shows '25 % von 20.000'"
+          ]
+        }
       ]
     }
   ],
   "non_functional": [
-    {"tier": "mvp", "text": "Alle Listen sind paginiert und serverseitig gefiltert"},
-    {"tier": "mvp", "text": "Responsive bis 375 px Breite; Kanban scrollt horizontal"},
-    {"tier": "pro", "text": "Listen mit 10.000 Kontakten laden in unter 1 Sekunde (Index auf Suchfeldern)"},
-    {"tier": "pro", "text": "Barrierefreiheit: Tastaturbedienung der Pipeline, Labels an allen Feldern"},
-    {"tier": "enterprise", "text": "Tägliches Backup, Wiederherstellung dokumentiert und getestet"},
-    {"tier": "enterprise", "text": "Rate-Limiting und Audit aller API-Zugriffe"}
+    {
+      "tier": "mvp",
+      "text": "Alle Listen sind paginiert und serverseitig gefiltert"
+    },
+    {
+      "tier": "mvp",
+      "text": "Responsive bis 375 px Breite; Kanban scrollt horizontal"
+    },
+    {
+      "tier": "mvp",
+      "text": "Kein Standard-Secret: ohne AUTH_SECRET (mind. 32 Zeichen) startet der Server nicht"
+    },
+    {
+      "tier": "mvp",
+      "text": "Security-Header: Content-Security-Policy, X-Frame-Options/frame-ancestors, Referrer-Policy; Redirect-Ziele nur relativ (kein Open Redirect)"
+    },
+    {
+      "tier": "pro",
+      "text": "Listen mit 10.000 Kontakten laden in unter 1 Sekunde (Index auf Suchfeldern)"
+    },
+    {
+      "tier": "pro",
+      "text": "Barrierefreiheit: Tastaturbedienung der Pipeline, Labels an allen Feldern"
+    },
+    {
+      "tier": "enterprise",
+      "text": "Ausgehende Requests an nutzerdefinierte URLs (Webhooks, SSO-Issuer) nur nach SSRF-Prüfung: keine privaten/Loopback-Adressen"
+    },
+    {
+      "tier": "enterprise",
+      "text": "Postfach- und Kalender-Sync funktionieren außerhalb des Testmodus mit echten Zugangsdaten; ohne Zugangsdaten zeigt die Oberfläche 'Nicht verbunden' statt eines Fehlers"
+    },
+    {
+      "tier": "enterprise",
+      "text": "Tägliches Backup, Wiederherstellung dokumentiert und getestet"
+    },
+    {
+      "tier": "enterprise",
+      "text": "Rate-Limiting und Audit aller API-Zugriffe"
+    }
   ],
-  "production_dependencies": {"mvp": ["email"], "pro": ["email"], "enterprise": ["email", "oauth"]},
+  "production_dependencies": {
+    "mvp": [
+      "email"
+    ],
+    "pro": [
+      "email"
+    ],
+    "enterprise": [
+      "email",
+      "oauth"
+    ]
+  },
   "pages": {
-    "mvp": ["/login", "/dashboard", "/contacts", "/contacts/[id]", "/companies", "/companies/[id]", "/deals", "/deals/[id]", "/tasks", "/settings/users"],
-    "pro": ["/leads", "/contacts/import", "/reports", "/settings/fields", "/settings/templates", "/settings/teams", "/products"],
-    "enterprise": ["/settings/automations", "/settings/pipelines", "/settings/api", "/settings/integrations", "/settings/organization"]
+    "mvp": [
+      "/login",
+      "/dashboard",
+      "/contacts",
+      "/contacts/[id]",
+      "/companies",
+      "/companies/[id]",
+      "/deals",
+      "/deals/[id]",
+      "/tasks",
+      "/settings/users"
+    ],
+    "pro": [
+      "/leads",
+      "/contacts/import",
+      "/reports",
+      "/settings/fields",
+      "/settings/templates",
+      "/settings/teams",
+      "/products"
+    ],
+    "enterprise": [
+      "/settings/automations",
+      "/settings/pipelines",
+      "/settings/api",
+      "/settings/integrations",
+      "/settings/organization"
+    ]
   }
 }

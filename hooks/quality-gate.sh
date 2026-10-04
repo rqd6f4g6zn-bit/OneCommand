@@ -468,6 +468,42 @@ browser_mismatch_hint() {
   log "  ⚠ browser revision mismatch — see errors.txt"
 }
 
+# test_change_check — the first e2e run records a hash of every acceptance test file; a later
+# run that finds a changed or deleted test file without a mention in .onecommand/test-changes.md
+# records a warning. A real build changed a test silently although the rules require a log entry.
+test_change_check() {
+  local test_dir="$1"
+  python3 - "$test_dir" "$OUT_DIR/test-baseline.json" ".onecommand/test-changes.md" > "$OUT_DIR/.test-changes" << 'PYEOF2'
+import hashlib, json, os, sys
+test_dir, baseline_path, log_path = sys.argv[1:4]
+current = {}
+for root, _, files in os.walk(test_dir):
+    for name in files:
+        if name.endswith((".ts", ".js", ".mjs")):
+            path = os.path.join(root, name)
+            current[path] = hashlib.sha256(open(path, "rb").read()).hexdigest()
+if not os.path.exists(baseline_path):
+    json.dump(current, open(baseline_path, "w"), indent=2)
+    print("baseline\t" + str(len(current)))
+    raise SystemExit
+baseline = json.load(open(baseline_path))
+log = open(log_path, encoding="utf-8", errors="replace").read() if os.path.exists(log_path) else ""
+unlogged = sorted(p for p, h in baseline.items()
+                  if current.get(p) != h and os.path.basename(p) not in log)
+print(("warn\t" if unlogged else "pass\t") + ", ".join(unlogged))
+PYEOF2
+  local state detail
+  IFS=$'\t' read -r state detail < "$OUT_DIR/.test-changes"
+  rm -f "$OUT_DIR/.test-changes"
+  case "$state" in
+    baseline) record test-changes pass 0 0 "$OUT_DIR/test-baseline.json" "baseline of ${detail} test files recorded" ;;
+    pass)     record test-changes pass 0 0 "$OUT_DIR/test-baseline.json" "" ;;
+    warn)
+      record test-changes warn 0 0 "$OUT_DIR/test-baseline.json" "acceptance tests changed without an entry in .onecommand/test-changes.md: ${detail}"
+      log "  ⚠ test-changes — changed without a test-changes.md entry: ${detail}" ;;
+  esac
+}
+
 stage_e2e() {
   local spec=".onecommand-spec.json" config=""
   local f
@@ -514,6 +550,9 @@ stage_e2e() {
   # The e2e exit code alone is not the verdict: the acceptance report checks that
   # every must-criterion has a passing test (a missing test is a failure too).
   browser_mismatch_hint
+  local test_dir
+  test_dir="$(sed -n "s/.*testDir:[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" "$config" | head -1)"
+  [ -n "$test_dir" ] && [ -d "$test_dir" ] && test_change_check "$test_dir"
 
   local report_args=(report --spec "$spec" --results "$results" --out "$OUT_DIR/acceptance.json" --markdown "$OUT_DIR/acceptance.md")
   [ "$STRICT_FLAKY" = true ] && report_args+=(--strict-flaky)

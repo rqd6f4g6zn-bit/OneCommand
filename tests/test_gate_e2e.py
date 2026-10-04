@@ -83,3 +83,23 @@ def test_lint_error_blocks_before_e2e(app):
         assert next(s for s in result["steps"] if s["step"] == "e2e")["status"] == "skipped"
     finally:
         server.write_text(original)
+
+
+def test_silent_test_change_is_reported_until_logged(app):
+    assert gate(app, "--stage", "e2e").returncode == 0  # baseline exists from the earlier runs
+    spec = app / "e2e" / "acceptance" / "notes.spec.ts"
+    original = spec.read_text()
+    log = app / ".onecommand" / "test-changes.md"
+    try:
+        spec.write_text(original.replace("toBeVisible();\n  await page.reload();", "toBeVisible();\n\n  await page.reload();"))
+        assert gate(app, "--stage", "e2e").returncode == 0  # a warning never fails the gate …
+        result, _ = gate_files(app)
+        warnings = " ".join(result["warnings"])
+        assert "notes.spec.ts" in warnings and "test-changes.md" in warnings  # … but it is reported
+        log.write_text("- notes.spec.ts: blank line only, assertion unchanged\n")
+        gate(app, "--stage", "e2e")
+        result, _ = gate_files(app)
+        assert not any("test-changes" in w for w in result["warnings"])
+    finally:
+        spec.write_text(original)
+        log.unlink(missing_ok=True)
