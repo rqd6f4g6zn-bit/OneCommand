@@ -35,7 +35,13 @@ Use the project's package manager (lockfile decides: pnpm / yarn / bun / npm):
 grep -q '"@playwright/test"' package.json || npm install -D @playwright/test
 ```
 
-Browsers are installed by the gate (`playwright install chromium`), or reused from `PLAYWRIGHT_BROWSERS_PATH` when the machine already has them.
+Then pin the version to the browsers this machine can actually launch:
+
+```bash
+python3 "$OC_ROOT/hooks/playwright-pin.py" apply
+```
+
+It keeps the installed version when its browsers exist (or can be downloaded by the gate), and otherwise pins the newest `@playwright/test` whose browsers are pre-installed (`PLAYWRIGHT_BROWSERS_PATH`). Skipping this cost a real build several healing rounds: `@playwright/test` 1.63 needs chromium-1243, the machine had chromium-1194, and every test died in 5 ms.
 
 Add to `.gitignore` if missing: `test-results/`, `playwright-report/`, `.onecommand/`.
 
@@ -118,6 +124,17 @@ test('AC-007: GET /api/workouts without a session returns 401', async ({ request
   expect(res.status()).toBe(401);
 });
 ```
+
+### Playwright pitfalls (each one cost a healing round in a real build)
+
+| Pitfall | Do this instead |
+|---|---|
+| Two toasts with the same text are visible (create + edit) → strict-mode violation | Scope the locator, or assert on `.last()` |
+| `expect(list).not.toContainText(x)` after deleting the **only** item fails — the list locator matches nothing | `await expect(page.getByText(x)).toHaveCount(0)` |
+| Registering the same user again in a later step → 409, never reaches the app | Register once per test with `uniqueEmail()`, use `loginAs()` for every later visit |
+| Buttons only visible on hover → click times out | Make actions visible (also an accessibility fix) or `hover()` the card first |
+| Asserting the URL right after a click races the navigation | `await expect(page).toHaveURL(...)` (auto-waits), never `page.url()` |
+| Data from a previous test leaks into a list assertion | Unique titles per test (`` `Note ${Date.now()}` ``) and filter by them |
 
 `helpers.ts` provides at least: `uniqueEmail()` (timestamp + random suffix, so reruns never collide), `signUpAndLogin(page)` that goes through the app's real registration UI, and `loginAs(page, email, password)`.
 
