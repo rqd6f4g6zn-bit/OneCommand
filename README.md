@@ -1,5 +1,7 @@
 # OneCommand
 
+**by [USC Software UG](https://usc-software-ug.de)**
+
 Build complete, production-ready software systems from a single prompt.
 
 One command. Eight phases. Working software.
@@ -185,4 +187,7 @@ Every run stores learned patterns in `~/.onecommand/memory/`. Over time, OneComm
 
 ---
 
-*Built by USC Software UG*
+<p align="center">
+  <b>OneCommand</b> — built by <a href="https://usc-software-ug.de"><b>USC Software UG</b></a><br>
+  <sub>Copyright © 2026 USC Software UG · Alle Rechte vorbehalten · All rights reserved</sub>
+</p>

@@ -77,3 +77,7 @@ Seit v1.7.0 findet OneCommand diese Fehlerklassen in jedem Build selbst.
 | „Meine Aufgaben“ für den Admin-Demo-Login leer | Die Demo-Daten geben nur den Vertriebsmitarbeitern Aufgaben | `demo` in der Spec: ein Demo-Login pro Rolle, der Demo-Seed füllt jede Ansicht |
 | Produktionsstart verweigert den Login mit dem Dev-Secret aus `.env` | Gewollt (Sicherheitsfix), aber bis dahin nie unter Produktionsbedingungen geprüft | Gate-Stage `tour`: startet den Produktions-Build mit frischen Secrets, meldet sich mit jedem Demo-Login an, fotografiert jede Seite (Desktop + Mobil) und legt eine Review-Checkliste an |
 | `/settings/integrations` auf dem Handy 212 px zu breit | Tabelle ohne horizontales Scrollen | Der Rundgang misst horizontalen Überlauf auf jeder Seite |
+
+---
+
+<p align="center"><sub>Gebaut mit <b>OneCommand</b> von <a href="https://usc-software-ug.de"><b>USC Software UG</b></a></sub></p>

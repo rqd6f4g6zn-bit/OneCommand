@@ -176,6 +176,7 @@ if codex_installed:
 # ── Print report ──────────────────────────────────────────────────────────────
 print("\n┌──────────────────────────────────────────────────────────────┐")
 print("│  OneCommand — Doctor Report                                  │")
+print("│  USC Software UG · usc-software-ug.de                        │")
 print("└──────────────────────────────────────────────────────────────┘\n")
 
 for status, label, detail, fix in results:

@@ -517,6 +517,7 @@ def write_reports(out_dir: Path, spec: dict[str, Any], data: dict[str, Any], blo
     for v in visits:
         md.append(f"| {v.get('role') or v.get('account') or 'anonymous'} | {v['viewport']} | {v['path']} | "
                   f"{v.get('status', '—')} | {v.get('screenshot', '—')} |")
+    md += ["", "---", "*OneCommand UI-Rundgang · USC Software UG · usc-software-ug.de*"]
     (out_dir / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
     # Review list: everything the first account and anonymous visitors see (desktop + mobile),

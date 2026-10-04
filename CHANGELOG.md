@@ -43,6 +43,8 @@ error classes itself in every build.
   embeds the tour screenshots and the demo logins.
 - Quality gate: steps with `⚠` lines in their log are recorded as `warn`; the database is prepared once
   per run.
+- USC Software UG branding: `/oc-doctor` report, README header and footer, plugin manifests (author
+  URL), CRM showcase, generated contract file and UI tour report.
 - No personal names or home paths in docs and install instructions (company name only);
   `test_repo_consistency` checks every tracked file.
 
