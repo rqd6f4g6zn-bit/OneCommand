@@ -100,3 +100,15 @@ def test_commands_checked_by_doctor_exist():
     names = re.search(r"required_cmds = \[(.*?)\]", doctor).group(1)
     for name in re.findall(r'"([^"]+\.md)"', names):
         assert (REPO / "commands" / name).exists(), name
+
+
+SHELL_SCRIPTS = sorted([REPO / "install.sh", *(REPO / "hooks").glob("*.sh")])
+
+
+@pytest.mark.parametrize("script", SHELL_SCRIPTS, ids=lambda p: p.name)
+def test_no_heredoc_inside_command_substitution(script: Path):
+    # bash 3.2 (macOS /bin/bash) tracks quotes inside a heredoc that sits in $( … ): a single
+    # apostrophe in the embedded Python broke install.sh on macOS. Write to a temp file instead.
+    offenders = [f"{script.name}:{n}" for n, line in enumerate(script.read_text().splitlines(), 1)
+                 if not line.lstrip().startswith("#") and re.search(r"\$\([^)]*<<", line)]
+    assert not offenders, offenders

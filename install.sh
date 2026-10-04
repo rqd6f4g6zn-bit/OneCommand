@@ -230,7 +230,10 @@ fi
 
 # config.json — create, or bump only the "version" field and keep everything else.
 CONFIG_FILE="$ONECOMMAND_HOME/config.json"
-CONFIG_RESULT="$(OC_CONFIG="$CONFIG_FILE" OC_VERSION="$PLUGIN_VERSION" OC_DRY="$DRY_RUN" python3 << 'PYEOF'
+# Not `$(python3 << EOF …)`: bash 3.2 (macOS) parses quotes inside a heredoc that sits in a
+# command substitution, so one apostrophe in the Python breaks the whole script.
+CONFIG_RESULT_FILE="$(mktemp "${TMPDIR:-/tmp}/oc-config.XXXXXX")"
+OC_CONFIG="$CONFIG_FILE" OC_VERSION="$PLUGIN_VERSION" OC_DRY="$DRY_RUN" python3 > "$CONFIG_RESULT_FILE" << 'PYEOF'
 import json, os, tempfile
 from datetime import datetime, timezone
 
@@ -270,7 +273,8 @@ if not dry:
     os.replace(tmp, path)
 print(msg)
 PYEOF
-)"
+CONFIG_RESULT="$(cat "$CONFIG_RESULT_FILE")"
+rm -f "$CONFIG_RESULT_FILE"
 case "$CONFIG_RESULT" in
   skip)      skip "config.json in ~/.onecommand" ;;
   created)   ok "Created ~/.onecommand/config.json" ;;
