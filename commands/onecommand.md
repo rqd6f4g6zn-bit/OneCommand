@@ -166,7 +166,7 @@ The build runs from start to finish without asking the user to type anything. **
 Context stays small because heavy work happens in subagents, not in this conversation:
 
 - **Every phase's work runs in a subagent** (Agent tool). A subagent starts with a fresh context, does the work, and returns only a short summary. Generated code never flows through the orchestrator's context.
-- Named agents (`frontend-agent`, `backend-agent`, `test-agent`, …) are dispatched directly. Skill-only phases are dispatched to a `general-purpose` subagent with this prompt template:
+- Named agents (`frontend-agent`, `backend-agent`, `test-agent`, …) are dispatched directly. Plugin agents are namespaced: use `subagent_type: "onecommand:test-agent"` (fall back to the short name only if the namespaced one is rejected). Skill-only phases are dispatched to a `general-purpose` subagent with this prompt template:
   > `You are a OneCommand phase runner. OC_ROOT=<path>. PROJECT_DIR=<path>. Read $OC_ROOT/skills/<skill>/SKILL.md and execute it completely inside PROJECT_DIR. Read .onecommand-spec.json for requirements. Do not ask questions — decide and document. Return at most 5 lines, ending with: PHASE_RESULT {"phase": N, "status": "ok|warn|fail", "summary": "<one line>"}`
 - Always pass `OC_ROOT` and `PROJECT_DIR` in every subagent prompt — subagents do not inherit them.
 - **Always pass the phase's skills.** Before dispatching phase N, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase N` and paste its output into every subagent prompt of that phase, with: "Read each listed SKILL.md and apply it where it fits your task." This is how bundled and user-installed skills reach the agents that do the work.

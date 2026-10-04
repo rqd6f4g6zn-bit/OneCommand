@@ -1,0 +1,356 @@
+{
+  "version": 1,
+  "generated_at": "2026-10-04T12:10:45+00:00",
+  "oc_root": "/home/user/OneCommand",
+  "build_targets": [
+    "web"
+  ],
+  "skills": [
+    {
+      "name": "21st-components",
+      "base_name": "21st-components",
+      "description": "Source production-grade UI components from 21st.dev (community library, shadcn-compatible) before generating anything from scratch. Use during Phase 2 (Frontend) and Phase 3 (Marketing/Landing) to get battle-tested heroes, pricing sections, dashboards, onboarding flows, auth UI etc. — adapt them to the project's theme instead of writing boilerplate. Saves tokens, raises quality.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/21st-components/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        2,
+        3
+      ],
+      "use": "community UI sections before custom code"
+    },
+    {
+      "name": "acceptance-tester",
+      "base_name": "acceptance-tester",
+      "description": "Turns the acceptance_criteria in .onecommand-spec.json into a Playwright suite (one test per criterion, titled with its AC id), wires a webServer so the real app is started, and verifies it through hooks/quality-gate.sh --stage e2e. Used by test-agent in Phase 4 and in the Phase 6 regression gate. A build is only \"done\" when every must-criterion has a passing test.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/acceptance-tester/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        4,
+        6
+      ],
+      "use": "Playwright suite from acceptance_criteria"
+    },
+    {
+      "name": "app-icon-generator",
+      "base_name": "app-icon-generator",
+      "description": "Generates app icons for all required sizes for iOS App Store and Google Play. Creates a 1024x1024 base icon using Python/cairosvg/ImageMagick, then resizes to all required platform sizes. Bundled in OneCommand — no external tool required.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/app-icon-generator/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "app icons in every iOS/Android size",
+      "reason": "only for 'mobile' builds (targets: web)"
+    },
+    {
+      "name": "asset-generator",
+      "base_name": "asset-generator",
+      "description": "Generates all game assets programmatically: SVG/PNG sprites, procedural textures, 3D geometry (GLB via pygltflib), Blender Python scripts for complex models, sprite sheets, and audio asset manifest.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/asset-generator/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "sprites, models, audio",
+      "reason": "only for 'game' builds (targets: web)"
+    },
+    {
+      "name": "auto-clear",
+      "base_name": "auto-clear",
+      "description": "Saves complete build state to disk after every phase (silently — the build never stops for it), so a crash, a closed terminal or a manual /clear is recoverable. /oc-resume or /onecommand --resume restores full context and continues from the next phase. Nothing is ever lost — disk is the source of truth.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/auto-clear/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "use": "silent resumable save after every phase"
+    },
+    {
+      "name": "automation-installer",
+      "base_name": "automation-installer",
+      "description": "Installs production-grade automations into the generated project. Dev tooling (husky pre-commit, GitHub Actions CI, Makefile, .gitignore) PLUS USC Profi-Standard production hardening (deploy.sh with frontend/backend/db targets, watchdog every 60s, daily DB backup with 14-day retention, restart:always policy, resource limits, healthchecks, gold-master recovery). Hardening section is conditional on ",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/automation-installer/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        5
+      ],
+      "use": "CI, git hooks, Makefile"
+    },
+    {
+      "name": "brain-core",
+      "base_name": "brain-core",
+      "description": "OneCommand's persistent intelligence layer. Manages episodic memory (every past build), semantic knowledge (learned facts), pattern library (recurring solutions), and user preferences. Runs in READ, WRITE, REFLECT, RECALL, and PREFER modes.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/brain-core/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        1,
+        7
+      ],
+      "use": "memory recall at start, reflection at end (via brain-agent)"
+    },
+    {
+      "name": "codex-setup",
+      "base_name": "codex-setup",
+      "description": "Installs OneCommand for Codex. Asks the user about their Codex subscription plan before installing. Adapts feature availability to the plan. Never modifies existing plugin source files.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/codex-setup/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "interactive Codex installation — recommended in pre-flight when Codex is missing, never run inside a build",
+      "reason": "setup-time skill, not part of a build"
+    },
+    {
+      "name": "collab-protocol",
+      "base_name": "collab-protocol",
+      "description": "Claude + Codex collaboration protocol. Detects available agents, distributes tasks, creates task handoff files, and merges results. Falls back to Claude-only mode gracefully if Codex is unavailable.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/collab-protocol/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        1,
+        2
+      ],
+      "use": "Claude/Codex task split; claude-only fallback"
+    },
+    {
+      "name": "context-manager",
+      "base_name": "context-manager",
+      "description": "Automatically compresses the conversation context to save tokens without losing any project state. Saves all phase outputs to disk, enforces a 500-token budget per phase in the conversation, detects when /compact is safe, and can resume interrupted builds from checkpoints.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/context-manager/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "use": "checkpoint after every phase"
+    },
+    {
+      "name": "cross-agent-sync",
+      "base_name": "cross-agent-sync",
+      "description": "Shared learning memory between Claude Code and Codex. When one agent fixes an error or discovers a pattern, it writes to ~/.onecommand/memory/cross_learnings.json. The other agent reads this on the next build and pre-applies all known fixes. Skills auto-evolve when learnings are confirmed 3+ times.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/cross-agent-sync/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        1,
+        7
+      ],
+      "use": "load shared learnings, promote confirmed ones"
+    },
+    {
+      "name": "delivery-reporter",
+      "base_name": "delivery-reporter",
+      "description": "Generates the final delivery report after all phases complete. Shows what was built, what exceeded expectations, how to run locally, and how to deploy. Saves to ONECOMMAND-DELIVERY.md.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/delivery-reporter/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        8
+      ],
+      "use": "ONECOMMAND-DELIVERY.md from gate results"
+    },
+    {
+      "name": "demo-cleaner",
+      "base_name": "demo-cleaner",
+      "description": "Scans generated code for demo/placeholder content and removes or replaces it with real project-specific content. Also runs a spelling check on all UI-visible strings. Called automatically before the delivery phase.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/demo-cleaner/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        6
+      ],
+      "use": "remove placeholder/demo content"
+    },
+    {
+      "name": "exceed-expectations",
+      "base_name": "exceed-expectations",
+      "description": "Goes beyond the user's prompt. Adds high-value features the user didn't ask for but will appreciate: dark mode, PWA, accessibility, performance optimizations, error boundaries, loading skeletons. Only adds things that are unambiguously useful.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/exceed-expectations/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        6
+      ],
+      "use": "dark mode, PWA, a11y, error boundaries"
+    },
+    {
+      "name": "game-engine-selector",
+      "base_name": "game-engine-selector",
+      "description": "Selects the optimal game engine based on game type, dimension (2D/3D), platform, and genre. Writes decision to spec.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/game-engine-selector/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "choose Godot / Three.js / Phaser",
+      "reason": "only for 'game' builds (targets: web)"
+    },
+    {
+      "name": "godot-builder",
+      "base_name": "godot-builder",
+      "description": "Generates a complete Godot 4 project with all scenes, GDScript, 3D/2D world design, character controllers, physics, UI, audio, and export configuration. Works for both 2D and 3D games.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/godot-builder/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "Godot 4 project (if selected)",
+      "reason": "only for 'game' builds (targets: web)"
+    },
+    {
+      "name": "live-integrations",
+      "base_name": "live-integrations",
+      "description": "Generates real, production-ready code for SMTP email (verification + password reset), Firebase/APNs push notifications, and Social Login (Google, GitHub, Apple OAuth). Reads production_dependencies from spec and only activates what is needed.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/live-integrations/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        3
+      ],
+      "use": "real e-mail, OAuth, push for production_dependencies"
+    },
+    {
+      "name": "oc-frontend-design",
+      "base_name": "oc-frontend-design",
+      "description": "Bundled frontend design system for OneCommand. Provides component architecture, file structure, Tailwind CSS patterns, shadcn/ui usage, and Next.js App Router conventions. No external plugin required.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/oc-frontend-design/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        2
+      ],
+      "use": "layout, typography, spacing rules"
+    },
+    {
+      "name": "oc-marketing",
+      "base_name": "oc-marketing",
+      "description": "Bundled marketing content skill for OneCommand. Generates professional README, landing page copy, CHANGELOG, and feature descriptions. Uses real project data from the spec — no lorem ipsum, no placeholders.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/oc-marketing/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        3
+      ],
+      "use": "README, landing page, docs (via marketing-agent)"
+    },
+    {
+      "name": "oc-ui-ux",
+      "base_name": "oc-ui-ux",
+      "description": "Bundled UI/UX excellence layer for OneCommand. Applies professional design standards — accessibility, responsive layouts, micro-interactions, consistent spacing, and polished states — to every generated interface.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/oc-ui-ux/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        2
+      ],
+      "use": "UX patterns and accessibility"
+    },
+    {
+      "name": "os-builder",
+      "base_name": "os-builder",
+      "description": "Generates a complete custom Linux-based operating system. Supports Alpine-based server OS, Buildroot embedded OS, and Debian-based desktop OS. Produces all config files, build scripts, Docker test environment, and ISO generation workflow.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/os-builder/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "custom Linux OS build",
+      "reason": "only for 'os' builds (targets: web)"
+    },
+    {
+      "name": "phaser-builder",
+      "base_name": "phaser-builder",
+      "description": "Generates a complete Phaser 3 web 2D game with multiple scenes, tilemap levels, animated sprites, physics, enemies, HUD, save system, and fullscreen support.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/phaser-builder/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "Phaser 3 project (if selected)",
+      "reason": "only for 'game' builds (targets: web)"
+    },
+    {
+      "name": "self-healer",
+      "base_name": "self-healer",
+      "description": "Analyzes build/test errors and fixes them iteratively. Called by test-agent. Tracks iteration count. Stops after 5 iterations and documents remaining issues.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/self-healer/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        4,
+        6
+      ],
+      "use": "fix gate failures, record learnings"
+    },
+    {
+      "name": "spec-analyzer",
+      "base_name": "spec-analyzer",
+      "description": "Analyzes a natural language project prompt and produces a structured JSON specification. Loads prior patterns from ~/.onecommand/memory/ if available.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/spec-analyzer/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        1
+      ],
+      "use": "prompt → spec with acceptance criteria"
+    },
+    {
+      "name": "stack-detector",
+      "base_name": "stack-detector",
+      "description": "Detects the existing tech stack in the current directory, or confirms the stack from the spec-analyzer. Prevents generating incompatible code.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/stack-detector/SKILL.md",
+      "status": "assigned",
+      "phases": [
+        1
+      ],
+      "use": "confirm or detect the tech stack"
+    },
+    {
+      "name": "store-readiness-checker",
+      "base_name": "store-readiness-checker",
+      "description": "Validates that a Flutter app meets ALL requirements for App Store (iOS) and Google Play (Android) submission. Checks icons, permissions, signing config, metadata, minimum SDK, privacy policy, and more. Runs before delivery. Blocks delivery if critical items are missing.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/store-readiness-checker/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "App Store / Play Store requirements",
+      "reason": "only for 'mobile' builds (targets: web)"
+    },
+    {
+      "name": "threejs-builder",
+      "base_name": "threejs-builder",
+      "description": "Generates a complete Three.js + React Three Fiber web 3D game/experience. Full Next.js integration, 3D world scene, character controller, Rapier physics, post-processing, and responsive canvas.",
+      "source": "bundled",
+      "path": "/home/user/OneCommand/skills/threejs-builder/SKILL.md",
+      "status": "not_used",
+      "phases": [],
+      "use": "Three.js project (if selected)",
+      "reason": "only for 'game' builds (targets: web)"
+    },
+    {
+      "name": "startup-hook-skill",
+      "base_name": "startup-hook-skill",
+      "description": "Creating and developing startup hooks for Claude Code cloud sessions. Use when the user wants to set up a repository for cloud sessions, create a SessionStart hook to ensure their project can run tests and linters during cloud sessions.",
+      "source": "user",
+      "path": "/root/.claude/skills/session-start-hook/SKILL.md",
+      "status": "undecided",
+      "phases": [],
+      "use": ""
+    }
+  ],
+  "bundled_missing_on_disk": []
+}
