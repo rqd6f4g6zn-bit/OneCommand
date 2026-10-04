@@ -230,7 +230,15 @@ If the spec has a `blueprint`, it must still cover it — no module or blueprint
 ```bash
 python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json
 ```
-Report the tier and module count to the user in the Phase 1 summary (e.g. "CRM · enterprise · 22 Module · 43 Kriterien").
+Report the tier and module count to the user in the Phase 1 summary (e.g. "CRM · enterprise · 22 Module · 47 Kriterien").
+
+Gate the API contract, the metric definitions and the demo logins — frontend and backend are built in
+parallel and may only meet through the contract; the UI tour in Phase 4 logs in with every demo account:
+```bash
+python3 "$OC_ROOT/hooks/api-contract.py" validate --spec .onecommand-spec.json
+python3 "$OC_ROOT/hooks/ui-tour.py" validate --spec .onecommand-spec.json
+```
+Exit 1 → complete `api_contract`, `metrics`, `pages` and `demo` in the spec (see spec-analyzer) and validate again.
 
 Verify `.onecommand-spec.json` was created:
 ```bash
@@ -253,8 +261,14 @@ Report to user (compact — max 3 lines):
 ## Phase 2: BUILD (Parallel — type-aware)
 > "⚡ **Phase 2/8 — Generating in parallel...**"
 
+Generate the shared API types before any agent starts — both sides import this one file:
+```bash
+python3 "$OC_ROOT/hooks/api-contract.py" types --spec .onecommand-spec.json --project-dir "$PROJECT_DIR"
+```
+
 Every Phase 2 agent prompt includes `OC_ROOT`, `PROJECT_DIR` and this instruction:
-> "The `acceptance_criteria` in .onecommand-spec.json are the contract. Use the exact UI texts (headings, button labels, error messages) and routes they name. Every criterion must be satisfiable by what you build."
+> "The `acceptance_criteria` in .onecommand-spec.json are the contract. Use the exact UI texts (headings, button labels, error messages) and routes they name. Every criterion must be satisfiable by what you build.
+> API shapes come only from `api_contract` via the generated types file (`api_contract.types_file`): route handlers return `body satisfies <Name>Response`, the UI types every fetch with `<Name>Response` and reads exactly the fields it names — never try several field names. To change an endpoint, edit `api_contract` in the spec and re-run `api-contract.py types`; never edit the generated file. Every metric in `spec.metrics` is computed by one server function and shown with its `label` (exported as `METRICS`). The demo seed (`SEED_MODE=demo`) gives every account in `demo.accounts` data on every page it can open."
 
 First, determine build targets from the spec:
 ```bash
@@ -455,7 +469,9 @@ Then dispatch `test-agent` with `OC_ROOT`, `PROJECT_DIR` and `MODE=full`. It:
 1. runs `hooks/quality-gate.sh --stage static` (install, prisma, typecheck, lint, build, unit tests — real exit codes),
 2. generates the Playwright acceptance suite from `acceptance_criteria` (`acceptance-tester` skill),
 3. runs `hooks/quality-gate.sh --stage e2e` against the production build with a real database,
-4. heals with `self-healer` until everything is green (max 5 rounds per stage).
+4. runs `hooks/quality-gate.sh --stage tour`: demo seed, production server with fresh secrets, every page as every demo login, desktop + mobile screenshots,
+5. reviews the screenshots listed in `.onecommand/tour/review.md` (opens each one, ticks it, writes findings), fixes every finding and re-runs the tour until `hooks/ui-tour.py review-status` passes,
+6. heals with `self-healer` until everything is green (max 5 rounds per stage).
 
 Do not display interim healer details to the user — just show:
 > "Running checks... [round N if healing needed]"
@@ -463,7 +479,9 @@ Do not display interim healer details to the user — just show:
 **The verdict comes from the gate, not from the agent's wording:**
 ```bash
 python3 -c "import json; r=json.load(open('.onecommand/gate/result.json')); a=r.get('acceptance') or {}; print('GATE', 'PASSED' if r['passed'] else 'FAILED', '| must', a.get('blocking_passed','-'), '/', a.get('blocking','-'))"
+python3 "$OC_ROOT/hooks/ui-tour.py" review-status --project-dir "$PROJECT_DIR"
 ```
+A gate that passed with an incomplete screenshot review is not done.
 
 When test-agent completes:
 - The fixes it made are already recorded by the self-healer (`hooks/learnings.py record`).
@@ -511,7 +529,7 @@ Dispatch all four as subagents in ONE message (parallel):
 
 ### 6b: Final regression gate
 
-Phase 6 changed code after Phase 4 verified it. Re-verify before delivery: dispatch `test-agent` with `OC_ROOT`, `PROJECT_DIR` and `MODE=regression`. It runs `quality-gate.sh --stage all` and heals any regression the quality pass introduced. The delivery report reads this final `result.json`.
+Phase 6 changed code after Phase 4 verified it. Re-verify before delivery: dispatch `test-agent` with `OC_ROOT`, `PROJECT_DIR` and `MODE=regression`. It runs `quality-gate.sh --stage all` (static → e2e → tour), reviews the fresh screenshots (`review.md` until `ui-tour.py review-status` passes) and heals any regression the quality pass introduced. The delivery report reads this final `result.json` and shows the tour screenshots.
 
 **Checkpoint Phase 6 (mandatory — one command):**
 ```bash

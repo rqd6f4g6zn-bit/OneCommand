@@ -13,11 +13,13 @@ Subcommands
 list     Show the available blueprints.
 detect   Match a prompt to blueprints and choose the tier from its wording.
 show     Print the modules of a blueprint up to a tier.
-expand   Write a draft spec (features, pages, entities, roles, acceptance
-         criteria with ids, production dependencies) for spec-analyzer to adapt.
+expand   Write a draft spec (features, pages, entities, roles, metrics, demo
+         logins, acceptance criteria with ids, production dependencies) for
+         spec-analyzer to adapt.
 check    Verify a spec still covers its blueprint: every module of the tier is a
-         feature (or explicitly excluded with a reason) and every blueprint
-         criterion is still present (matched by its "source" tag).
+         feature (or explicitly excluded with a reason), every blueprint
+         criterion is still present (matched by its "source" tag) and every
+         blueprint metric is still defined.
 
 Exit codes: 0 ok · 1 check failed / nothing detected · 2 usage error
 """
@@ -139,6 +141,8 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
             crit.update({k: v for k, v in c.items() if k != "priority"})
             criteria.append(crit)
     pages = [p for t in upto(tier) for p in bp.get("pages", {}).get(t, [])]
+    roles = [r for r in bp.get("roles", []) if in_tier(r, tier)]
+    metrics = [{k: v for k, v in m.items() if k != "tier"} for m in bp.get("metrics", []) if in_tier(m, tier)]
     return {
         "project_name": project_name or bp["id"].upper(),
         "app_type": bp.get("app_type", "web-app"),
@@ -150,8 +154,15 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
         "pages": pages,
         "db_schema": [e["name"] for e in bp.get("entities", []) if in_tier(e, tier)],
         "entities": [e for e in bp.get("entities", []) if in_tier(e, tier)],
-        "roles": [r for r in bp.get("roles", []) if in_tier(r, tier)],
+        "roles": roles,
         "non_functional": [n["text"] for n in bp.get("non_functional", []) if in_tier(n, tier)],
+        "metrics": metrics,
+        # One demo login per role; the full demo seed gives each of them data on every page (ui-tour checks it).
+        "demo": {
+            "seed_command": "npm run db:seed",
+            "login_path": "/login" if "/login" in pages else None,
+            "accounts": [{"role": r["id"], "email": f"{r['id']}@demo.example", "password": "Demo1234!"} for r in roles],
+        },
         "production_dependencies": bp.get("production_dependencies", {}).get(tier, []),
         "acceptance_criteria": criteria,
     }
@@ -224,6 +235,11 @@ def check(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
                               f"— keep it (wording may change, the 'source' tag must stay)")
         if not any(c.get("feature") == mid and c.get("priority") == "must" for c in criteria if isinstance(c, dict)):
             errors.append(f"module '{mid}' has no must-criterion")
+    have = {m.get("id") for m in spec.get("metrics") or [] if isinstance(m, dict)}
+    for metric in (m for m in bp.get("metrics", []) if in_tier(m, tier)):
+        if metric["id"] not in have:
+            errors.append(f"metric '{metric['id']}' ({metric['label']}) was dropped from spec.metrics — keep its "
+                          f"definition and period so every page computes and labels it the same way")
     return errors, notes
 
 

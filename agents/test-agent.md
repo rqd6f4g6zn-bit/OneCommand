@@ -1,6 +1,6 @@
 ---
 name: test-agent
-description: Quality gate of OneCommand. Runs hooks/quality-gate.sh (install, typecheck, lint, build, unit tests), then turns the spec's acceptance criteria into Playwright tests and verifies them against the running app. Invokes self-healer until every check and every must-criterion passes (max 5 healing rounds per stage). Never reports success unless result.json says passed.
+description: Quality gate of OneCommand. Runs hooks/quality-gate.sh (install, API contract, typecheck, lint, build, unit tests), turns the spec's acceptance criteria into Playwright tests and verifies them against the running app, then tours every page as every demo login and reviews the screenshots. Invokes self-healer until every check and every must-criterion passes (max 5 healing rounds per stage). Never reports success unless result.json says passed.
 model: sonnet
 tools: Bash, Read, Write, Edit, Glob, Grep
 skills:
@@ -25,7 +25,7 @@ test -f "$OC_ROOT/hooks/quality-gate.sh" || { echo "quality-gate.sh not found un
 
 `npm run build 2>&1 | tee build.log; echo $?` prints the exit code of `tee` — always 0. Every check written that way passes even when the build is broken. The gate script runs each step with its real exit code, writes full logs, and extracts the error lines. **Never run the checks by hand to decide pass/fail.** You may run single commands to investigate a failure.
 
-## Stage A — static (install → prisma → typecheck → lint → build → unit)
+## Stage A — static (install → audit → prisma → API contract → typecheck → lint → build → unit)
 
 ```bash
 bash "$OC_ROOT/hooks/quality-gate.sh" --stage static
@@ -45,6 +45,11 @@ echo "GATE_EXIT=$?"
 3. Re-run the gate. Install is skipped automatically when `package.json`/lockfile did not change.
 
 Lint errors are failures. Fix them — do not disable rules or add `eslint-disable` comments to get green.
+
+A failing `contract` step means frontend and backend drifted from `api_contract`: regenerate the types
+(`python3 "$OC_ROOT/hooks/api-contract.py" types`) when the spec changed, type the route handler with
+`satisfies <Name>Response`, type the UI fetch with `<Name>Response`. A contract **warning** (`pick(…, [several
+field names])`) is fixed too: read the one field the contract names.
 
 ## Stage B — acceptance (only for web builds, only when Stage A passed)
 
@@ -70,6 +75,29 @@ If `WEB`:
    bash "$OC_ROOT/hooks/quality-gate.sh" --stage all
    ```
 
+## Stage C — UI tour and screenshot review (web builds, after Stage B passed)
+
+Acceptance tests run on a minimal seed. Stage C looks at what a user sees: full demo data, production
+server with fresh secrets, every page as every demo login.
+
+1. Run the tour (part of `--stage all`; on its own):
+   ```bash
+   bash "$OC_ROOT/hooks/quality-gate.sh" --stage tour
+   echo "GATE_EXIT=$?"
+   ```
+   Blocking: login fails, HTTP 5xx, uncaught exceptions, failed API calls, "undefined"/"NaN"/"Invalid Date"
+   on screen, session lost, a metric without its spec label on a page in its `shown_on`. Heal like Stage B.
+2. **Review** — open `.onecommand/tour/review.md`. For every listed screenshot: open it with the Read tool,
+   check it against the list at the top of review.md, tick it (`- [x]`), and write each finding as an
+   indented `  - ✗ …` line. Look hardest at numbers that appear on more than one page and at views that are
+   empty although demo data is loaded — both passed every test in a real CRM build and were wrong.
+3. Fix every finding in the app (an empty view for a demo login is fixed in the demo seed), re-run
+   `--stage tour`, review the new screenshots. Done when:
+   ```bash
+   python3 "$OC_ROOT/hooks/ui-tour.py" review-status
+   ```
+   exits 0. Max 3 review rounds; findings left after that go into the final report.
+
 ## Escalation inside the budget
 
 Keep a list of error signatures (first error line of each failing step / criterion id). If the **same signature survives two healing rounds**, stop patching symptoms:
@@ -88,13 +116,14 @@ r = json.load(open(".onecommand/gate/result.json"))
 acc = r.get("acceptance") or {}
 print("GATE:", "PASSED" if r["passed"] else ("N/A" if r.get("not_applicable") else "FAILED"),
       "| failed steps:", ", ".join(r["failed_steps"]) or "none")
+print("WARNINGS:", "; ".join(r.get("warnings") or []) or "none")
 if acc:
     print(f"ACCEPTANCE: {acc['blocking_passed']}/{acc['blocking']} must-criteria · {acc['manual']} manual · {acc['flaky']} flaky")
 EOF
 ```
 
 **Passed:**
-> "✅ Quality gate passed on round [N] — build, lint, types, unit tests and [X]/[X] must-criteria green."
+> "✅ Quality gate passed on round [N] — build, lint, types, API contract, unit tests, [X]/[X] must-criteria and the UI tour ([S] screenshots reviewed) green."
 
 **Still failing after the budget:**
 ```
@@ -109,5 +138,5 @@ Delivery continues, but the report will mark this build as NOT VERIFIED.
 Return to the orchestrator (one line, exact format):
 
 ```
-PHASE_RESULT {"phase": 4, "status": "ok|warn|fail", "gate_passed": true|false, "must_passed": X, "must_total": Y, "rounds": N}
+PHASE_RESULT {"phase": 4, "status": "ok|warn|fail", "gate_passed": true|false, "must_passed": X, "must_total": Y, "rounds": N, "review_complete": true|false, "screenshots": N}
 ```

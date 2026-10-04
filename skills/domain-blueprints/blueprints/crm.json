@@ -1,7 +1,7 @@
 {
   "id": "crm",
   "name": "CRM (Customer Relationship Management)",
-  "version": 2,
+  "version": 3,
   "ui_language": "de",
   "aliases": [
     "crm",
@@ -624,7 +624,7 @@
       "name": "Dashboard",
       "tier": "mvp",
       "features": [
-        "Kennzahlen: offenes Pipeline-Volumen, gewonnen diesen Monat, Abschlussquote, fällige Aufgaben",
+        "Kennzahlen: offenes Pipeline-Volumen, gewonnen diesen Monat, Abschlussquote, fällige Aufgaben — jede Kachel nennt ihren Zeitraum",
         "Pipeline nach Phase als Diagramm"
       ],
       "criteria": [
@@ -639,6 +639,20 @@
           ],
           "expected": [
             "'Offene Pipeline' shows 5.000"
+          ]
+        },
+        {
+          "title": "Win-rate tile names its period and its won/lost counts come from the same period",
+          "verification": "e2e",
+          "start": "/dashboard",
+          "requires_auth": true,
+          "steps": [
+            "One deal won and one deal lost this month, one deal won last month (closedAt in the previous month)",
+            "Open /dashboard"
+          ],
+          "expected": [
+            "Tile 'Abschlussquote (dieser Monat)' shows '50 %'",
+            "The tile's hint shows '1 gewonnen, 1 verloren'"
           ]
         }
       ]
@@ -856,6 +870,21 @@
           ],
           "expected": [
             "Weighted forecast shows 6.000"
+          ]
+        },
+        {
+          "title": "Dashboard and reports show the same open pipeline and win rate for 'Dieser Monat'",
+          "verification": "e2e",
+          "start": "/dashboard",
+          "requires_auth": true,
+          "steps": [
+            "Open deals of 2.000 and 3.000; one deal won and one lost this month",
+            "Open /dashboard and read 'Offene Pipeline' and 'Abschlussquote (dieser Monat)'",
+            "Open /reports with period 'Dieser Monat'"
+          ],
+          "expected": [
+            "'Offene Pipeline' shows 5.000 on both pages",
+            "Abschlussquote shows '50 %' on both pages"
           ]
         }
       ]
@@ -1200,6 +1229,76 @@
     {
       "tier": "enterprise",
       "text": "Rate-Limiting und Audit aller API-Zugriffe"
+    }
+  ],
+  "metrics": [
+    {
+      "id": "open_pipeline",
+      "tier": "mvp",
+      "label": "Offene Pipeline",
+      "unit": "EUR",
+      "definition": "Summe der Werte aller offenen Deals der Pipelines, die der Nutzer sehen darf (Fremdwährungen zum Tageskurs umgerechnet)",
+      "period": "aktuell (kein Zeitraum)",
+      "shown_on": [
+        "/dashboard",
+        "/reports"
+      ]
+    },
+    {
+      "id": "won_this_month",
+      "tier": "mvp",
+      "label": "Gewonnen (dieser Monat)",
+      "unit": "EUR",
+      "definition": "Summe der Werte der Deals mit Status gewonnen und closedAt im laufenden Kalendermonat",
+      "period": "Dieser Monat",
+      "shown_on": [
+        "/dashboard"
+      ]
+    },
+    {
+      "id": "win_rate",
+      "tier": "mvp",
+      "label": "Abschlussquote (dieser Monat)",
+      "unit": "%",
+      "definition": "gewonnen / (gewonnen + verloren) der im laufenden Monat abgeschlossenen Deals; die daneben gezeigten Anzahlen gewonnen/verloren stammen aus demselben Zeitraum. Berichte zeigen dieselbe Berechnung für den im Filter gewählten Zeitraum",
+      "period": "Dieser Monat",
+      "shown_on": [
+        "/dashboard"
+      ]
+    },
+    {
+      "id": "due_tasks",
+      "tier": "mvp",
+      "label": "Fällige Aufgaben",
+      "unit": "Anzahl",
+      "definition": "offene Aufgaben des angemeldeten Nutzers mit Fälligkeit heute oder früher",
+      "period": "bis heute",
+      "shown_on": [
+        "/dashboard"
+      ]
+    },
+    {
+      "id": "weighted_forecast",
+      "tier": "pro",
+      "label": "Gewichtete Prognose",
+      "unit": "EUR",
+      "definition": "Summe über offene Deals von Wert × Wahrscheinlichkeit der Phase",
+      "period": "aktuell (kein Zeitraum)",
+      "shown_on": [
+        "/reports"
+      ]
+    },
+    {
+      "id": "quota_attainment",
+      "tier": "enterprise",
+      "label": "Zielerreichung",
+      "unit": "%",
+      "definition": "gewonnener Umsatz im Zielzeitraum / Umsatzziel des Mitarbeiters",
+      "period": "Zeitraum des Ziels (Monat oder Quartal)",
+      "shown_on": [
+        "/dashboard",
+        "/reports"
+      ]
     }
   ],
   "production_dependencies": {

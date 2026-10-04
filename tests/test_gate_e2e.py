@@ -45,7 +45,8 @@ def test_full_gate_passes_on_sqlite_app(app):
     assert out.returncode == 0, out.stdout[-4000:] + (app / ".onecommand" / "gate" / "errors.txt").read_text()
     result, acceptance = gate_files(app)
     steps = {s["step"]: s["status"] for s in result["steps"]}
-    for step in ("install", "prisma", "typecheck", "lint", "build", "unit", "database", "seed", "e2e", "acceptance"):
+    for step in ("install", "prisma", "contract", "typecheck", "lint", "build", "unit", "database", "seed", "e2e",
+                 "acceptance", "tour"):
         assert steps[step] == "pass", (step, steps)
     # prisma's config loader pulls deepmerge-ts with a high advisory: recorded, not blocking.
     assert any("deepmerge-ts" in w for w in result["warnings"])
@@ -53,6 +54,42 @@ def test_full_gate_passes_on_sqlite_app(app):
     assert (app / "prisma" / "dev.db").exists()
     assert acceptance["summary"]["blocking_passed"] == acceptance["summary"]["blocking"] == 3
     assert "ALL BLOCKING CRITERIA PASSED" in (app / ".onecommand" / "gate" / "acceptance.md").read_text()
+    # UI tour: demo seed, production server, desktop + mobile screenshot of "/", review checklist.
+    tour = app / ".onecommand" / "tour"
+    report = json.loads((tour / "report.json").read_text())
+    assert report["passed"] and [v["viewport"] for v in report["visits"]] == ["desktop", "mobile"]
+    assert len(list(tour.glob("*.png"))) == 2
+    assert (tour / "review.md").read_text().count("- [ ] ") == 2
+
+
+def test_stale_contract_types_block_the_static_stage(app):
+    types = app / "src" / "api-contract.ts"
+    original = types.read_text()
+    types.write_text(original.replace("title: string;\n}", "title: string;\n  pinned: boolean;\n}", 1))
+    try:
+        out = gate(app, "--stage", "static")
+        assert out.returncode == 1
+        result = json.loads((app / ".onecommand" / "gate" / "result.json").read_text())
+        assert "contract" in result["failed_steps"]
+        assert "differs from the contract" in (app / ".onecommand" / "gate" / "errors.txt").read_text()
+    finally:
+        types.write_text(original)
+
+
+def test_server_error_on_a_page_fails_the_tour(app):
+    server = app / "src" / "server.ts"
+    original = server.read_text()
+    server.write_text(original.replace('res.writeHead(200, { "content-type": "text/html" }).end(page);',
+                                       'res.writeHead(500, { "content-type": "text/html" }).end(page);'))
+    try:
+        assert gate(app, "--stage", "static").returncode == 0  # rebuild dist/
+        out = gate(app, "--stage", "tour")
+        assert out.returncode == 1
+        report = json.loads((app / ".onecommand" / "tour" / "report.json").read_text())
+        assert any("HTTP 500" in b for b in report["blocking"]), report["blocking"]
+    finally:
+        server.write_text(original)
+        gate(app, "--stage", "static")
 
 
 def test_broken_behaviour_fails_exactly_its_criterion(app):

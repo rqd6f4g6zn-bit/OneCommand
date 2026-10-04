@@ -108,6 +108,26 @@ AC-007 [missing] GET /api/workouts without a session returns 401
 - `not_run` / run errors: the web server or database did not start — read `.onecommand/gate/e2e.log` (port in use, missing env var, `PORT` not honoured, DB not reachable).
 - Only change a test when it contradicts the criterion text, and log the reason in `.onecommand/test-changes.md`.
 
+### API contract violation (gate step `contract`)
+- `… differs from the contract` → the generated types file was edited or the spec changed: run
+  `python3 "$OC_ROOT/hooks/api-contract.py" types`, then fix what the typecheck reports.
+- `no route handler` → create the route file at the path shown, exporting the method.
+- `never uses <Name>Response` (handler) → `return NextResponse.json(body satisfies <Name>Response)`; fix the
+  fields the typecheck then reports in the handler, not in the contract.
+- `no page … uses <Name>Response` → type the UI fetch with it (`call<<Name>Response>(API.<Name>.path)`).
+- Warning `guesses the response shape` → replace the multi-name lookup with the one field the contract names.
+
+### UI tour failure (gate stage `tour`)
+- `login failed` → check the demo seed created that account with exactly that password, and that the
+  production server accepts logins (cookie `secure` flag behind http, required secrets, `AUTH_TRUST_HOST`).
+- `HTTP 500` / `uncaught exception` / `server error from …` → read `.onecommand/tour/server.log`; a page that only
+  breaks with demo data usually has a null relation or an empty-list edge case.
+- `visible text shows "undefined"/"NaN"/"Invalid Date"` → a field name or date format does not match the
+  contract; fix the reading side.
+- `metric … is not labelled` → use `METRICS.<id>.label` on that page.
+- `redirected to /login although logged in` → session cookie lost between pages (path, domain, middleware).
+- Empty views for a demo login (review finding) → extend the demo seed, not the page.
+
 ### Runtime / start error
 ```
 Error: Invalid environment variable

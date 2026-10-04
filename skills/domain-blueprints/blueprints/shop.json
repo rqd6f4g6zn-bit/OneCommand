@@ -1,7 +1,7 @@
 {
   "id": "shop",
   "name": "Online-Shop (E-Commerce)",
-  "version": 1,
+  "version": 2,
   "ui_language": "de",
   "aliases": ["shop", "online-shop", "onlineshop", "webshop", "e-commerce", "ecommerce", "store", "warenkorb", "produktkatalog", "shopify", "woocommerce", "verkaufsplattform"],
   "summary": "Produktkatalog, Warenkorb, Checkout mit Zahlung, Kundenkonto und Bestellverwaltung für einen Händler.",
@@ -100,6 +100,12 @@
     {"tier": "mvp", "text": "Produktseiten serverseitig gerendert mit Meta-Tags (SEO)"},
     {"tier": "pro", "text": "Rechtstexte: Impressum, AGB, Widerruf, Datenschutz verlinkt im Footer und im Checkout"},
     {"tier": "enterprise", "text": "Lighthouse Performance ≥ 90 auf Produktliste und Produktseite"}
+  ],
+  "metrics": [
+    {"id": "revenue", "tier": "enterprise", "label": "Umsatz (Zeitraum, brutto)", "unit": "EUR", "definition": "Summe der bezahlten Bestellungen im gewählten Zeitraum abzüglich Erstattungen", "period": "gewählter Zeitraum"},
+    {"id": "order_count", "tier": "enterprise", "label": "Bestellungen (Zeitraum)", "unit": "Anzahl", "definition": "bezahlte Bestellungen im gewählten Zeitraum", "period": "gewählter Zeitraum"},
+    {"id": "avg_order_value", "tier": "enterprise", "label": "Ø Warenkorbwert (Zeitraum)", "unit": "EUR", "definition": "Umsatz / Bestellungen desselben Zeitraums", "period": "gewählter Zeitraum"},
+    {"id": "checkout_abandon_rate", "tier": "enterprise", "label": "Checkout-Abbruchquote (Zeitraum)", "unit": "%", "definition": "begonnene Checkouts ohne Bestellung / begonnene Checkouts im Zeitraum", "period": "gewählter Zeitraum"}
   ],
   "production_dependencies": {"mvp": ["stripe", "email"], "pro": ["stripe", "email", "storage"], "enterprise": ["stripe", "email", "storage"]},
   "pages": {

@@ -1,7 +1,7 @@
 {
   "id": "projects",
   "name": "Projekt- & Aufgabenmanagement",
-  "version": 1,
+  "version": 2,
   "ui_language": "de",
   "aliases": ["projektmanagement", "projektverwaltung", "aufgabenverwaltung", "task management", "kanban", "kanban-board", "asana", "trello", "jira", "team-aufgaben", "aufgabenmanagement", "to-do für teams"],
   "summary": "Workspaces mit Projekten, Aufgaben auf Board und Liste, Zuweisung, Fälligkeiten, Kommentare und Benachrichtigungen für Teams.",
@@ -78,6 +78,9 @@
   "non_functional": [
     {"tier": "mvp", "text": "Drag & Drop auch per Tastatur bedienbar"},
     {"tier": "pro", "text": "Board mit 500 Aufgaben bleibt flüssig (virtuelle Listen)"}
+  ],
+  "metrics": [
+    {"id": "project_progress", "tier": "mvp", "label": "Fortschritt", "unit": "%", "definition": "erledigte Aufgaben / alle nicht archivierten Aufgaben des Projekts", "period": "aktuell (kein Zeitraum)"}
   ],
   "production_dependencies": {"mvp": ["email"], "pro": ["email"], "enterprise": ["email"]},
   "pages": {"mvp": ["/login", "/register", "/projects", "/projects/[id]", "/my-tasks", "/settings/members"], "pro": ["/projects/[id]/time"], "enterprise": ["/projects/[id]/timeline", "/settings/automations"]}

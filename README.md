@@ -4,6 +4,12 @@ Build complete, production-ready software systems from a single prompt.
 
 One command. Eight phases. Working software.
 
+<p align="center">
+  <img src="docs/showcase/crm/02-dashboard.png" alt="NovaCRM — built from the prompt “CRM auf höchstem Niveau”" width="860">
+</p>
+<p align="center"><sub>NovaCRM — built from the four-word prompt <code>"CRM auf höchstem Niveau"</code> in 50 minutes.
+<a href="docs/showcase/crm/README.md">All screenshots →</a></sub></p>
+
 ---
 
 ## Install
@@ -69,9 +75,28 @@ passes; otherwise the delivery report says **NOT VERIFIED** and lists what is op
 The verdict comes from `hooks/quality-gate.sh`, not from an agent's judgement:
 
 ```bash
-bash hooks/quality-gate.sh --stage all --project-dir ~/Desktop/MyApp
-# → .onecommand/gate/result.json, errors.txt, acceptance.md
+bash hooks/quality-gate.sh --stage all --project-dir ~/Desktop/MyApp   # static → e2e → tour
+# → .onecommand/gate/result.json, errors.txt, acceptance.md · .onecommand/tour/*.png, review.md
 ```
+
+## Looks at What It Built
+
+Green tests are not enough. A real CRM build passed all 43 acceptance tests and still showed
+"Abschlussquote 100 %" above "5 gewonnen, 2 verloren" — the screenshots revealed it, no test did.
+So every build now ends with what a reviewer does:
+
+- **API contract** — the spec defines every endpoint's request and response; `hooks/api-contract.py`
+  generates one TypeScript file that frontend (Claude) and backend (Codex) both import. The gate fails
+  on edited types, missing routes and untyped handlers, and warns where code guesses field names.
+- **Metrics with one definition** — every KPI has a definition, a period and a label in the spec; one
+  server function computes it, every page shows the same label.
+- **UI tour** — `quality-gate.sh --stage tour` loads the full demo data, starts the production build
+  with fresh secrets, logs in with one demo account per role and screenshots every page on desktop and
+  mobile. Server errors, lost sessions, "undefined"/"NaN" on screen, missing metric labels and mobile
+  overflow are found automatically; the test agent then reviews every screenshot from a checklist
+  until nothing is open. The screenshots go into the delivery report.
+
+See [the CRM showcase](docs/showcase/crm/README.md) for the screenshots and what they revealed.
 
 ## Knows the Domain
 
@@ -81,9 +106,9 @@ professional expects from each, as modules with concrete acceptance criteria:
 
 | Prompt says | Tier | Example: CRM |
 |---|---|---|
-| "MVP", "erste Version", "einfaches CRM" | mvp | 7 modules · 20 criteria |
-| nothing about scope | pro | 16 modules · 36 criteria (roles, leads, import, reports, e-mail, GDPR …) |
-| "höchstes Niveau", "Enterprise", "wie Salesforce" | enterprise | 22 modules · 43 criteria (+ automations, API, SSO, multi-tenancy …) |
+| "MVP", "erste Version", "einfaches CRM" | mvp | 7 modules · 21 criteria · 4 metrics |
+| nothing about scope | pro | 16 modules · 39 criteria · 5 metrics (roles, leads, import, reports, e-mail, GDPR …) |
+| "höchstes Niveau", "Enterprise", "wie Salesforce" | enterprise | 22 modules · 47 criteria · 6 metrics (+ automations, API, SSO, multi-tenancy …) |
 
 ```bash
 /onecommand "CRM auf höchstem Niveau"

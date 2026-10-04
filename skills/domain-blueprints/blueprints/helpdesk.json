@@ -1,7 +1,7 @@
 {
   "id": "helpdesk",
   "name": "Helpdesk / Ticketsystem",
-  "version": 1,
+  "version": 2,
   "ui_language": "de",
   "aliases": ["helpdesk", "ticketsystem", "ticket-system", "support-system", "kundensupport", "service desk", "servicedesk", "zendesk", "freshdesk", "support tickets", "störungsmeldung"],
   "summary": "Kundenanfragen als Tickets mit Status, Priorität, Zuweisung, Antworten, SLA und Wissensdatenbank.",
@@ -71,6 +71,10 @@
   "non_functional": [
     {"tier": "mvp", "text": "Ticketlisten paginiert, Filter in der URL teilbar"},
     {"tier": "pro", "text": "Anhänge virengeprüft oder auf erlaubte Typen beschränkt, max. Größe konfigurierbar"}
+  ],
+  "metrics": [
+    {"id": "open_tickets", "tier": "mvp", "label": "Offene Tickets", "unit": "Anzahl", "definition": "Tickets mit Status offen oder in Bearbeitung, die der Agent sehen darf", "period": "aktuell (kein Zeitraum)", "shown_on": ["/tickets"]},
+    {"id": "sla_met_rate", "tier": "pro", "label": "SLA eingehalten (letzte 30 Tage)", "unit": "%", "definition": "Anteil der in den letzten 30 Tagen gelösten Tickets, deren Reaktions- und Lösungszeit innerhalb des SLA ihrer Priorität lag", "period": "letzte 30 Tage"}
   ],
   "production_dependencies": {"mvp": ["email"], "pro": ["email", "storage"], "enterprise": ["email", "storage"]},
   "pages": {"mvp": ["/login", "/support/new", "/support/tickets", "/tickets", "/tickets/[id]"], "pro": ["/help", "/help/[slug]", "/settings/sla", "/settings/macros"], "enterprise": ["/reports"]}

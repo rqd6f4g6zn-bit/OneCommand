@@ -1,7 +1,7 @@
 {
   "id": "invoicing",
   "name": "Rechnungen & Angebote",
-  "version": 1,
+  "version": 2,
   "ui_language": "de",
   "aliases": ["rechnung", "rechnungen", "rechnungsprogramm", "rechnungssoftware", "faktura", "fakturierung", "invoicing", "invoice", "buchhaltung light", "angebote und rechnungen", "lexoffice", "sevdesk"],
   "summary": "Kunden, Artikel, Angebote und Rechnungen mit fortlaufender Nummer, PDF, Versand, Zahlungsstatus und Mahnwesen nach deutschen Anforderungen.",
@@ -78,6 +78,10 @@
     {"tier": "mvp", "text": "Geldbeträge als Ganzzahl in Cent gespeichert, Rundung je Steuersatz kaufmännisch"},
     {"tier": "mvp", "text": "Versendete Rechnungen unveränderbar (GoBD), Änderungen nur per Storno"},
     {"tier": "pro", "text": "Aufbewahrung: Rechnungen werden nie physisch gelöscht"}
+  ],
+  "metrics": [
+    {"id": "open_receivables", "tier": "mvp", "label": "Offene Posten", "unit": "EUR", "definition": "Summe der Bruttobeträge aller versendeten, nicht bezahlten und nicht stornierten Rechnungen", "period": "aktuell (kein Zeitraum)"},
+    {"id": "revenue_month", "tier": "pro", "label": "Umsatz (dieser Monat, netto)", "unit": "EUR", "definition": "Summe der Nettobeträge der Rechnungen mit Rechnungsdatum im laufenden Monat, abzüglich Gutschriften", "period": "Dieser Monat"}
   ],
   "production_dependencies": {"mvp": ["email"], "pro": ["email"], "enterprise": ["email", "stripe"]},
   "pages": {"mvp": ["/login", "/dashboard", "/customers", "/items", "/invoices", "/invoices/new", "/invoices/[id]", "/settings/company"], "pro": ["/quotes", "/exports"], "enterprise": ["/recurring"]}

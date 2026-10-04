@@ -46,6 +46,14 @@ codex_task = {
     "timestamp": datetime.now().isoformat(),
     "tasks": ["backend", "tests", "automations"],
     "spec": spec,
+    # The only meeting point of frontend (Claude) and backend (Codex): generated before either starts.
+    "api_contract_types": (spec.get("api_contract") or {}).get("types_file", "lib/api-contract.ts"),
+    "rules": [
+        "Route handlers return `body satisfies <Name>Response` from the generated contract file; never edit it",
+        "Contract change = edit api_contract in .onecommand-spec.json + hooks/api-contract.py types, then tell Claude",
+        "Each spec.metrics entry is computed in one server function used by every endpoint that lists it",
+        "Demo seed (SEED_MODE=demo): every spec.demo.accounts login sees data on every page it may open",
+    ],
     "working_memory_path": os.path.expanduser("~/.onecommand/brain/working_memory.json"),
     "output_dir": os.getcwd(),
     "status": "pending"

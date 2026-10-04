@@ -23,11 +23,12 @@ Note: `api_routes`, `db_schema`, `auth_type`, `tech_stack.backend`, `tech_stack.
 Use the `codex:gpt-5-4-prompting` skill to turn the spec into a precise Codex task. The prompt must include:
 
 1. **Tech stack**: exact framework, ORM, auth library, Node version
-2. **Every API route** with: HTTP method, path, auth required (yes/no), request body shape, response shape, error cases
+2. **Every API route** from `spec.api_contract.endpoints` with: HTTP method, path, auth required, request and response shape **exactly as in the contract** (the generated `api_contract.types_file` is the source of truth — handlers return `NextResponse.json(body satisfies <Name>Response)`), error cases
 3. **Every DB model** with: all fields, types, relations, constraints
 4. **Auth implementation**: full NextAuth config with providers, session strategy, JWT settings
 5. **Environment variables**: complete list with descriptions
-6. **Seed data**: realistic example data for every model
+6. **Seed data**: realistic example data for every model — see the demo seed rules below
+7. **Metrics**: every entry of `spec.metrics` is computed in exactly one server function (e.g. `lib/metrics.ts`) that every endpoint listing it in `metrics` calls; definition and period exactly as in the spec
 
 Example Codex prompt structure:
 ```
@@ -57,9 +58,20 @@ DATABASE_URL=postgresql://...
 NEXTAUTH_SECRET=<32-char random string>
 NEXTAUTH_URL=http://localhost:3000
 
+API CONTRACT (lib/api-contract.ts — generated, do not edit, import the types):
+[paste spec.api_contract; every handler returns `body satisfies <Name>Response`]
+
+METRICS (one function each, used by every endpoint that serves them):
+[paste spec.metrics with definition and period]
+
 SEED DATA (prisma/seed.ts):
-- 3 example users with hashed passwords
-- 10 example records per main model
+- ONECOMMAND_E2E=1 → minimal seed for the acceptance tests
+- otherwise (SEED_MODE=demo) → full demo: one login per entry of spec.demo.accounts (exact e-mail, password, role)
+- every demo login sees data on every page it may open: own records, assigned tasks, notifications,
+  dashboard values that are not 0 — the first account (usually admin) included
+- realistic, consistent data (German names/companies for a German UI), dates spread over the past months
+  and the coming weeks so "this month" metrics and overdue lists are filled
+- re-runnable: deletes the demo data before creating it
 
 OUTPUT FILES:
 - prisma/schema.prisma
@@ -70,6 +82,8 @@ OUTPUT FILES:
 - lib/validators.ts (Zod schemas for all inputs)
 - .env.example (all vars documented with descriptions)
 ```
+
+Codex receives the generated types file together with the prompt; it never writes its own response types.
 
 ## Step 3: Delegate to Codex
 

@@ -7,9 +7,11 @@
 # swallowed by a pipe (`cmd | tee log; $?` reports tee's status, not cmd's).
 #
 # Stages:
-#   static  install → audit → prisma generate → typecheck → lint → build → unit tests
+#   static  install → audit → prisma generate → API contract → typecheck → lint → build → unit tests
 #   e2e     database prep → Playwright acceptance tests → acceptance report
-#   all     static, then e2e (e2e only runs when static passed)
+#   tour    demo seed → production server → every page as every demo login, screenshots
+#           (hooks/ui-tour.py; skipped when the spec has no "demo" section)
+#   all     static, then e2e, then tour (each only runs when the previous one passed)
 #
 # Output (default <project>/.onecommand/gate/):
 #   result.json      machine-readable result of every step
@@ -17,10 +19,11 @@
 #   <step>.log       full log per step
 #   acceptance.json  per-criterion verdict (e2e stage)
 #   acceptance.md    Markdown matrix for the delivery report (e2e stage)
+#   ../tour/         screenshots, report.md and review.md (tour stage)
 #
 # Exit codes: 0 passed · 1 failed · 2 usage error · 3 not applicable (no package.json)
 #
-# Usage: quality-gate.sh [--stage static|e2e|all] [--project-dir DIR] [--out DIR]
+# Usage: quality-gate.sh [--stage static|e2e|tour|all] [--project-dir DIR] [--out DIR]
 #                        [--force-install] [--strict-flaky] [--no-audit] [--audit-level high|critical]
 #                        [--verbose] [--help]
 #
@@ -44,7 +47,7 @@ STEP_TIMEOUT="${OC_GATE_STEP_TIMEOUT:-900}"   # seconds per step
 E2E_TIMEOUT="${OC_GATE_E2E_TIMEOUT:-1800}"     # seconds for the Playwright run
 
 usage() {
-  sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 while [ $# -gt 0 ]; do
@@ -73,8 +76,8 @@ case "$AUDIT_LEVEL" in
 esac
 
 case "$STAGE" in
-  static|e2e|all) ;;
-  *) echo "[gate] --stage must be static, e2e or all (got '$STAGE')" >&2; exit 2 ;;
+  static|e2e|tour|all) ;;
+  *) echo "[gate] --stage must be static, e2e, tour or all (got '$STAGE')" >&2; exit 2 ;;
 esac
 
 if [ ! -d "$PROJECT_DIR" ]; then
@@ -166,6 +169,24 @@ run_step() {
 skip_step() {
   record "$1" skipped "" 0 "" "$2"
   log "  ○ ${1} skipped — ${2}"
+}
+
+# promote_warnings <step> — a passed step whose log has "⚠" lines is recorded as warn.
+promote_warnings() {
+  local step="$1" logfile="$OUT_DIR/$1.log" count last
+  count="$(grep -c '⚠' "$logfile" 2>/dev/null || true)"
+  last="$(tail -1 "$STEPS_FILE")"
+  if [ "${count:-0}" -gt 0 ] && printf '%s' "$last" | grep -q "^${step}"$'\t'"pass"$'\t'; then
+    sed -i.bak '$d' "$STEPS_FILE" && rm -f "$STEPS_FILE.bak"
+    printf '%s\n' "$last" | awk -F'\t' -v OFS='\t' -v r="${count} warning(s): $(grep -m1 '⚠' "$logfile" | sed 's/^[[:space:]]*⚠[[:space:]]*//' | tr '\t' ' ')" \
+      '{ $2 = "warn"; $6 = r; print }' >> "$STEPS_FILE"
+    log "  ⚠ ${step} — ${count} warning(s), see ${logfile}"
+  fi
+}
+
+# spec_has <key> — true when .onecommand-spec.json has a non-null top-level key.
+spec_has() {
+  [ -f .onecommand-spec.json ] && python3 -c 'import json,sys; sys.exit(0 if json.load(open(".onecommand-spec.json")).get(sys.argv[1]) is not None else 1)' "$1" 2>/dev/null
 }
 
 # pkg_script <name> — prints the script body from package.json, empty if missing.
@@ -367,6 +388,15 @@ stage_static() {
     skip_step prisma "no prisma/schema.prisma"
   fi
 
+  # 2b. API contract — generated types current, every endpoint has a handler, both sides use the
+  # types (the typecheck below then catches every field-name drift between frontend and backend).
+  if spec_has api_contract; then
+    run_step contract 120 python3 "$SCRIPT_DIR/api-contract.py" check --project-dir "$PROJECT_DIR" --spec .onecommand-spec.json || failed=1
+    promote_warnings contract
+  else
+    skip_step contract "spec has no api_contract"
+  fi
+
   # 3. typecheck
   if [ -n "$(pkg_script typecheck)" ]; then
     run_step typecheck "$STEP_TIMEOUT" "${RUN[@]}" typecheck || failed=1
@@ -412,8 +442,10 @@ compose_file() {
   return 1
 }
 
+DATABASE_READY=false
 prepare_database() {
-  [ -f prisma/schema.prisma ] || { skip_step database "no prisma/schema.prisma"; return 0; }
+  [ "$DATABASE_READY" = true ] && return 0
+  [ -f prisma/schema.prisma ] || { skip_step database "no prisma/schema.prisma"; DATABASE_READY=true; return 0; }
   ensure_database_url
 
   local cf
@@ -442,6 +474,7 @@ prepare_database() {
   else
     skip_step seed "no prisma.seed configured"
   fi
+  DATABASE_READY=true
 }
 
 # browser_mismatch_hint — every test fails in milliseconds when the installed
@@ -576,6 +609,37 @@ PYEOF
   return "$rc"
 }
 
+# ─── Stage: tour ──────────────────────────────────────────────────────────────
+
+# stage_tour — what a user sees after the demo seed: every page as every demo login, screenshots
+# for the review checklist (.onecommand/tour/review.md), server errors, lost sessions, missing
+# metric labels and "undefined"/"NaN" in the UI are blocking.
+stage_tour() {
+  if ! spec_has demo; then
+    skip_step tour "spec has no demo section"
+    return 0
+  fi
+  if [ -z "$(pkg_script start)" ]; then
+    record tour fail "" 0 "" "no start script"
+    printf '===== tour =====\npackage.json has no start script — the UI tour runs the production build.\n\n' >> "$OUT_DIR/errors.txt"
+    return 1
+  fi
+  prepare_database || return 1
+  local rc
+  # The browser part gets the stage budget minus time for seed and server start.
+  run_step tour "$E2E_TIMEOUT" python3 "$SCRIPT_DIR/ui-tour.py" run --project-dir "$PROJECT_DIR" \
+    --spec .onecommand-spec.json --out "$PROJECT_DIR/.onecommand/tour" --timeout "$((E2E_TIMEOUT > 600 ? E2E_TIMEOUT - 300 : E2E_TIMEOUT))"
+  rc=$?
+  cat "$OUT_DIR/tour.log"
+  if [ "$rc" -eq 3 ]; then   # not a web app — nothing to tour
+    sed -i.bak '$d' "$STEPS_FILE" && rm -f "$STEPS_FILE.bak"
+    skip_step tour "$(tail -1 "$OUT_DIR/tour.log" | sed 's/^\[tour\] //')"
+    return 0
+  fi
+  [ "$rc" -eq 0 ] || return 1
+  promote_warnings tour
+}
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 if [ ! -f package.json ]; then
@@ -588,13 +652,21 @@ else
   case "$STAGE" in
     static) stage_static || OVERALL=1 ;;
     e2e)    stage_e2e    || OVERALL=1 ;;
+    tour)   stage_tour   || OVERALL=1 ;;
     all)
       if stage_static; then
-        stage_e2e || OVERALL=1
+        if stage_e2e; then
+          stage_tour || OVERALL=1
+        else
+          OVERALL=1
+          record tour skipped "" 0 "" "e2e stage failed"
+          log "  ○ tour skipped — e2e stage failed"
+        fi
       else
         OVERALL=1
         record e2e skipped "" 0 "" "static stage failed"
-        log "  ○ e2e skipped — static stage failed"
+        record tour skipped "" 0 "" "static stage failed"
+        log "  ○ e2e and tour skipped — static stage failed"
       fi
       ;;
   esac

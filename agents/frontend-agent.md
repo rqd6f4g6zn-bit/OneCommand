@@ -75,6 +75,10 @@ For EACH page in `spec.pages`, generate a complete implementation:
 // Summary cards (stat tiles), recent activity list or table,
 // quick action buttons, real data from API hooks
 ```
+Every tile that shows a metric from `spec.metrics` uses its label from the generated `METRICS` export
+(`METRICS.win_rate.label` → "Abschlussquote (dieser Monat)"). Counts shown next to a metric
+("5 gewonnen, 2 verloren") come from the same endpoint fields and the same period as the metric —
+never from a client-side recount over a different set.
 
 ### List/Table pages (e.g. /workouts, /leaderboard):
 ```tsx
@@ -99,28 +103,31 @@ components/
 
 ## Step 7: Generate API client
 
-Create `lib/api.ts` with typed functions for every `spec.api_routes`:
+The shapes are not yours to invent. The orchestrator generated `api_contract.types_file` (e.g.
+`lib/api-contract.ts`) from the spec before you started; the backend types its handlers with the same file.
+Create `lib/api.ts` with one typed function per endpoint of `spec.api_contract.endpoints`:
 ```typescript
 // lib/api.ts
-const API_BASE = '/api'
+import { API, type ListDealsResponse, type CreateDealRequest, type CreateDealResponse } from './api-contract'
 
-export async function getWorkouts(): Promise<Workout[]> {
-  const res = await fetch(`${API_BASE}/workouts`)
-  if (!res.ok) throw new Error('Failed to fetch workouts')
-  return res.json()
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } })
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`)
+  return res.json() as Promise<T>
 }
 
-export async function createWorkout(data: CreateWorkoutInput): Promise<Workout> {
-  const res = await fetch(`${API_BASE}/workouts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
-  if (!res.ok) throw new Error('Failed to create workout')
-  return res.json()
-}
-// ... all other routes
+export const listDeals = () => call<ListDealsResponse>(API.ListDeals.path)
+export const createDeal = (data: CreateDealRequest) =>
+  call<CreateDealResponse>(API.CreateDeal.path, { method: 'POST', body: JSON.stringify(data) })
+// ... one function per endpoint
 ```
+Rules:
+- Read exactly the fields the contract names. Never try several names (`pick(data, ["winRate", "closeRate"])`,
+  `data.total ?? data.count ?? data.sum`) — the gate's contract step reports that, and it hides real mismatches.
+- Never edit the generated file. A missing field means the contract is incomplete: add it to `api_contract`
+  in `.onecommand-spec.json`, run `python3 "$OC_ROOT/hooks/api-contract.py" types`, tell the backend side.
+- Server components that read data directly call the same server function the route handler uses
+  (it returns `<Name>Response`), so both paths show identical numbers.
 
 ## Step 8: Verify completeness
 

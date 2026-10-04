@@ -43,6 +43,9 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
      - "file upload", "image upload", "storage", "S3" → `storage`
      - "email", "newsletter", "transactional email", e-mail verification, password reset → `email`
    - `acceptance_criteria`: the definition of done — see **Acceptance Criteria** below. Mandatory.
+   - `api_contract`: request and response shape of every endpoint — see **API contract** below. Mandatory for web apps (`{"endpoints": []}` when there is no API).
+   - `metrics`: every number the UI shows as a KPI (dashboard tiles, report totals, progress) with one definition, one period and one label — see **Metrics** below.
+   - `demo`: demo seed command, login page and one demo login per role — see **Demo logins** below. Mandatory for web apps.
 
 3. **Output a structured spec** as a JSON block, for example:
 
@@ -156,7 +159,14 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    SPEC
    ```
 
-5. **Validate the acceptance criteria** — the build must not start with an untestable spec (with a blueprint, also run `python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json`; it fails when a blueprint module or criterion was dropped):
+5. **Validate contract, metrics and demo logins:**
+   ```bash
+   python3 "$OC_ROOT/hooks/api-contract.py" validate --spec .onecommand-spec.json
+   python3 "$OC_ROOT/hooks/ui-tour.py" validate --spec .onecommand-spec.json
+   ```
+   Exit 1 → fix every `✗` line.
+
+5b. **Validate the acceptance criteria** — the build must not start with an untestable spec (with a blueprint, also run `python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json`; it fails when a blueprint module or criterion was dropped):
    ```bash
    python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
    ```
@@ -284,3 +294,87 @@ When an OS project is detected, set `"app_type": "os"` and populate the OS-speci
 - `os_packages`: leave empty unless the user explicitly lists extra packages not covered by `os_features`.
 - `os_services`: derive from `os_features` — services that should be enabled at boot (e.g. `nginx` → `nginx`, `postgresql` → `postgresql`, `ssh` → `sshd`).
 - `build_targets`: always `["os"]` for OS projects.
+
+---
+
+## API contract
+
+Frontend (Claude) and backend (Codex) are built at the same time. Without a contract the frontend
+guesses field names — a real CRM build showed `pick(dash, ["winRate", "closeRate", "conversionRate"])`
+and a dashboard that disagreed with its own reports. Define every endpoint the UI calls:
+
+```json
+"api_contract": {
+  "types_file": "lib/api-contract.ts",
+  "types": {
+    "Deal": {"id": "string", "title": "string", "value": "number", "currency": "'EUR'|'USD'",
+             "status": "'open'|'won'|'lost'", "closedAt?": "date|null", "owner": "UserRef"},
+    "UserRef": {"id": "string", "name": "string"}
+  },
+  "endpoints": [
+    {"name": "ListDeals", "method": "GET", "path": "/api/deals", "auth": true,
+     "query": {"stageId?": "string", "page?": "number"},
+     "response": {"items": "Deal[]", "total": "number", "page": "number"}},
+    {"name": "CreateDeal", "method": "POST", "path": "/api/deals", "auth": true,
+     "request": {"title": "string", "value": "number", "stageId": "string"}, "response": "Deal"},
+    {"name": "Dashboard", "method": "GET", "path": "/api/dashboard", "auth": true,
+     "response": {"openPipelineValue": "number", "winRate": "number", "wonCount": "number", "lostCount": "number"},
+     "metrics": ["open_pipeline", "win_rate"]},
+    {"name": "PublicContacts", "method": "GET", "path": "/api/v1/contacts", "consumer": "external",
+     "response": {"data": "Deal[]"}}
+  ]
+}
+```
+
+- Types: `string`, `number`, `boolean`, `date` (ISO string), `null`, `unknown`, `'literal'`, a name from
+  `types`, unions with `|`, arrays as `"Deal[]"` or `[{…}]`. A key ending in `?` is optional;
+  `"$nullable": true` makes an object nullable.
+- `name` is PascalCase; the generated file exports `<Name>Response`, `<Name>Request`, `<Name>Query`, the
+  `API` path table and `METRICS`.
+- Paths use the framework's style (`/api/deals/[id]` or `/api/deals/:id`).
+- Endpoints only external clients call (public API, webhooks) get `"consumer": "external"`.
+- `types_file` follows the stack (`lib/…` for Next.js without `src/`, `src/lib/…` otherwise).
+- `api_routes` (strings) may stay for overview; the contract is what the gate checks.
+
+## Metrics
+
+Every KPI gets one definition. Two pages that show "Abschlussquote" must compute it the same way, for
+the same period, under the same label:
+
+```json
+"metrics": [
+  {"id": "win_rate", "label": "Abschlussquote (dieser Monat)", "unit": "%",
+   "definition": "won / (won + lost) of the deals closed in the current month; the won/lost counts shown next to it come from the same month",
+   "period": "Dieser Monat", "shown_on": ["/dashboard"]}
+]
+```
+
+- The `label` names the period unless the metric has none ("Offene Pipeline" is a current total).
+- `shown_on` lists the pages that show the metric under exactly this label; the UI tour checks it.
+  Pages with a period filter (reports) show the same computation for the selected period — list them only
+  if the label fits.
+- Every metric is served by an endpoint that lists it in `metrics`; the backend computes it in one function.
+- Add an acceptance criterion that two pages showing the same metric agree (the CRM blueprint has one).
+
+## Demo logins
+
+The UI tour (Phase 4) loads the full demo data, logs in with every account and screenshots every page:
+
+```json
+"demo": {
+  "seed_command": "npm run db:seed",
+  "login_path": "/login",
+  "accounts": [
+    {"role": "admin", "email": "admin@demo.example", "password": "Demo1234!"},
+    {"role": "sales", "email": "sales@demo.example", "password": "Demo1234!"}
+  ]
+}
+```
+
+- One account per role in `roles`; the first account is the one the README tells users to try.
+- `seed_command` loads the **full** demo data when `SEED_MODE=demo` and `ONECOMMAND_E2E` is unset
+  (`ONECOMMAND_E2E=1` keeps the minimal test seed). It is re-runnable: it resets the demo data first.
+- Every account sees data on every page it may open — including "Meine …" views and its dashboard.
+- Apps without login: `"accounts": []`, no `login_path`.
+- `pages` lists every UI route, dynamic ones as `/contacts/[id]` (the tour reaches them through links).
+

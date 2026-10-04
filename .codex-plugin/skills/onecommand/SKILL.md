@@ -122,8 +122,10 @@ The spec MUST contain `acceptance_criteria` (see `spec-analyzer` → Acceptance 
 ```bash
 OC_ROOT="$HOME/.codex/skills/onecommand"   # install.sh syncs hooks/ here
 python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
+python3 "$OC_ROOT/hooks/api-contract.py" validate --spec .onecommand-spec.json   # api_contract + metrics
+python3 "$OC_ROOT/hooks/ui-tour.py" validate --spec .onecommand-spec.json        # pages + demo logins
 ```
-Exit 1 → fix the reported criteria and validate again.
+Exit 1 → fix the reported criteria / contract / demo section and validate again.
 
 **Skill plan — consider every available skill** (bundled and user-installed):
 ```bash
@@ -135,6 +137,12 @@ For every external skill listed, write a decision (phases + use, or reason) to `
 
 ## Phase 2: FRONTEND + BACKEND + MOBILE (Parallel)
 > "⚡ Phase 2/8 — Generating Frontend + Backend + Mobile..."
+
+Generate the shared API types first — frontend and backend import this one file, handlers return
+`body satisfies <Name>Response`, the UI reads only the fields the contract names (never several candidate names):
+```bash
+python3 "$OC_ROOT/hooks/api-contract.py" types --spec .onecommand-spec.json
+```
 
 First, check build targets:
 ```bash
@@ -232,7 +240,7 @@ volumes:
 
 Never decide pass/fail with `cmd | tee log; echo $?` — that prints the exit code of `tee`. The gate script reports real exit codes and writes `.onecommand/gate/result.json`, the only verdict.
 
-**Stage A — static** (install, prisma, typecheck, lint, build, unit tests):
+**Stage A — static** (install, audit, prisma, API contract, typecheck, lint, build, unit tests):
 ```bash
 OC_ROOT="$HOME/.codex/skills/onecommand"
 bash "$OC_ROOT/hooks/quality-gate.sh" --stage static; echo "GATE_EXIT=$?"
@@ -242,6 +250,16 @@ bash "$OC_ROOT/hooks/quality-gate.sh" --stage static; echo "GATE_EXIT=$?"
 ```bash
 bash "$OC_ROOT/hooks/quality-gate.sh" --stage e2e; echo "GATE_EXIT=$?"
 ```
+
+**Stage C — UI tour** (web builds, after Stage B is green): demo seed, production server with fresh secrets,
+every page as every `demo.accounts` login, desktop + mobile screenshots:
+```bash
+bash "$OC_ROOT/hooks/quality-gate.sh" --stage tour; echo "GATE_EXIT=$?"
+```
+Then open every screenshot listed in `.onecommand/tour/review.md`, tick it, write findings as `  - ✗ …`
+lines (numbers that differ between pages, labels without their period, empty views for a demo login,
+broken layout), fix them, re-run the tour. Done when
+`python3 "$OC_ROOT/hooks/ui-tour.py" review-status` exits 0.
 
 **If GATE_EXIT is not 0**, read `.onecommand/gate/errors.txt` and use the `self-healer` skill with it. Re-run the same stage. Max 5 healing rounds per stage. Fix the application, never weaken tests or edit `acceptance_criteria`. Finish with `--stage all` after any change in Stage B.
 

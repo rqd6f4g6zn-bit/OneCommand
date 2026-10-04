@@ -35,6 +35,12 @@ def test_blueprint_schema(path: Path):
     for e in data.get("entities", []):
         assert e.get("tier", "mvp") in TIERS
     assert set(data.get("pages", {})) <= set(TIERS)
+    metric_ids = [m["id"] for m in data.get("metrics", [])]
+    assert len(metric_ids) == len(set(metric_ids))
+    all_pages = {p for tier_pages in data.get("pages", {}).values() for p in tier_pages}
+    for m in data.get("metrics", []):
+        assert m["tier"] in TIERS and m["label"] and m["definition"] and m["period"], m["id"]
+        assert set(m.get("shown_on", [])) <= all_pages, (m["id"], "shown_on must name pages of the blueprint")
 
 
 @pytest.mark.parametrize("path", BLUEPRINTS, ids=lambda p: p.stem)
@@ -48,6 +54,11 @@ def test_every_expansion_is_a_valid_spec_that_covers_its_blueprint(tmp_path, pat
     assert "vague wording" not in v.stdout, v.stdout
     c = bp("check", "--spec", str(out))
     assert c.returncode == 0, c.stdout
+    # The draft's metrics and demo logins pass the contract/tour validators (contract added by spec-analyzer).
+    draft = json.loads(out.read_text())
+    t = py("ui-tour.py", "validate", "--spec", str(out))
+    assert t.returncode == 0, t.stdout
+    assert len(draft["demo"]["accounts"]) == len(draft["roles"])
 
 
 def test_tiers_are_cumulative(tmp_path):
@@ -118,6 +129,24 @@ def test_exclude_requires_and_keeps_the_users_reason(tmp_path):
     assert r.returncode == 0 and "excluded: Nutzer: keine Angebote nötig" in r.stdout
     assert bp("expand", "crm", "--exclude", "products-quotes").returncode == 2
     assert bp("expand", "crm", "--exclude", "nope=x").returncode == 2
+
+
+def test_check_detects_a_dropped_metric(tmp_path):
+    out, spec = draft(tmp_path)
+    assert [m["id"] for m in spec["metrics"]] == ["open_pipeline", "won_this_month", "win_rate", "due_tasks",
+                                                  "weighted_forecast"]
+    spec["metrics"] = [m for m in spec["metrics"] if m["id"] != "win_rate"]
+    write_json(out, spec)
+    r = bp("check", "--spec", str(out))
+    assert r.returncode == 1 and "metric 'win_rate' (Abschlussquote (dieser Monat)) was dropped" in r.stdout
+
+
+def test_crm_metrics_name_their_period(tmp_path):
+    out, spec = draft(tmp_path)
+    labels = {m["id"]: m["label"] for m in spec["metrics"]}
+    assert labels["win_rate"] == "Abschlussquote (dieser Monat)" and labels["won_this_month"] == "Gewonnen (dieser Monat)"
+    titles = [c["title"] for c in spec["acceptance_criteria"]]
+    assert "Dashboard and reports show the same open pipeline and win rate for 'Dieser Monat'" in titles
 
 
 def test_spec_without_blueprint_passes_check(tmp_path):

@@ -28,7 +28,7 @@ docs/superpowers/            # Design specs and implementation plans
 Phase 1: Spec          → spec-analyzer (incl. acceptance_criteria, validated) + stack-detector
 Phase 2: Parallel      → frontend-agent (Claude) + backend-agent (Codex)
 Phase 3: Integration   → integration subagent + live-integrations + marketing-agent
-Phase 4: Gate          → test-agent: quality-gate.sh static → acceptance-tester (Playwright) → e2e; self-healer
+Phase 4: Gate          → test-agent: quality-gate.sh static → acceptance-tester (Playwright) → e2e → tour + screenshot review; self-healer
 Phase 5: Automations   → automation-installer skill
 Phase 6: Exceed        → exceed-expectations + security-agent + demo-cleaner, then regression gate
 Phase 7: Self-Improve  → self-improve-agent (writes to ~/.onecommand/memory/)
@@ -40,10 +40,14 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
 
 ## Quality Gate
 
-- `hooks/quality-gate.sh --stage static|e2e|all` is the only pass/fail verdict. Never decide it with
+- `hooks/quality-gate.sh --stage static|e2e|tour|all` is the only pass/fail verdict. Never decide it with
   `cmd | tee log; $?` — that is `tee`'s exit code. Output: `<project>/.onecommand/gate/result.json`.
 - `hooks/acceptance-report.py validate` checks a spec's acceptance criteria; `report` maps Playwright
   results (test titles start with `AC-###`) onto them. A missing test counts as a failure.
+- `hooks/api-contract.py` (gate step `contract`): `api_contract` in the spec → one generated TypeScript
+  file both sides import; fails on hand-edited types, missing route handlers and untyped handlers/fetches.
+- `hooks/ui-tour.py` (stage `tour`): demo seed, production start with fresh secrets, every page as every
+  `demo.accounts` login, screenshots + `.onecommand/tour/review.md`; `review-status` must pass before delivery.
 - Exit codes: 0 passed · 1 failed · 2 usage error · 3 not applicable (no package.json).
 
 ## Domain Blueprints

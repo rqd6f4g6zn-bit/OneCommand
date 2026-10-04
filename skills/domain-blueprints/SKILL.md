@@ -51,7 +51,9 @@ Tiers are cumulative: `mvp` ⊂ `pro` ⊂ `enterprise`.
    - Add everything the prompt asks for beyond the blueprint (extra modules → own features + criteria).
    - Adjust wording, UI language and domain terms to the prompt (e.g. "Makler" instead of "Vertrieb").
    - Keep every blueprint criterion and its `"source"` tag — rewording is fine, deleting is not.
-   - Keep `blueprint`, `module_features`, `entities`, `roles`, `non_functional` — the build agents read them.
+   - Keep `blueprint`, `module_features`, `entities`, `roles`, `non_functional`, `metrics`, `demo` — the build agents read them.
+   - Keep every metric (definition, period, label); adjust labels to the domain words, keep the period in them.
+   - Replace the draft demo e-mails with ones fitting the project name (e.g. `admin@novacrm.demo`), one per role.
    - The draft's acceptance-criterion ids are sequential; keep ids unique when you add more.
 
 4. **Prove coverage** — must pass before Phase 2:
@@ -59,15 +61,18 @@ Tiers are cumulative: `mvp` ⊂ `pro` ⊂ `enterprise`.
    python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json
    python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
    ```
-   A missing module or a dropped criterion fails the check. The fix is to restore it — or, only if the user asked for that, to exclude the module with their reason.
+   A missing module, a dropped criterion or a dropped metric fails the check. The fix is to restore it — or, only if the user asked for that, to exclude the module with their reason.
 
 ## What the build agents do with it
 
 - `module_features` is the checklist per module for frontend-agent and backend-agent.
 - `entities` (with fields) is the starting data model; `roles` drive authorization; every protected resource needs an ownership/role check that the acceptance criteria verify.
 - `non_functional` lines are requirements, not suggestions (pagination, server-side prices, GoBD immutability …).
+- `metrics` define every KPI once (definition, period, label, pages); the API contract serves them and the
+  UI tour checks the labels — a dashboard and a report can no longer disagree silently.
+- `demo` lists one login per role; the demo seed fills every view for each of them.
 - The delivery report lists blueprint coverage: modules built, modules excluded and why.
 
 ## Large scopes
 
-`enterprise` blueprints are big (CRM: 22 modules, 43 criteria). Build module by module in the order of the blueprint (mvp modules first) and run the static gate after each group of modules, so errors surface early instead of all at once in Phase 4.
+`enterprise` blueprints are big (CRM: 22 modules, 47 criteria, 6 metrics). Build module by module in the order of the blueprint (mvp modules first) and run the static gate after each group of modules, so errors surface early instead of all at once in Phase 4.

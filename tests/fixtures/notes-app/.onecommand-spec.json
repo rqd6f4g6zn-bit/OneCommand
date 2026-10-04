@@ -3,6 +3,16 @@
   "app_type": "web-app",
   "build_targets": ["web"],
   "features": ["notes", "api"],
+  "pages": ["/ (notes)"],
+  "demo": {"seed_command": "npx prisma db seed", "accounts": []},
+  "api_contract": {
+    "types_file": "src/api-contract.ts",
+    "types": {"Note": {"id": "number", "title": "string"}},
+    "endpoints": [
+      {"name": "ListNotes", "method": "GET", "path": "/api/notes", "response": "Note[]"},
+      {"name": "CreateNote", "method": "POST", "path": "/api/notes", "request": {"title": "string"}, "response": "Note"}
+    ]
+  },
   "acceptance_criteria": [
     {"id": "AC-001", "feature": "notes", "title": "Added note appears in the list and is still there after reload",
      "priority": "must", "verification": "e2e", "start": "/", "steps": ["Fill 'Title'", "Click 'Add note'", "Reload"],

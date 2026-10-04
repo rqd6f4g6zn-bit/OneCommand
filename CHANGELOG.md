@@ -2,6 +2,50 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.7.0] — 2026-10-04
+
+Screenshots of the CRM built in 1.6.0 showed errors that 43 green acceptance tests missed: a win-rate
+tile reading "100 %" above "5 gewonnen, 2 verloren", two different open-pipeline totals, an empty
+"Meine Aufgaben" for the admin demo login and a mobile page 212 px too wide. The plugin now finds these
+error classes itself in every build.
+
+### Added
+- **API contract** (`hooks/api-contract.py`, gate step `contract`): the spec defines every endpoint's
+  request and response (`api_contract`); `types` generates one TypeScript file (`<Name>Response`,
+  `<Name>Request`, `API`, `METRICS`) before Phase 2, so frontend (Claude) and backend (Codex) build against
+  the same shapes. The static stage fails when the generated file was edited or is stale, an endpoint has
+  no route handler exporting its method (Next.js App Router, `[param]` and catch-all routes resolved like
+  Next.js does), a handler or the UI does not use its response type. Code that tries several field names
+  (`pick(data, ["winRate", "closeRate", …])` — 16 places in the CRM build) is reported as a warning.
+- **Metrics** (`spec.metrics`, blueprint `metrics`): every KPI has one definition, period, unit and label
+  plus the pages that show it. The CRM, helpdesk, invoicing, projects and shop blueprints define theirs;
+  `blueprint.py check` fails when one is dropped. CRM blueprint v3 adds two criteria: the win-rate tile
+  names its period and counts from the same period; dashboard and reports agree.
+- **UI tour** (`hooks/ui-tour.py`, gate stage `tour`, part of `--stage all`): loads the full demo data
+  (`demo.seed_command`, `SEED_MODE=demo`), starts the production build with fresh strong secrets, logs in
+  through the real form with every `demo.accounts` login and screenshots every page of the spec: desktop
+  for every role, mobile for the first account; dynamic pages are reached through links. Blocking: failed
+  login, HTTP 5xx, uncaught exceptions, failed API calls, "undefined"/"NaN"/"Invalid Date" on screen, a lost
+  session, a metric without its spec label. Warnings: mobile overflow, console errors, unreachable dynamic
+  pages. Writes `report.md` and `review.md`; test-agent reviews every listed screenshot and
+  `ui-tour.py review-status` must pass before delivery. Against the real CRM: 107 screenshots in 2:43 min,
+  and it found the mobile overflow and the missing metric labels.
+- **Demo logins** (`spec.demo`): one login per role; `blueprint.py expand` drafts them from the roles.
+  The demo seed fills every view for every account.
+- **Showcase** (`docs/showcase/crm/`): the CRM built from "CRM auf höchstem Niveau", 12 desktop and
+  2 mobile screenshots, linked from the README.
+
+### Changed
+- spec-analyzer writes `api_contract`, `metrics`, `demo` and validates them; frontend-agent builds a typed
+  client on the generated file and labels tiles from `METRICS`; backend-agent types handlers with
+  `satisfies`, computes each metric in one function and seeds data for every demo login; collab-protocol
+  hands Codex the contract; self-healer has strategies for contract and tour failures; the delivery report
+  embeds the tour screenshots and the demo logins.
+- Quality gate: steps with `⚠` lines in their log are recorded as `warn`; the database is prepared once
+  per run.
+- No personal names or home paths in docs and install instructions (company name only);
+  `test_repo_consistency` checks every tracked file.
+
 ## [1.6.0] — 2026-10-04
 
 ### Added

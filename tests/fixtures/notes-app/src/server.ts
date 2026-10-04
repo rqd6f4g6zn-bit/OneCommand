@@ -1,6 +1,7 @@
 import * as http from "node:http";
 import { PrismaClient } from "@prisma/client";
 import { validateTitle } from "./notes";
+import type { CreateNoteResponse, ListNotesResponse } from "./api-contract";
 
 const prisma = new PrismaClient();
 const port = Number(process.env.PORT ?? 3000);
@@ -37,7 +38,8 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.url === "/api/notes" && req.method === "GET") {
       const notes = await prisma.note.findMany({ orderBy: { id: "asc" } });
-      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(notes));
+      const body = notes.map((n) => ({ id: n.id, title: n.title })) satisfies ListNotesResponse;
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
       return;
     }
     if (req.url === "/api/notes" && req.method === "POST") {
@@ -52,7 +54,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const note = await prisma.note.create({ data: { title } });
-      res.writeHead(201, { "content-type": "application/json" }).end(JSON.stringify(note));
+      const body = { id: note.id, title: note.title } satisfies CreateNoteResponse;
+      res.writeHead(201, { "content-type": "application/json" }).end(JSON.stringify(body));
       return;
     }
     res.writeHead(200, { "content-type": "text/html" }).end(page);

@@ -134,6 +134,15 @@ Tests live in `e2e/acceptance/` — run them yourself with `npx playwright test`
 
 ---
 
+## Screenshots
+
+<only when .onecommand/tour/report.json exists: embed the desktop screenshot of every page the first demo account
+visited, plus one mobile screenshot, with relative links into .onecommand/tour/ (copy them to docs/screenshots/
+so they survive cleanup); list the demo logins from spec.demo.accounts with role, e-mail and password;
+state "UI tour: <N> pages × <M> logins, review complete" or the open review findings>
+
+---
+
 ## Open Issues
 
 <only if the gate failed: list failing steps and AC ids from result.json / acceptance.json with one line each;

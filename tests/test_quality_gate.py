@@ -47,7 +47,7 @@ def test_all_static_steps_pass(tmp_path):
     assert r["passed"] is True and r["failed_steps"] == []
     steps = {s["step"]: s["status"] for s in r["steps"]}
     assert steps.pop("audit") in ("pass", "skipped")  # skipped when the registry is unreachable
-    assert steps == {"install": "pass", "prisma": "skipped", "typecheck": "skipped",
+    assert steps == {"install": "pass", "prisma": "skipped", "contract": "skipped", "typecheck": "skipped",
                      "lint": "pass", "build": "pass", "unit": "pass"}
     assert ".onecommand/" in (p / ".gitignore").read_text()
 
@@ -96,8 +96,8 @@ def test_all_stage_skips_e2e_when_static_fails(tmp_path):
     p = project(tmp_path, build='node -e "process.exit(2)"')
     out = gate(p, "--stage", "all")
     assert out.returncode == 1
-    e2e = next(s for s in result(p)["steps"] if s["step"] == "e2e")
-    assert e2e["status"] == "skipped"
+    steps = {s["step"]: s["status"] for s in result(p)["steps"]}
+    assert steps["e2e"] == steps["tour"] == "skipped"
 
 
 def test_e2e_without_playwright_config_fails_with_guidance(tmp_path):
@@ -106,6 +106,63 @@ def test_e2e_without_playwright_config_fails_with_guidance(tmp_path):
     out = gate(p, "--stage", "e2e")
     assert out.returncode == 1
     assert "acceptance-tester" in (p / ".onecommand" / "gate" / "errors.txt").read_text()
+
+
+# ─── API contract step ────────────────────────────────────────────────────────
+
+CONTRACT = {"types_file": "src/api-contract.ts", "types": {"Note": {"id": "number", "title": "string"}},
+            "endpoints": [{"name": "ListNotes", "method": "GET", "path": "/api/notes", "response": "Note[]"}]}
+
+
+def contract_project(tmp_path: Path, server_source: str) -> Path:
+    p = project(tmp_path)
+    write_json(p / ".onecommand-spec.json", {"project_name": "t", "api_contract": CONTRACT, "acceptance_criteria": []})
+    assert run(["python3", str(HOOKS / "api-contract.py"), "types", "--project-dir", str(p)], cwd=p).returncode == 0
+    (p / "src" / "server.ts").write_text(server_source)
+    return p
+
+
+def test_contract_step_passes_when_both_sides_use_the_types(tmp_path):
+    p = contract_project(tmp_path, 'import type { ListNotesResponse } from "./api-contract";\n')
+    assert gate(p, "--stage", "static").returncode == 0
+    contract = next(s for s in result(p)["steps"] if s["step"] == "contract")
+    assert contract["status"] == "pass"
+
+
+def test_contract_step_fails_on_hand_edited_types(tmp_path):
+    p = contract_project(tmp_path, 'import type { ListNotesResponse } from "./api-contract";\n')
+    types = p / "src" / "api-contract.ts"
+    types.write_text(types.read_text().replace("title: string;", "titel: string;"))
+    out = gate(p, "--stage", "static")
+    assert out.returncode == 1 and result(p)["failed_steps"] == ["contract"]
+    assert "differs from the contract" in (p / ".onecommand" / "gate" / "errors.txt").read_text()
+
+
+def test_guessed_field_names_are_a_warning(tmp_path):
+    p = contract_project(tmp_path, 'import type { ListNotesResponse } from "./api-contract";\n'
+                                   'const t = pick(note, ["title", "name", "label"]);\n')
+    assert gate(p, "--stage", "static").returncode == 0
+    r = result(p)
+    contract = next(s for s in r["steps"] if s["step"] == "contract")
+    assert contract["status"] == "warn" and "guesses the response shape" in contract["reason"]
+    assert any(w.startswith("contract: 1 warning(s)") for w in r["warnings"])
+
+
+# ─── tour stage ───────────────────────────────────────────────────────────────
+
+def test_tour_is_skipped_without_demo_section(tmp_path):
+    p = project(tmp_path)
+    write_json(p / ".onecommand-spec.json", {"acceptance_criteria": []})
+    assert gate(p, "--stage", "tour").returncode == 0
+    assert result(p)["steps"] == [{"step": "tour", "status": "skipped", "exit_code": None, "duration_s": 0,
+                                   "log": None, "reason": "spec has no demo section"}]
+
+
+def test_tour_needs_a_start_script(tmp_path):
+    p = project(tmp_path)
+    write_json(p / ".onecommand-spec.json", {"pages": ["/"], "demo": {"accounts": []}, "acceptance_criteria": []})
+    assert gate(p, "--stage", "tour").returncode == 1
+    assert "no start script" in (p / ".onecommand" / "gate" / "errors.txt").read_text()
 
 
 def test_no_package_json_is_not_applicable(tmp_path):
