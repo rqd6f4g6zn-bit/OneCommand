@@ -9,7 +9,13 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
   U-Net noise predictor (2D for images, 3D for videos — space is downsampled, every frame kept), cosine DDPM
   objective, DDIM sampler, EMA weights, class conditioning from dataset folders, `generate` CLI and
   `POST /generate` (base64 PNG / MP4). Configs `smoke`, `cpu`, `default`, `video-smoke`, `video-default`.
-  Metric `color_ratio` (colour-histogram distance of samples to the test set ÷ that of noise).
+  Metric `nn_ratio`: distance of each sample to its nearest real training item ÷ the same for pure noise (lower is
+  better). Trained here on the company's own 70 CRM screenshots (CPU, 6 min, 0.7M parameters): samples show the
+  interface's style (white panels, text lines, blue accents), nn_ratio 0.55 — all ML gate steps green.
+  The real runs found three template bugs, all fixed: the DDIM step reused the pre-clipping noise estimate
+  (samples stayed noise); data far from mid-grey (white screenshots) needs per-channel normalisation or samples
+  get the wrong brightness; a colour-histogram metric rated noise as "close" to white screenshots, and averaging
+  video frames over time made noise look like flat data.
 - **`dataset.py --task images | videos`:** collects own media (folder = label), removes exact and visually
   near-identical files (8×8 average hash via ffmpeg), splits by file, records every file's SHA-256; `check`
   detects changed or missing source files.

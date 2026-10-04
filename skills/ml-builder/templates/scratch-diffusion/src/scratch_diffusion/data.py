@@ -119,11 +119,13 @@ def save_video(clip: torch.Tensor, path: Path, fps: int) -> None:
 
 
 def nn_distance(a: torch.Tensor, ref: torch.Tensor, side: int = 16) -> float:
-    """Mean distance of every item in a to its nearest neighbour in ref (RMS per pixel at side×side, videos
-    averaged over time). Generated samples should be much closer to real data than noise is."""
+    """Mean distance of every item in a to its nearest neighbour in ref (RMS per pixel at side×side; videos
+    keep every frame — averaging over time would make noise look like flat grey data)."""
     def flat(x: torch.Tensor) -> torch.Tensor:
         if x.dim() == 5:
-            x = x.mean(dim=2)
+            n, c, t, h, w = x.shape
+            frames = x.float().transpose(1, 2).reshape(n * t, c, h, w)
+            return torch.nn.functional.adaptive_avg_pool2d(frames, side).reshape(n, -1)
         return torch.nn.functional.adaptive_avg_pool2d(x.float(), side).flatten(1)
     fa, fr = flat(a), flat(ref)
     return (torch.cdist(fa, fr).min(dim=1).values / fa.shape[1] ** 0.5).mean().item()

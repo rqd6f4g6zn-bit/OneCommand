@@ -78,8 +78,9 @@ and say so in the delivery report; from scratch is chosen whenever the user asks
   text-to-image needs an own text encoder and far more data (say so instead of faking it).
 - Data: `python3 "$OC_ROOT/hooks/dataset.py" build --input data/raw --out data/processed --task images`
   (or `--task videos`) — exact and visually near-identical files removed (average hash), split by file.
-- Metric `color_ratio`: colour-histogram distance of samples to the held-out test set, divided by that of pure
-  noise (lower is better; the smoke run must be clearly below 1). Samples land in `runs/<run>/samples/`
+- Metric `nn_ratio`: distance of every sample to its nearest real training item, divided by the same for pure
+  noise (lower is better; the smoke run must be clearly below 1, e.g. `smoke_min` 0.6–0.7). Data is normalised
+  per channel before training (bright or dark data would otherwise sample at the wrong brightness). Samples land in `runs/<run>/samples/`
   (grid.png, clip-N.mp4).
 - Configs: `smoke` (32 px, CPU ~2 min), `cpu` (32 px, ~20 min), `default` (64 px, GPU hours),
   `video-smoke` (8 frames 32 px), `video-default` (16 frames 64 px, GPU days).

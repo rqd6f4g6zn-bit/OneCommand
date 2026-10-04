@@ -1,4 +1,4 @@
-# Video smoke run: 8 frames of 32×32 (3D U-Net), CPU a few minutes.
+# Video smoke run: 8 frames of 32×32 (3D U-Net), CPU ~12 min.
 run: video-smoke
 kind: video
 data_dir: data/processed
@@ -7,5 +7,5 @@ size: 32
 frames: 8
 fps: 8
 model: {base: 24, mults: [1, 2], attention: false, dropout: 0.0}
-diffusion: {timesteps: 1000, sample_steps: 25}
-train: {steps: 300, batch_size: 8, lr: 0.001, warmup: 30, ema: 0.99, samples: 4}
+diffusion: {timesteps: 1000, sample_steps: 50}
+train: {steps: 1200, batch_size: 8, lr: 0.001, warmup: 100, ema: 0.995, samples: 4}
