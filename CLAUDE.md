@@ -6,7 +6,7 @@ OneCommand is a Claude Code plugin that builds complete, production-ready softwa
 
 ```
 .claude-plugin/plugin.json   # Plugin manifest
-commands/                    # Slash commands (/onecommand, /onecommand-status)
+commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor)
 skills/                      # Reusable skills invoked by agents and commands
 agents/                      # Specialized agents for each build phase
 hooks/                       # Shell scripts (post-generate.sh)
@@ -17,6 +17,9 @@ docs/superpowers/            # Design specs and implementation plans
 
 - `/onecommand "<prompt>"` — Build a complete software system from a description
 - `/onecommand-status` — Show current build phase progress
+- `/oc-save` — Save build state so `/clear` is safe
+- `/oc-resume` — Resume an interrupted build from the last completed phase
+- `/oc-doctor` — Diagnose the installation (registry, commands, brain, Codex)
 
 ## Workflow Overview
 
@@ -48,6 +51,11 @@ OneCommand stores learned patterns in `~/.onecommand/memory/`:
 ## Development
 
 When modifying this plugin, files in `skills/` and `agents/` are the most important. Each file contains instructions for a specific phase of the build. The orchestrator is `commands/onecommand.md`.
+
+Releasing: bump `version` in `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and
+`PLUGIN_VERSION` in `install.sh` together. New skills must also be added to `BUNDLED_SKILLS` in
+`install.sh` (the installer warns about unlisted skill directories). Test the installer against a
+throwaway home: `HOME=$(mktemp -d) ./install.sh --verbose`.
 
 Design specs live in `docs/superpowers/specs/`.
 Implementation plans live in `docs/superpowers/plans/`.

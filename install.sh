@@ -1,62 +1,203 @@
 #!/usr/bin/env bash
 # =============================================================================
-# OneCommand — Installer v1.1.2
+# OneCommand — Installer
 # USC Software UG — usc-software-ug.de
 # =============================================================================
 # Idempotent: safe to run multiple times.
-# Already installed components are skipped — nothing is downloaded twice.
+# Files are synced by content, so re-running after `git pull` picks up every
+# change — even without a version bump — and unchanged files are left alone.
+#
+# Usage:  ./install.sh [--dry-run] [--verbose] [--help]
 # =============================================================================
 
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.3.6"
+PLUGIN_VERSION="1.3.7"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-RESET='\033[0m'
+DRY_RUN=false
+VERBOSE=false
+
+# Colors (disabled when stdout is not a terminal)
+if [ -t 1 ]; then
+  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+  CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
+else
+  RED=''; GREEN=''; YELLOW=''; CYAN=''; BOLD=''; RESET=''
+fi
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 info()    { echo -e "${CYAN}  →${RESET} $*"; }
 ok()      { echo -e "${GREEN}  ✓${RESET} $*"; }
-skip()    { echo -e "${YELLOW}  ○${RESET} $* (already installed — skipped)"; }
+skip()    { echo -e "${YELLOW}  ○${RESET} $* (already current — skipped)"; }
 warn()    { echo -e "${YELLOW}  ⚠${RESET} $*"; }
-err()     { echo -e "${RED}  ✗${RESET} $*"; }
+err()     { echo -e "${RED}  ✗${RESET} $*" >&2; }
+debug()   { if [ "$VERBOSE" = true ]; then echo -e "    · $*"; fi; }
 section() { echo -e "\n${BOLD}$*${RESET}"; }
+box()     { echo "|  $*"; }
+tilde()   { case "$1" in "$HOME"*) printf '~%s' "${1#"$HOME"}" ;; *) printf '%s' "$1" ;; esac; }
+rule()    { echo "+==============================================================+"; }
+
+usage() {
+  cat << USAGE
+OneCommand installer v${PLUGIN_VERSION}
+
+Usage: ./install.sh [options]
+
+Options:
+  -n, --dry-run   Show what would change without writing anything
+  -v, --verbose   Print every file that is created, updated or deleted
+  -h, --help      Show this help and exit
+
+Installs OneCommand into Claude Code (~/.claude) and, if the codex CLI is in
+PATH, into Codex (~/.codex). Shared memory lives in ~/.onecommand.
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n|--dry-run) DRY_RUN=true ;;
+    -v|--verbose) VERBOSE=true ;;
+    -h|--help)    usage; exit 0 ;;
+    *)            err "Unknown option: $1"; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+# Run a mutating command, or only describe it in dry-run mode.
+run() {
+  if [ "$DRY_RUN" = true ]; then
+    debug "dry-run: $*"
+  else
+    "$@"
+  fi
+}
+
+# sync_dir <src/> <dest/> <label> [extra rsync args...]
+# Mirrors src into dest and reports whether anything actually changed.
+sync_dir() {
+  local src="$1" dest="$2" label="$3"
+  shift 3
+  local -a args=(-a --itemize-changes "$@")
+  [ "$DRY_RUN" = true ] && args+=(--dry-run)
+
+  if [ ! -d "$src" ]; then
+    err "Source directory missing: $src"
+    return 1
+  fi
+  [ "$DRY_RUN" = true ] || mkdir -p "$dest"
+
+  local output changed
+  output="$(rsync "${args[@]}" "$src" "$dest")"
+  # Count file-level changes only: lines starting with '.' are attribute-only
+  # (timestamps etc.) and '?d' lines are directories.
+  local pattern='^([<>ch][^d]|\*deleting)'
+  changed="$(printf '%s\n' "$output" | grep -cE "$pattern" || true)"
+
+  if [ "$changed" -eq 0 ]; then
+    skip "$label"
+  else
+    ok "$label — ${changed} file(s) $([ "$DRY_RUN" = true ] && echo "would change" || echo "synced")"
+    if [ "$VERBOSE" = true ]; then
+      printf '%s\n' "$output" | grep -E "$pattern" | sed 's/^/    · /'
+    fi
+  fi
+}
+
+# install_file <src> <dest> <label> — copies only when content differs.
+install_file() {
+  local src="$1" dest="$2" label="$3"
+  if [ ! -f "$src" ]; then
+    err "Source file missing: $src"
+    return 1
+  fi
+  if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
+    skip "$label"
+    return 0
+  fi
+  local verb="Installed"
+  [ -f "$dest" ] && verb="Updated"
+  run mkdir -p "$(dirname "$dest")"
+  run cp "$src" "$dest"
+  ok "${verb} ${label}"
+}
+
+# write_if_missing <dest> <label> — writes stdin to dest unless dest exists.
+write_if_missing() {
+  local dest="$1" label="$2" content
+  content="$(cat)"
+  if [ -f "$dest" ]; then
+    skip "$label"
+    return 0
+  fi
+  if [ "$DRY_RUN" = false ]; then
+    mkdir -p "$(dirname "$dest")"
+    printf '%s\n' "$content" > "$dest"
+  fi
+  ok "Initialized $label"
+}
 
 # ─── Banner ───────────────────────────────────────────────────────────────────
 
 echo ""
-echo "+==============================================================+"
-echo "|         OneCommand — Installer v${PLUGIN_VERSION}                     |"
-echo "|          USC Software UG · usc-software-ug.de               |"
-echo "+==============================================================+"
-echo ""
+rule
+box "OneCommand — Installer v${PLUGIN_VERSION}"
+box "USC Software UG · usc-software-ug.de"
+[ "$DRY_RUN" = true ] && box "DRY RUN — nothing will be written"
+rule
+
+# ─── Prerequisites ────────────────────────────────────────────────────────────
+
+section "[ 0/4 ] Checking prerequisites"
+
+missing_tools=()
+for tool in python3 rsync cmp; do
+  if command -v "$tool" &>/dev/null; then
+    debug "$tool → $(command -v "$tool")"
+  else
+    missing_tools+=("$tool")
+  fi
+done
+if [ ${#missing_tools[@]} -gt 0 ]; then
+  err "Missing required tools: ${missing_tools[*]}"
+  err "macOS: xcode-select --install   ·   Debian/Ubuntu: sudo apt install python3 rsync diffutils"
+  exit 1
+fi
+ok "python3, rsync, cmp available"
+
+for manifest in "$REPO_ROOT/.claude-plugin/plugin.json" "$REPO_ROOT/commands/onecommand.md"; do
+  if [ ! -f "$manifest" ]; then
+    err "Not a OneCommand checkout: $manifest missing (REPO_ROOT=$REPO_ROOT)"
+    exit 1
+  fi
+done
+
+MANIFEST_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' \
+  "$REPO_ROOT/.claude-plugin/plugin.json")"
+if [ "$MANIFEST_VERSION" != "$PLUGIN_VERSION" ]; then
+  warn "plugin.json says v${MANIFEST_VERSION}, installer says v${PLUGIN_VERSION} — using v${PLUGIN_VERSION}"
+fi
 
 # ─── Shared memory directory ─────────────────────────────────────────────────
 
 section "[ 1/4 ] Setting up shared memory"
 
-MEMORY_DIR="$HOME/.onecommand/memory"
+ONECOMMAND_HOME="$HOME/.onecommand"
+MEMORY_DIR="$ONECOMMAND_HOME/memory"
+BRAIN_DIR="$ONECOMMAND_HOME/brain"
 
-if [ -d "$MEMORY_DIR" ]; then
-  skip "Memory directory $MEMORY_DIR"
-else
-  mkdir -p "$MEMORY_DIR"
-  ok "Created $MEMORY_DIR"
-fi
+for dir in "$MEMORY_DIR" "$BRAIN_DIR/checkpoints" "$BRAIN_DIR/handoff"; do
+  if [ -d "$dir" ]; then
+    skip "Directory $(tilde "$dir")"
+  else
+    run mkdir -p "$dir"
+    ok "Created $(tilde "$dir")"
+  fi
+done
 
-LEARNINGS_FILE="$MEMORY_DIR/cross_learnings.json"
-if [ -f "$LEARNINGS_FILE" ]; then
-  skip "cross_learnings.json (preserving existing learnings)"
-else
-  cat > "$LEARNINGS_FILE" << 'EOF'
+write_if_missing "$MEMORY_DIR/cross_learnings.json" "cross_learnings.json" << 'EOF'
 {
   "version": "1.0",
   "created": "auto",
@@ -64,46 +205,56 @@ else
   "learnings": []
 }
 EOF
-  ok "Initialized cross_learnings.json"
-fi
 
-# Brain directories
-BRAIN_DIR="$HOME/.onecommand/brain"
-if [ -d "$BRAIN_DIR" ]; then
-  skip "Brain directory $BRAIN_DIR"
-else
-  mkdir -p "$BRAIN_DIR/checkpoints" "$BRAIN_DIR/handoff"
-  ok "Created brain directory structure"
-fi
+echo '{"version":"1.0","builds":[]}'        | write_if_missing "$BRAIN_DIR/episodic_memory.json"  "brain: episodic_memory.json"
+echo '{"version":"1.0","knowledge":[]}'     | write_if_missing "$BRAIN_DIR/semantic_memory.json"  "brain: semantic_memory.json"
+echo '{"version":"1.0","patterns":[]}'      | write_if_missing "$BRAIN_DIR/pattern_library.json"  "brain: pattern_library.json"
+echo '{"version":"1.0","preferences":{}}'   | write_if_missing "$BRAIN_DIR/user_preferences.json" "brain: user_preferences.json"
 
-for brain_file in "episodic_memory.json" "semantic_memory.json" "pattern_library.json" "user_preferences.json"; do
-  brain_path="$BRAIN_DIR/$brain_file"
-  if [ -f "$brain_path" ]; then
-    skip "Brain: $brain_file"
-  else
-    case "$brain_file" in
-      episodic_memory.json)   echo '{"version":"1.0","builds":[]}' > "$brain_path" ;;
-      semantic_memory.json)   echo '{"version":"1.0","knowledge":[]}' > "$brain_path" ;;
-      pattern_library.json)   echo '{"version":"1.0","patterns":[]}' > "$brain_path" ;;
-      user_preferences.json)  echo '{"version":"1.0","preferences":{}}' > "$brain_path" ;;
-    esac
-    ok "Initialized brain: $brain_file"
-  fi
-done
+# config.json — create, or bump only the "version" field and keep everything else.
+CONFIG_FILE="$ONECOMMAND_HOME/config.json"
+CONFIG_RESULT="$(OC_CONFIG="$CONFIG_FILE" OC_VERSION="$PLUGIN_VERSION" OC_DRY="$DRY_RUN" python3 << 'PYEOF'
+import json, os, tempfile
+from datetime import datetime, timezone
 
-CONFIG_FILE="$HOME/.onecommand/config.json"
-if [ -f "$CONFIG_FILE" ]; then
-  skip "~/.onecommand/config.json (preserving existing config)"
-else
-  cat > "$CONFIG_FILE" << 'EOF'
-{
-  "version": "1.3.0",
-  "installed_at": "auto",
-  "plan": "unknown"
-}
-EOF
-  ok "Created config.json"
-fi
+path, version, dry = os.environ["OC_CONFIG"], os.environ["OC_VERSION"], os.environ["OC_DRY"] == "true"
+if os.path.exists(path):
+    try:
+        with open(path) as f:
+            cfg = json.load(f)
+    except (OSError, ValueError) as e:
+        print(f"error:config.json unreadable ({e}) — left untouched")
+        raise SystemExit(0)
+    if not isinstance(cfg, dict):
+        print("error:config.json is not a JSON object — left untouched")
+        raise SystemExit(0)
+    if cfg.get("version") == version:
+        print("skip")
+        raise SystemExit(0)
+    old = cfg.get("version", "?")
+    cfg["version"] = version
+    cfg["updated_at"] = datetime.now(timezone.utc).isoformat()
+    msg = f"updated:v{old} → v{version}"
+else:
+    cfg = {"version": version, "installed_at": datetime.now(timezone.utc).isoformat(), "plan": "unknown"}
+    msg = "created"
+if not dry:
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".config.", suffix=".json")
+    with os.fdopen(fd, "w") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
+print(msg)
+PYEOF
+)"
+case "$CONFIG_RESULT" in
+  skip)      skip "~/.onecommand/config.json" ;;
+  created)   ok "Created ~/.onecommand/config.json" ;;
+  updated:*) ok "config.json version ${CONFIG_RESULT#updated:}" ;;
+  error:*)   warn "${CONFIG_RESULT#error:}" ;;
+esac
 
 # ─── Claude Code installation ────────────────────────────────────────────────
 
@@ -111,141 +262,116 @@ section "[ 2/4 ] Installing into Claude Code"
 
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_PLUGINS_DIR="$CLAUDE_DIR/plugins"
-OC_CLAUDE_DIR="$CLAUDE_PLUGINS_DIR/onecommand"
+OC_CLAUDE_DIR="$CLAUDE_PLUGINS_DIR/$PLUGIN_NAME"
 CLAUDE_COMMANDS_DIR="$CLAUDE_DIR/commands"
-OC_PLUGIN_COMMANDS_DIR="$OC_CLAUDE_DIR/commands"
 
-mkdir -p "$CLAUDE_PLUGINS_DIR" "$CLAUDE_COMMANDS_DIR"
+run mkdir -p "$CLAUDE_PLUGINS_DIR" "$CLAUDE_COMMANDS_DIR"
 
-# Install /oc-resume — into plugin commands (primary) AND ~/.claude/commands (fallback)
-# Plugin commands load reliably when the plugin is enabled; ~/.claude/commands is a belt-and-suspenders fallback.
-OC_RESUME_PLUGIN="$OC_PLUGIN_COMMANDS_DIR/oc-resume.md"
-OC_RESUME_GLOBAL="$CLAUDE_COMMANDS_DIR/oc-resume.md"
-if [ -f "$OC_RESUME_PLUGIN" ]; then
-  skip "/oc-resume plugin command (already installed)"
-else
-  mkdir -p "$OC_PLUGIN_COMMANDS_DIR"
-  cp "${REPO_ROOT}/.claude-plugin/commands/oc-resume.md" "$OC_RESUME_PLUGIN" 2>/dev/null || \
-  cp "${REPO_ROOT}/skills/auto-clear/oc-resume-global.md" "$OC_RESUME_PLUGIN" 2>/dev/null || \
-  cat > "$OC_RESUME_PLUGIN" << 'CMDEOF'
----
-description: Resume an interrupted OneCommand build after /clear. Continues from exactly the last phase — nothing is lost.
-argument-hint: (no arguments needed)
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
----
-Resume the active OneCommand build. Read ~/.onecommand/brain/working_memory.json and ~/.onecommand/brain/resume_brief.md, verify files on disk, then continue building from the phase indicated in working_memory["current_phase"]. Never re-run completed phases. Never re-generate existing files.
-CMDEOF
-  ok "Installed /oc-resume → plugin commands"
-fi
-# Also write to ~/.claude/commands as fallback (idempotent)
-[ ! -f "$OC_RESUME_GLOBAL" ] && cp "$OC_RESUME_PLUGIN" "$OC_RESUME_GLOBAL" 2>/dev/null && ok "/oc-resume → ~/.claude/commands (fallback)"
+# Plugin copy — content-synced, so upgrades never depend on a version bump.
+sync_dir "${REPO_ROOT}/" "$OC_CLAUDE_DIR/" "Claude Code plugin files → $(tilde "$OC_CLAUDE_DIR")" \
+  --delete \
+  --exclude='.git' \
+  --exclude='install.sh' \
+  --exclude='.codex-plugin' \
+  --exclude='README.md' \
+  --exclude='LICENSE' \
+  --exclude='NOTICE' \
+  --exclude='docs'
 
-# Install /oc-save — same dual-location strategy
-OC_SAVE_PLUGIN="$OC_PLUGIN_COMMANDS_DIR/oc-save.md"
-OC_SAVE_GLOBAL="$CLAUDE_COMMANDS_DIR/oc-save.md"
-if [ -f "$OC_SAVE_PLUGIN" ]; then
-  skip "/oc-save plugin command (already installed)"
-else
-  mkdir -p "$OC_PLUGIN_COMMANDS_DIR"
-  cp "${REPO_ROOT}/.claude-plugin/commands/oc-save.md" "$OC_SAVE_PLUGIN" 2>/dev/null || \
-  cp "${REPO_ROOT}/skills/auto-clear/oc-save-global.md" "$OC_SAVE_PLUGIN" 2>/dev/null || \
-  cat > "$OC_SAVE_PLUGIN" << 'CMDEOF'
----
-description: Save the current OneCommand build state so you can safely run /clear. Run /oc-resume afterwards to continue.
-argument-hint: (no arguments needed)
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
----
-Save the active OneCommand build state to disk. Scan all project files, write file_manifest.json, generate resume_brief.md, create a timestamped checkpoint, then print instructions to /clear and /oc-resume.
-CMDEOF
-  ok "Installed /oc-save → plugin commands"
-fi
-[ ! -f "$OC_SAVE_GLOBAL" ] && cp "$OC_SAVE_PLUGIN" "$OC_SAVE_GLOBAL" 2>/dev/null && ok "/oc-save → ~/.claude/commands (fallback)"
+# /oc-resume and /oc-save also go to ~/.claude/commands as a fallback that
+# works even when plugin loading fails. Updated whenever the source changes.
+for cmd in oc-resume oc-save; do
+  install_file "${REPO_ROOT}/commands/${cmd}.md" "$CLAUDE_COMMANDS_DIR/${cmd}.md" "/${cmd} → ~/.claude/commands (fallback)"
+done
 
-if [ -d "$OC_CLAUDE_DIR" ]; then
-  # Check version
-  INSTALLED_VERSION=""
-  for vpath in "$OC_CLAUDE_DIR/.claude-plugin/plugin.json" "$OC_CLAUDE_DIR/plugin.json"; do
-    if [ -f "$vpath" ]; then
-      INSTALLED_VERSION=$(python3 -c "import json; d=json.load(open('$vpath')); print(d.get('version','0'))" 2>/dev/null || echo "0")
-      break
-    fi
-  done
-  if [ "$INSTALLED_VERSION" = "$PLUGIN_VERSION" ]; then
-    skip "Claude Code plugin (v${INSTALLED_VERSION} already current)"
-  else
-    info "Upgrading Claude Code plugin: v${INSTALLED_VERSION} → v${PLUGIN_VERSION}"
-    rsync -a --delete "${REPO_ROOT}/" "$OC_CLAUDE_DIR/" \
-      --exclude='.git' \
-      --exclude='install.sh' \
-      --exclude='.codex-plugin' \
-      --exclude='README.md' \
-      --exclude='LICENSE' \
-      --exclude='NOTICE' \
-      --exclude='docs'
-    ok "Upgraded to v${PLUGIN_VERSION}"
-  fi
-else
-  info "Copying plugin files to $OC_CLAUDE_DIR"
-  mkdir -p "$OC_CLAUDE_DIR"
-  rsync -a "${REPO_ROOT}/" "$OC_CLAUDE_DIR/" \
-    --exclude='.git' \
-    --exclude='install.sh' \
-    --exclude='.codex-plugin' \
-    --exclude='README.md' \
-    --exclude='LICENSE' \
-    --exclude='NOTICE' \
-    --exclude='docs'
-  ok "Copied plugin files"
-fi
-
-# Register in Claude settings (enabledPlugins) + installed_plugins.json registry
-CLAUDE_SETTINGS="$CLAUDE_DIR/settings.json"
-INSTALLED_PLUGINS="$CLAUDE_PLUGINS_DIR/installed_plugins.json"
-
-python3 - << PYEOF
-import json, os
+# Register in Claude settings (enabledPlugins) + installed_plugins.json registry.
+# Paths are passed via environment variables so quotes/spaces cannot break the
+# Python source, and files are replaced atomically. A settings.json that does
+# not parse is never overwritten — that would wipe the user's other settings.
+OC_SETTINGS="$CLAUDE_DIR/settings.json" \
+OC_REGISTRY="$CLAUDE_PLUGINS_DIR/installed_plugins.json" \
+OC_INSTALL_PATH="$REPO_ROOT" \
+OC_VERSION="$PLUGIN_VERSION" \
+OC_KEY="${PLUGIN_NAME}@local" \
+OC_DRY="$DRY_RUN" \
+python3 << 'PYEOF'
+import json, os, sys, tempfile
 from datetime import datetime, timezone
 
-# ── 1. settings.json → enabledPlugins ───────────────────────────────────────
-settings_path = "$CLAUDE_SETTINGS"
-try:
-    d = json.load(open(settings_path)) if os.path.exists(settings_path) else {}
-except Exception:
-    d = {}
+settings_path = os.environ["OC_SETTINGS"]
+reg_path      = os.environ["OC_REGISTRY"]
+install_path  = os.environ["OC_INSTALL_PATH"]
+version       = os.environ["OC_VERSION"]
+key           = os.environ["OC_KEY"]
+dry           = os.environ["OC_DRY"] == "true"
+failed        = False
 
-ep = d.get("enabledPlugins", {})
-if "onecommand@local" in ep:
-    print("○ Claude settings (onecommand@local already enabled — skipped)")
-else:
-    ep["onecommand@local"] = True
-    d["enabledPlugins"] = ep
-    with open(settings_path, "w") as f:
-        json.dump(d, f, indent=2)
-    print("✓ Registered onecommand@local in enabledPlugins")
+def load(path, default):
+    if not os.path.exists(path):
+        return default
+    with open(path) as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError("top-level JSON value is not an object")
+    return data
+
+def save(path, data):
+    if dry:
+        return
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".oc-", suffix=".json")
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
+
+# ── 1. settings.json → enabledPlugins ───────────────────────────────────────
+try:
+    settings = load(settings_path, {})
+    ep = settings.get("enabledPlugins")
+    if not isinstance(ep, dict):
+        ep = {}
+    if ep.get(key) is True:
+        print(f"  ○ settings.json ({key} already enabled — skipped)")
+    else:
+        ep[key] = True
+        settings["enabledPlugins"] = ep
+        save(settings_path, settings)
+        print(f"  ✓ Enabled {key} in settings.json")
+except (OSError, ValueError) as e:
+    failed = True
+    print(f"  ✗ {settings_path} could not be parsed ({e}).", file=sys.stderr)
+    print(f'    Left untouched. Fix the JSON, then add "enabledPlugins": {{"{key}": true}} or re-run install.sh.', file=sys.stderr)
 
 # ── 2. installed_plugins.json → registry ────────────────────────────────────
-reg_path = "$INSTALLED_PLUGINS"
 try:
-    reg = json.load(open(reg_path)) if os.path.exists(reg_path) else {"version": 2, "plugins": {}}
-except Exception:
-    reg = {"version": 2, "plugins": {}}
+    reg = load(reg_path, {"version": 2, "plugins": {}})
+    plugins = reg.get("plugins")
+    if not isinstance(plugins, dict):
+        plugins = {}
+        reg["plugins"] = plugins
+    entries = plugins.get(key)
+    existing = entries[0] if isinstance(entries, list) and entries and isinstance(entries[0], dict) else {}
+    if existing.get("version") == version and existing.get("installPath") == install_path:
+        print(f"  ○ installed_plugins.json (v{version} already current — skipped)")
+    else:
+        now = datetime.now(timezone.utc).isoformat()
+        plugins[key] = [{
+            "scope": "user",
+            "installPath": install_path,
+            "version": version,
+            "installedAt": existing.get("installedAt", now),
+            "lastUpdated": now,
+            "gitCommitSha": "local",
+        }]
+        save(reg_path, reg)
+        print(f"  ✓ installed_plugins.json: v{existing.get('version', 'none')} → v{version}")
+except (OSError, ValueError) as e:
+    failed = True
+    print(f"  ✗ {reg_path} could not be parsed ({e}) — left untouched.", file=sys.stderr)
 
-existing = reg["plugins"].get("onecommand@local", [{}])[0]
-existing_ver = existing.get("version", "0")
-if existing_ver == "$PLUGIN_VERSION":
-    print(f"○ installed_plugins.json (v{existing_ver} already current — skipped)")
-else:
-    reg["plugins"]["onecommand@local"] = [{
-        "scope": "user",
-        "installPath": "$REPO_ROOT",
-        "version": "$PLUGIN_VERSION",
-        "installedAt": existing.get("installedAt", datetime.now(timezone.utc).isoformat()),
-        "lastUpdated": datetime.now(timezone.utc).isoformat(),
-        "gitCommitSha": "local"
-    }]
-    with open(reg_path, "w") as f:
-        json.dump(reg, f, indent=2)
-    print(f"✓ installed_plugins.json updated: {existing_ver} → $PLUGIN_VERSION")
+sys.exit(1 if failed else 0)
 PYEOF
 
 # ─── Codex installation ───────────────────────────────────────────────────────
@@ -254,58 +380,26 @@ section "[ 3/4 ] Installing into Codex"
 
 CODEX_DIR="$HOME/.codex"
 CODEX_SKILLS_DIR="$CODEX_DIR/skills"
-OC_CODEX_SKILL_DIR="$CODEX_SKILLS_DIR/onecommand"
+OC_CODEX_SKILL_DIR="$CODEX_SKILLS_DIR/$PLUGIN_NAME"
 CODEX_AGENTS_FILE="$CODEX_DIR/AGENTS.md"
+CODEX_CONFIG="$CODEX_DIR/config.toml"
 
 if ! command -v codex &>/dev/null; then
   warn "Codex not found in PATH — skipping Codex installation"
   warn "Install Codex later and re-run this script to register OneCommand"
 else
-  mkdir -p "$CODEX_SKILLS_DIR"
+  run mkdir -p "$CODEX_SKILLS_DIR"
 
-  # Copy the onecommand Codex skill
-  CODEX_SKILL_SRC="${REPO_ROOT}/.codex-plugin/skills/onecommand"
+  sync_dir "${REPO_ROOT}/.codex-plugin/skills/onecommand/" "$OC_CODEX_SKILL_DIR/" "Codex skill: onecommand"
 
-  if [ -d "$OC_CODEX_SKILL_DIR" ]; then
-    CODEX_VER=""
-    if [ -f "$OC_CODEX_SKILL_DIR/SKILL.md" ]; then
-      CODEX_VER=$(grep -m1 'version:' "$OC_CODEX_SKILL_DIR/SKILL.md" 2>/dev/null | awk '{print $2}' || echo "")
-    fi
-    if [ -n "$CODEX_VER" ] && [[ "$CODEX_VER" == *"${PLUGIN_VERSION}"* ]]; then
-      skip "Codex onecommand skill (already current)"
-    else
-      info "Updating Codex onecommand skill"
-      rsync -a "${CODEX_SKILL_SRC}/" "$OC_CODEX_SKILL_DIR/"
-      ok "Updated Codex skill"
-    fi
-  else
-    info "Installing Codex onecommand skill to $OC_CODEX_SKILL_DIR"
-    mkdir -p "$OC_CODEX_SKILL_DIR"
-    rsync -a "${CODEX_SKILL_SRC}/" "$OC_CODEX_SKILL_DIR/"
-    ok "Installed Codex skill"
-  fi
-
-  # Copy all bundled skills to ~/.codex/skills/ as well
+  # Bundled skills — synced by content so upgrades reach existing installs.
   for skill_dir in "${REPO_ROOT}/skills"/*/; do
-    skill_name=$(basename "$skill_dir")
-    dest="$CODEX_SKILLS_DIR/$skill_name"
-
-    if [ -d "$dest" ]; then
-      skip "Codex skill: $skill_name"
-    else
-      mkdir -p "$dest"
-      rsync -a "$skill_dir" "$dest/"
-      ok "Installed bundled skill: $skill_name"
-    fi
+    skill_name="$(basename "$skill_dir")"
+    sync_dir "$skill_dir" "$CODEX_SKILLS_DIR/$skill_name/" "Codex skill: $skill_name"
   done
 
-  # Install /oc-resume as global Codex skill
-  OC_RESUME_CODEX="$CODEX_SKILLS_DIR/oc-resume"
-  if [ -d "$OC_RESUME_CODEX" ]; then
-    skip "Codex /oc-resume skill (already installed)"
-  else
-    mkdir -p "$OC_RESUME_CODEX"
-    cat > "$OC_RESUME_CODEX/SKILL.md" << 'SKILLEOF'
+  # Global /oc-resume and /oc-save Codex skills (user may customise — never overwritten)
+  write_if_missing "$CODEX_SKILLS_DIR/oc-resume/SKILL.md" "Codex skill: oc-resume" << 'SKILLEOF'
 ---
 name: oc-resume
 description: Resume an interrupted OneCommand build after /clear. Continues from exactly the last phase — nothing is lost.
@@ -313,16 +407,8 @@ model: claude-opus-4-7
 ---
 Resume the active OneCommand build. Read ~/.onecommand/brain/working_memory.json and ~/.onecommand/brain/resume_brief.md, verify files on disk, then continue building from the phase indicated in working_memory["current_phase"]. Never re-run completed phases. Never re-generate existing files.
 SKILLEOF
-    ok "Installed /oc-resume global Codex skill"
-  fi
 
-  # Install /oc-save as global Codex skill
-  OC_SAVE_CODEX="$CODEX_SKILLS_DIR/oc-save"
-  if [ -d "$OC_SAVE_CODEX" ]; then
-    skip "Codex /oc-save skill (already installed)"
-  else
-    mkdir -p "$OC_SAVE_CODEX"
-    cat > "$OC_SAVE_CODEX/SKILL.md" << 'SKILLEOF'
+  write_if_missing "$CODEX_SKILLS_DIR/oc-save/SKILL.md" "Codex skill: oc-save" << 'SKILLEOF'
 ---
 name: oc-save
 description: Manually save the current OneCommand build state so /clear is safe at any moment. Generates resume_brief.md + file_manifest.json, then prints /clear + /oc-resume instructions.
@@ -330,12 +416,12 @@ model: claude-opus-4-7
 ---
 Save the active OneCommand build state to disk. Read ~/.onecommand/brain/working_memory.json, scan all project files into file_manifest.json, write resume_brief.md with current phase/stack/decisions, create a timestamped checkpoint, then print a confirmation box instructing the user to /clear and /oc-resume.
 SKILLEOF
-    ok "Installed /oc-save global Codex skill"
-  fi
 
   # Register in AGENTS.md
   if [ -f "$CODEX_AGENTS_FILE" ] && grep -q "onecommand" "$CODEX_AGENTS_FILE" 2>/dev/null; then
-    skip "Codex AGENTS.md (onecommand already registered)"
+    skip "Codex AGENTS.md registration"
+  elif [ "$DRY_RUN" = true ]; then
+    ok "Would register OneCommand + oc-resume + oc-save in AGENTS.md"
   else
     cat >> "$CODEX_AGENTS_FILE" << 'AGENTSEOF'
 
@@ -367,10 +453,24 @@ AGENTSEOF
     ok "Registered OneCommand + oc-resume + oc-save in AGENTS.md"
   fi
 
-  # Register in config.toml
-  CODEX_CONFIG="${CODEX_DIR}/config.toml"
-  if [ -f "$CODEX_CONFIG" ] && grep -q "onecommand" "$CODEX_CONFIG" 2>/dev/null; then
-    skip "Codex config.toml (already registered)"
+  # Register in config.toml — append once, then keep the version line current.
+  if [ -f "$CODEX_CONFIG" ] && grep -q '^\[plugins\.onecommand\]' "$CODEX_CONFIG" 2>/dev/null; then
+    if sed -n '/^\[plugins\.onecommand\]/,/^\[/p' "$CODEX_CONFIG" | grep -q "^version = \"${PLUGIN_VERSION}\"$"; then
+      skip "Codex config.toml registration"
+    else
+      if [ "$DRY_RUN" = false ]; then
+        tmp_toml="$(mktemp "${CODEX_DIR}/.config.toml.XXXXXX")"
+        awk -v ver="$PLUGIN_VERSION" '
+          /^\[/ { in_oc = ($0 == "[plugins.onecommand]") }
+          in_oc && /^version = / { print "version = \"" ver "\""; next }
+          { print }
+        ' "$CODEX_CONFIG" > "$tmp_toml"
+        mv "$tmp_toml" "$CODEX_CONFIG"
+      fi
+      ok "Codex config.toml → v${PLUGIN_VERSION}"
+    fi
+  elif [ "$DRY_RUN" = true ]; then
+    ok "Would register OneCommand in config.toml"
   else
     cat >> "$CODEX_CONFIG" << TOMLEOF
 
@@ -418,43 +518,55 @@ BUNDLED_SKILLS=(
 
 all_ok=true
 for skill in "${BUNDLED_SKILLS[@]}"; do
-  skill_path="${REPO_ROOT}/skills/${skill}/SKILL.md"
-  if [ -f "$skill_path" ]; then
-    ok "Bundled skill: $skill"
+  if [ -f "${REPO_ROOT}/skills/${skill}/SKILL.md" ]; then
+    debug "Bundled skill: $skill"
   else
     warn "Missing skill file: skills/${skill}/SKILL.md"
     all_ok=false
+  fi
+done
+$all_ok && ok "All ${#BUNDLED_SKILLS[@]} bundled skills present"
+
+# Skills on disk that the list above does not know about.
+for skill_dir in "${REPO_ROOT}/skills"/*/; do
+  skill_name="$(basename "$skill_dir")"
+  if [[ ! " ${BUNDLED_SKILLS[*]} " == *" ${skill_name} "* ]]; then
+    warn "Unlisted skill directory: skills/${skill_name} (add it to BUNDLED_SKILLS)"
   fi
 done
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
 
 echo ""
+rule
 if [ "$all_ok" = true ]; then
-  echo "+==============================================================+"
-  echo "|        ✅ OneCommand v${PLUGIN_VERSION} — Install Complete            |"
-  echo "+==============================================================+"
-  echo "|                                                              |"
-  echo "|  Version : ${PLUGIN_VERSION}                                          |"
-  echo "|  Claude Code : ~/.claude/plugins/onecommand/                 |"
-  echo "|  Codex       : ~/.codex/skills/onecommand/                   |"
-  echo "|  Memory      : ~/.onecommand/memory/                         |"
-  echo "|                                                              |"
-  echo "|  OneCommand — Built by USC Software UG                       |"
-  echo "|  Copyright © 2026 USC Software UG                            |"
-  echo "|  Alle Rechte vorbehalten · All rights reserved               |"
-  echo "|              >> usc-software-ug.de <<                        |"
-  echo "+==============================================================+"
+  if [ "$DRY_RUN" = true ]; then
+    box "OneCommand v${PLUGIN_VERSION} — Dry run complete (nothing written)"
+  else
+    box "OneCommand v${PLUGIN_VERSION} — Install complete"
+  fi
+  rule
+  box ""
+  box "Claude Code : ~/.claude/plugins/onecommand/"
+  box "Codex       : ~/.codex/skills/onecommand/"
+  box "Memory      : ~/.onecommand/memory/"
+  box ""
+  box "OneCommand — Built by USC Software UG"
+  box "Copyright © 2026 USC Software UG"
+  box "Alle Rechte vorbehalten · All rights reserved"
+  box ">> usc-software-ug.de <<"
+  rule
   echo ""
   echo "  Usage in Claude Code:  /onecommand \"your project description\""
   echo "  Usage in Codex:        /einbefehl  \"your project description\""
+  echo "  Health check:          /oc-doctor"
   echo ""
 else
-  echo "+==============================================================+"
-  echo "|     ⚠ OneCommand — Installed with warnings                  |"
-  echo "+==============================================================+"
-  echo "|  Some skill files are missing. Re-run after fixing them.     |"
-  echo "|  >> usc-software-ug.de <<                                    |"
-  echo "+==============================================================+"
+  box "OneCommand — Installed with warnings"
+  rule
+  box "Some skill files are missing. Re-run after fixing them."
+  box ">> usc-software-ug.de <<"
+  rule
   echo ""
+  exit 1
 fi

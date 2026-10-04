@@ -28,9 +28,28 @@ def check(label, ok, detail="", fix="", optional=False):
     return ok
 
 # ── 1. Repo location ──────────────────────────────────────────────────────────
+# Source of truth is the installPath that install.sh wrote into the registry;
+# the other locations are fallbacks for manual or partial installs.
+def registry_install_path():
+    try:
+        reg = json.loads((HOME / ".claude" / "plugins" / "installed_plugins.json").read_text())
+        entry = reg.get("plugins", {}).get("onecommand@local", [])
+        if entry and entry[0].get("installPath"):
+            return Path(entry[0]["installPath"]).expanduser()
+    except Exception:
+        pass
+    return None
+
+candidates = [
+    Path(os.environ["CLAUDE_PLUGIN_ROOT"]) if os.environ.get("CLAUDE_PLUGIN_ROOT") else None,
+    registry_install_path(),
+    HOME / "OneCommand",
+    HOME / "OneComand",
+    HOME / ".claude" / "plugins" / "onecommand",
+]
 repo = None
-for candidate in [Path("/Users/g.urban/OneComand"), HOME / "OneComand", HOME / "OneCommand"]:
-    if candidate.exists() and (candidate / ".claude-plugin" / "plugin.json").exists():
+for candidate in [c for c in candidates if c is not None]:
+    if (candidate / ".claude-plugin" / "plugin.json").exists():
         repo = candidate
         break
 check("Repo found", repo is not None,
@@ -54,10 +73,10 @@ check("plugin.json version", "version" in plugin_meta,
       "Repo missing .claude-plugin/plugin.json — git pull")
 
 # ── 3. Commands present in repo ───────────────────────────────────────────────
-required_cmds = ["onecommand.md", "oc-resume.md", "oc-save.md", "onecommand-status.md"]
+required_cmds = ["onecommand.md", "oc-resume.md", "oc-save.md", "onecommand-status.md", "oc-doctor.md"]
 cmds_dir = repo / "commands"
 missing_cmds = [c for c in required_cmds if not (cmds_dir / c).exists()]
-check("All 4 commands in repo", not missing_cmds,
+check("All commands in repo", not missing_cmds,
       f"{len(required_cmds)-len(missing_cmds)}/{len(required_cmds)} present",
       f"Missing: {missing_cmds} — git pull or re-run install.sh")
 
@@ -174,9 +193,9 @@ EOF
 
 | # | Check | Why it matters |
 |---|---|---|
-| 1 | Repo found at `installPath` | Plugin can't load if installPath is wrong |
+| 1 | Repo found (`$CLAUDE_PLUGIN_ROOT` → registry `installPath` → `~/OneCommand` → `~/.claude/plugins/onecommand`) | Plugin can't load if installPath is wrong |
 | 2 | `plugin.json` readable + has version | Claude Code reads metadata from here |
-| 3 | All 4 commands in `commands/` | `/onecommand`, `/oc-resume`, `/oc-save`, `/onecommand-status` available |
+| 3 | All 5 commands in `commands/` | `/onecommand`, `/oc-resume`, `/oc-save`, `/onecommand-status`, `/oc-doctor` available |
 | 4 | `enabledPlugins[onecommand@local] === true` | Plugin must be enabled in settings.json |
 | 5 | `installed_plugins.json` version matches | Mismatch causes silent load failure |
 | 6 | Brain files initialized | Needed for build state, learning |

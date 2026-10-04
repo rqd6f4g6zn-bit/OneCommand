@@ -9,9 +9,15 @@ One command. Eight phases. Working software.
 ## Install
 
 ```bash
-# In Claude Code
-/plugin install /Users/g.urban/OneComand
+git clone https://github.com/rqd6f4g6zn-bit/OneCommand.git ~/OneCommand
+cd ~/OneCommand
+./install.sh            # add --dry-run to preview, --verbose for per-file output
 ```
+
+The installer is idempotent and syncs by content: after `git pull`, re-run it and every changed
+file reaches Claude Code and Codex — unchanged files are skipped. It needs `python3` and `rsync`.
+
+Then restart Claude Code and run `/oc-doctor` to confirm the installation is healthy.
 
 ## Usage
 
@@ -53,11 +59,18 @@ OneCommand runs 8 phases automatically:
 |---------|-------------|
 | `/onecommand "<prompt>"` | Build a complete software system |
 | `/onecommand-status` | Show current build phase progress |
+| `/oc-save` | Save build state so `/clear` is safe at any moment |
+| `/oc-resume` | Continue an interrupted build from the last phase |
+| `/oc-doctor` | Diagnose the installation and print exact fixes |
+
+Builds are written to `~/Desktop/<ProjectName>` — never into the plugin folder. If the current
+directory already contains a OneCommand spec, that directory is used instead (resume case).
 
 ## Requirements
 
 - **Claude Code** with this plugin installed
 - **Node.js 20+**
+- **python3** and **rsync** (for `install.sh`)
 - **Codex CLI** for backend generation: `/codex:setup` (recommended, not required)
 - **Required plugins**: `superpowers`, `marketing-skills`
 - **Optional**: PostgreSQL (for local DB-backed apps), Docker
