@@ -72,8 +72,14 @@ For every listed screenshot, open it with the Read tool and check:
 - **Mobile** screenshots: navigation reachable, no horizontal scrolling, tables usable.
 - **Roles**: restricted pages show a clear "keine Berechtigung" state or are hidden in the navigation.
 
-Tick a line (`- [x]`) only after looking at that screenshot. Write every finding as an indented
-`  - ✗ …` line under it. After fixing, re-run the gate stage tour; it writes a fresh checklist.
+Tick a line (`- [x]`) only after looking at that screenshot, and end it with a note: `→ ok: <what you
+checked>` or `→ see findings`. Write every finding as an indented `  - ✗ …` line under it. A ticked line
+without a note does not count as reviewed. After fixing, re-run the gate stage tour; it writes a fresh
+checklist.
+
+Listed: every page of the first demo login and anonymous visitors (desktop + mobile) and the landing page
+of every other role. The remaining screenshots of other roles are covered by the automated checks
+(report.md) — they are not an open review item.
 """
 
 
@@ -533,8 +539,11 @@ def evaluate(data: dict[str, Any], first_account: str | None) -> tuple[list[str]
             blocking.append(f"{who}: {issue}")
         for w in v.get("warnings", []):
             warnings.append(f"{who}: {w}")
-        if v.get("console_errors"):
-            warnings.append(f"{who}: {len(v['console_errors'])} console error(s): {v['console_errors'][0][:160]}")
+        errs = v.get("console_errors") or []
+        if not v.get("account") and AUTH_PAGES.search(v.get("path", "")):
+            errs = [e for e in errs if "status of 401" not in e]  # session probe on a login page: expected
+        if errs:
+            warnings.append(f"{who}: {len(errs)} console error(s): {errs[0][:160]}")
     return blocking, warnings, notes
 
 
@@ -707,6 +716,8 @@ def cmd_review_status(args: argparse.Namespace) -> int:
         return 1
     text = review.read_text(encoding="utf-8")
     unchecked = re.findall(r"^- \[ \] (\S+)", text, re.M)
+    # A tick without a note ("→ ok: …" or "→ see findings") was not really looked at.
+    unchecked += re.findall(r"^- \[[xX]\] (\S+)(?:(?!→).)*$", text, re.M)
     open_findings = re.findall(r"^\s+- ✗ (.+)$", text, re.M)
     total = len(re.findall(r"^- \[[ xX]\] ", text, re.M))
     for f in open_findings:

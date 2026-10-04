@@ -140,6 +140,7 @@ def test_evaluate():
                 visit(path="/reports", issues=['visible text shows "NaN"']),
                 visit(viewport="mobile", warnings=["page is 212px wider than the 390px viewport (horizontal scrolling)"]),
                 visit(path="/contacts", console_errors=["Hydration failed"]),
+                visit(account=None, role=None, path="/login", console_errors=["Failed to load resource: the server responded with a status of 401 ()"]),
             ]}
     blocking, warnings, notes = tour.evaluate(data, "admin@x.demo")
     assert blocking == ["login failed for sales@x.demo (sales): Ungültige Anmeldedaten",
@@ -170,17 +171,21 @@ def test_review_status(tmp_path):
     out = tmp_path / ".onecommand" / "tour"
     out.mkdir(parents=True)
     assert run_tour("review-status", "--project-dir", str(tmp_path)).returncode == 1  # no review yet
-    (out / "review.md").write_text("# UI review\n\n- [x] 001.png — admin\n- [ ] 002.png — admin\n")
+    (out / "review.md").write_text("# UI review\n\n- [x] 001.png — admin → ok: layout\n- [ ] 002.png — admin\n")
     r = run_tour("review-status", "--project-dir", str(tmp_path))
     assert r.returncode == 1 and "1/2 screenshots reviewed" in r.stdout
-    (out / "review.md").write_text("- [x] 001.png — admin\n- [x] 002.png — admin\n"
+    (out / "review.md").write_text("- [x] 001.png — admin → ok: tiles, labels\n- [x] 002.png — admin → see findings\n"
                                    "  - ✗ Abschlussquote 100 % but 5 won, 2 lost\n")
     r = run_tour("review-status", "--project-dir", str(tmp_path))
     assert r.returncode == 1 and "open finding: Abschlussquote 100 %" in r.stdout
-    (out / "review.md").write_text("- [x] 001.png — admin\n- [X] 002.png — admin\n"
+    (out / "review.md").write_text("- [x] 001.png — admin → ok: tiles, labels\n- [X] 002.png — admin → ok: fixed\n"
                                    "  - ✓ fixed: tile now uses the monthly counts\n")
     r = run_tour("review-status", "--project-dir", str(tmp_path))
     assert r.returncode == 0 and "2 screenshots reviewed" in r.stdout
+    # a tick without a note is not a review
+    (out / "review.md").write_text("- [x] 001.png — admin → ok: fine\n- [x] 002.png — admin\n")
+    r = run_tour("review-status", "--project-dir", str(tmp_path))
+    assert r.returncode == 1 and "not reviewed yet: 002.png" in r.stdout
 
 
 # ─── run (up to the browser) ──────────────────────────────────────────────────

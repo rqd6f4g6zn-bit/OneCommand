@@ -148,6 +148,10 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
     extra: dict[str, Any] = {}
     if bp.get("performance_budget", {}).get(tier):
         extra["performance_budget"] = bp["performance_budget"][tier]
+    if bp.get("voice"):
+        voice = {k: v for k, v in bp["voice"].items() if k != "intents"}
+        voice["intents"] = [i for t in upto(tier) for i in bp["voice"].get("intents", {}).get(t, [])]
+        extra["voice"] = voice
     videos = [v for t in upto(tier) for v in bp.get("media", {}).get(t, [])]
     if videos:
         extra["media"] = {"videos": videos, "raw_dir": "assets/raw"}

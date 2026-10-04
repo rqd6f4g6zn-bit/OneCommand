@@ -21,6 +21,7 @@ python3 "$OC_ROOT/hooks/blueprint.py" list
 | `helpdesk` | Ticket system: tickets, replies, SLA, macros, knowledge base | "Ticketsystem", "Support", "Helpdesk" |
 | `projects` | Project & task management: workspaces, board, comments, time tracking | "Projektmanagement", "Kanban", "wie Trello" |
 | `invoicing` | Invoices & quotes: §14 UStG, gap-free numbers, PDF, dunning, DATEV | "Rechnungsprogramm", "Faktura" |
+| `phone-assistant` | AI phone support: telephony, AI disclosure, knowledge-base answers, actions, handover, call log, own intent model, GDPR | "Telefonassistent", "Voicebot", "KI am Telefon", "Support Telefon KI" |
 | `website` | Corporate / premium website: design system, motion, hero video, case studies, CMS, i18n, SEO, GDPR, WCAG, performance budget | "Webseite", "Firmenwebseite", "Landingpage", "Premium-Website", "100k" |
 
 ## Tiers

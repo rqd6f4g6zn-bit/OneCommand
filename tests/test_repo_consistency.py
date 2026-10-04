@@ -132,3 +132,18 @@ def test_ml_templates_compile_and_stay_free_of_pretrained_weights():
     assert mod.scratch_scan(template) == []
     for cfg in ("smoke", "cpu", "default"):
         assert (template / "configs" / f"{cfg}.yaml").is_file()
+
+
+def test_diffusion_template_compiles_and_is_from_scratch():
+    import importlib.util
+    import py_compile
+    template = REPO / "skills" / "ml-builder" / "templates" / "scratch-diffusion"
+    for f in template.rglob("*.py"):
+        py_compile.compile(str(f), doraise=True)
+    spec = importlib.util.spec_from_file_location("ml_gate", REPO / "hooks" / "ml-gate.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.scratch_scan(template) == []
+    for cfg in ("smoke", "cpu", "default", "video-smoke", "video-default"):
+        assert (template / "configs" / f"{cfg}.yaml").is_file()
+

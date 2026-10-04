@@ -153,7 +153,8 @@ poster — plus where it is used, and a link to assets/CREDITS.md with the sourc
 <only when .onecommand/tour/report.json exists: embed the desktop screenshot of every page the first demo account
 visited, plus one mobile screenshot, with relative links into .onecommand/tour/ (copy them to docs/screenshots/
 so they survive cleanup); list the demo logins from spec.demo.accounts with role, e-mail and password;
-state "UI tour: <N> pages × <M> logins, review complete" or the open review findings; when spec.performance_budget
+state "UI tour: <N> pages × <M> logins, <R> screenshots reviewed, review complete" or the open review findings
+(screenshots not on the review list are covered by the automated checks — not an open item); when spec.performance_budget
 is set, a table of LCP / CLS / KB per page from .onecommand/tour/report.json against the budget>
 
 ---

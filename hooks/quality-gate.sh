@@ -10,7 +10,8 @@
 #   static  install → audit → prisma generate → API contract → typecheck → lint → build → unit tests
 #   e2e     database prep → Playwright acceptance tests → acceptance report
 #   tour    demo seed → production server → every page as every demo login, screenshots
-#           (hooks/ui-tour.py; skipped when the spec has no "demo" section)
+#           (hooks/ui-tour.py; skipped when the spec has no "demo" section), then test calls for
+#           phone assistants (hooks/call-sim.py, when the spec has a "voice" section)
 #   all     static, then e2e, then tour (each only runs when the previous one passed)
 #   (AI/ML projects — build_targets contain "ml" — are handed to hooks/ml-gate.py whatever the stage)
 #
@@ -48,7 +49,7 @@ STEP_TIMEOUT="${OC_GATE_STEP_TIMEOUT:-900}"   # seconds per step
 E2E_TIMEOUT="${OC_GATE_E2E_TIMEOUT:-1800}"     # seconds for the Playwright run
 
 usage() {
-  sed -n '2,33p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 while [ $# -gt 0 ]; do
@@ -645,6 +646,13 @@ stage_tour() {
   fi
   [ "$rc" -eq 0 ] || return 1
   promote_warnings tour
+
+  # Phone / voice assistants: scripted test calls against the production server.
+  if spec_has voice; then
+    run_step calls "$E2E_TIMEOUT" python3 "$SCRIPT_DIR/call-sim.py" run --project-dir "$PROJECT_DIR" \
+      --spec .onecommand-spec.json --out "$PROJECT_DIR/.onecommand/calls" || { cat "$OUT_DIR/calls.log"; return 1; }
+    cat "$OUT_DIR/calls.log"
+  fi
 }
 
 # ─── Main ─────────────────────────────────────────────────────────────────────

@@ -97,8 +97,10 @@ server with fresh secrets, every page as every demo login.
    Blocking: login fails, HTTP 5xx, uncaught exceptions, failed API calls, "undefined"/"NaN"/"Invalid Date"
    on screen, session lost, a metric without its spec label on a page in its `shown_on`. Heal like Stage B.
 2. **Review** — open `.onecommand/tour/review.md`. For every listed screenshot: open it with the Read tool,
-   check it against the list at the top of review.md, tick it (`- [x]`), and write each finding as an
-   indented `  - ✗ …` line. Look hardest at numbers that appear on more than one page and at views that are
+   check it against the list at the top of review.md, tick it (`- [x]`), end the line with a note
+   (`→ ok: <what you checked>` or `→ see findings`) and write each finding as an indented `  - ✗ …` line.
+   A tick without a note does not count. Look as a user of that role would: wrong portal for a role,
+   missing navigation, texts that contradict the page are findings too. Look hardest at numbers that appear on more than one page and at views that are
    empty although demo data is loaded — both passed every test in a real CRM build and were wrong.
 3. Fix every finding in the app (an empty view for a demo login is fixed in the demo seed), re-run
    `--stage tour`, review the new screenshots. Done when:

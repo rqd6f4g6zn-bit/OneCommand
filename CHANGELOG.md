@@ -2,6 +2,34 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.10.0] — 2026-10-04
+
+### Added
+- **Own image and video generators, trained from zero.** Template `skills/ml-builder/templates/scratch-diffusion`:
+  U-Net noise predictor (2D for images, 3D for videos — space is downsampled, every frame kept), cosine DDPM
+  objective, DDIM sampler, EMA weights, class conditioning from dataset folders, `generate` CLI and
+  `POST /generate` (base64 PNG / MP4). Configs `smoke`, `cpu`, `default`, `video-smoke`, `video-default`.
+  Metric `color_ratio` (colour-histogram distance of samples to the test set ÷ that of noise).
+- **`dataset.py --task images | videos`:** collects own media (folder = label), removes exact and visually
+  near-identical files (8×8 average hash via ffmpeg), splits by file, records every file's SHA-256; `check`
+  detects changed or missing source files.
+- Second real v1.7.0 build ("Ticketsystem für unseren Support mit Kundenportal" → Servicehafen): score 100,
+  36/36 must-criteria, 52 min; API contract with 33 endpoints passed, 3 metrics labelled with their period,
+  3 demo logins, 59 tour screenshots. Lessons folded in: every ticked review line needs a note
+  (`→ ok: …` / `→ see findings`) — the agent had ticked 34 screenshots without one and missed the admin landing
+  in the customer portal on mobile; review.md states that unlisted screenshots are covered by automated checks
+  (the report had listed them as open); expected 401s of the session probe on login pages no longer warn.
+- **AI phone support assistants:** blueprint `phone-assistant` (telephony with signature-checked webhooks, AI
+  disclosure per EU AI Act, answers from the own knowledge base without invented facts, actions, warm handover,
+  DTMF 0, call log, analytics, own intent model trained from own transcripts, GDPR masking and retention,
+  multilingual, outbound, self-hosted speech — 14 modules), skill `voice-agent` (architecture, providers cloud
+  vs. self-hosted, latency budget, dialogue rules, compliance) and **`hooks/call-sim.py`**: scripted test calls
+  against `POST /api/voice/simulate` — greeting must disclose the AI, expected intent, facts, actions,
+  handover, end of call, ≤ 300 characters and the latency budget per turn; `validate` requires a test call for
+  every intent and the handover. The gate's `tour` stage plays them; `report.md` is the transcript of every call.
+- ml-builder: section on generative models — data and compute tiers, no text prompts without an own text
+  encoder, rights and consent, marking generated media.
+
 ## [1.9.0] — 2026-10-04
 
 ### Added

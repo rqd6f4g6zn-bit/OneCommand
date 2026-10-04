@@ -70,6 +70,7 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "asset-generator":         {"phases": [2], "when": "game", "use": "sprites, models, audio"},
     "os-builder":              {"phases": [2], "when": "os", "use": "custom Linux OS build"},
     "ml-builder":              {"phases": [2, 4], "when": "ml", "use": "AI/ML training project: data, training, evaluation, model card, inference API (via ml-agent)"},
+    "voice-agent":             {"phases": [2, 3, 4], "when": "web", "use": "phone/voice assistant: telephony, speech, dialogue, handover, test calls (when spec.voice is set)"},
     "video-producer":          {"phases": [2, 3], "when": "web", "use": "cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set"},
     "live-integrations":       {"phases": [3], "when": "web", "use": "real e-mail, OAuth, push for production_dependencies"},
     "oc-marketing":            {"phases": [3], "when": "always", "use": "README, landing page, docs (via marketing-agent)"},

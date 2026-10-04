@@ -230,6 +230,15 @@ criterion for the full-training target. No `api_contract`/`demo` unless `web` is
 "Von null", "von Grund auf", "eigenes Modell", "eigene Architektur", "mit unseren eigenen Daten
 trainieren" → `"from_scratch": true` with `data_manifest`, `min_loss_drop`, `artifact` (ml-builder §0).
 The user's data goes to `data/raw/`; ask for nothing — build the pipeline, document what is missing.
+Generators of images or videos ("Bildgenerator", "Bilder erzeugen", "Videomodell") are
+`"task": "image-generation"` / `"video-generation"` with the `scratch-diffusion` template (ml-builder §0).
+
+## Phone / voice assistants
+
+Blueprint `phone-assistant` ("Telefonassistent", "Voicebot", "KI am Telefon"): keep the draft's `voice` section
+(`endpoint`, `scenarios`, `disclosure`, `max_ms`, `max_reply_chars`, `intents`) and add the endpoint
+`POST /api/voice/simulate` to `api_contract`. Production dependencies `telephony` and `speech` (provider choice in
+the `voice-agent` skill). Every intent and the handover need a test call in `voice/scenarios/` — the gate plays them.
 
 ## Websites: media and performance budget
 

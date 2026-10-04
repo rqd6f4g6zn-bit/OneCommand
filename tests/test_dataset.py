@@ -121,3 +121,65 @@ def test_csv_without_the_text_column(tmp_path):
 
 def test_check_without_manifest(tmp_path):
     assert ds("check", "--dir", str(tmp_path)).returncode == 2
+
+
+# ─── images / videos (own media for generators) ───────────────────────────────
+
+def _ffmpeg(*args: str) -> None:
+    import subprocess
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args], check=True)
+
+
+@pytest.fixture
+def media(tmp_path: Path) -> Path:
+    import shutil as _sh
+    if not _sh.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    r = tmp_path / "media"
+    for n, (label, colour) in enumerate((("rot", "red"), ("blau", "blue"))):
+        (r / label).mkdir(parents=True)
+        for i in range(12):  # random noise per seed: structurally different images
+            _ffmpeg("-f", "lavfi", "-i", f"color=c={colour}:s=48x48", "-vf", f"noise=alls=90:all_seed={n * 100 + i}",
+                    "-frames:v", "1", str(r / label / f"{i}.png"))
+    (r / "rot" / "copy.png").write_bytes((r / "rot" / "0.png").read_bytes())
+    return r
+
+
+def test_build_image_dataset_with_labels(tmp_path, media):
+    out = tmp_path / "out"
+    r = ds("build", "--input", str(media), "--out", str(out), "--task", "images")
+    assert r.returncode == 0, r.stdout + r.stderr
+    m = json.loads((out / "manifest.json").read_text())
+    assert m["task"] == "images" and m["processing"]["exact_duplicates"] == 1
+    assert m["labels"] == {"blau": 12, "rot": 12}
+    rec = records(out / "train.jsonl")[0]
+    assert {"id", "path", "sha256", "bytes", "label"} <= set(rec)
+    assert "very little for a generator from scratch" in r.stdout
+    assert ds("check", "--dir", str(out)).returncode == 0
+    # an edited source image is detected
+    (media / rec["path"]).write_bytes(b"changed")
+    c = ds("check", "--dir", str(out))
+    assert c.returncode == 1 and "changed since the build" in c.stdout
+
+
+def test_build_video_dataset(tmp_path):
+    import shutil as _sh
+    if not _sh.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    raw = tmp_path / "clips"
+    raw.mkdir()
+    for i, src in enumerate(("testsrc2", "mandelbrot", "life", "cellauto", "rgbtestsrc", "smptebars") * 2):
+        _ffmpeg("-f", "lavfi", "-i", f"{src}=size=64x64:rate=8", "-t", "1.5", "-vf", f"hue=h={i * 40}",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", str(raw / f"{i:02d}-{src}.mp4"))
+    out = tmp_path / "out"
+    r = ds("build", "--input", str(raw), "--out", str(out), "--task", "videos", "--min-records", "5")
+    assert r.returncode == 0, r.stdout + r.stderr
+    m = json.loads((out / "manifest.json").read_text())
+    assert m["task"] == "videos" and m["records"] >= 5 and m["labels"] is None
+    assert ds("check", "--dir", str(out)).returncode == 0
+
+
+def test_media_without_files(tmp_path):
+    (tmp_path / "empty").mkdir()
+    r = ds("build", "--input", str(tmp_path / "empty"), "--out", str(tmp_path / "out"), "--task", "images")
+    assert r.returncode == 2 and "no images found" in r.stderr

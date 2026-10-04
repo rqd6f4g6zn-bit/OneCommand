@@ -122,6 +122,22 @@ python3 hooks/dataset.py build --input data/raw --out data/processed --task text
 uv run python -m scratch_lm.train --config configs/cpu.yaml        # ~10 min on a laptop CPU
 ```
 
+### Own image and video generators
+
+"Eigener Bildgenerator mit unseren Produktfotos" trains a diffusion model from zero on your images (or clips):
+`dataset.py --task images|videos` builds the dataset, the `scratch-diffusion` template trains a U-Net with
+a DDIM sampler, and the gate checks that no pretrained weights are used, the loss falls, samples beat noise
+and the API returns images or MP4 clips.
+
+## AI Phone Assistant for Support
+
+"KI-Telefonassistent für unseren Support" builds the whole line: phone number and webhooks, speech in and out
+(cloud or self-hosted), a dialogue engine that answers from your own knowledge base, actions like order status,
+tickets and callbacks, warm handover to your team, call log and analytics — and an own intent model trained on
+your call transcripts. `hooks/call-sim.py` plays scripted test calls in the gate: the assistant must say it is
+an AI, understand every intent, answer briefly and correctly, hand over when asked and stay within the latency
+budget.
+
 ## Premium Websites, Videos Included
 
 "Webseite im 100k-Preissegment" selects the enterprise tier of the `website` blueprint: design system,

@@ -13,9 +13,15 @@ files into a clean, documented, reproducible dataset:
   record    manifest.json (input + output SHA-256, counts, labels, size estimate) and
             DATASHEET.md (provenance, processing, statistics, open questions)
 
+Images and videos (--task images | videos — for image / video generators trained from scratch):
+  collect   .png .jpg .jpeg .webp .bmp / .mp4 .mov .webm .mkv .avi (one folder per label optional)
+  dedup     exact (SHA-256) and visually near-identical files (8×8 average hash via ffmpeg, if installed)
+  split     by file, stratified per label; records reference the files with their hashes
+  The training project decodes and resizes them itself.
+
 Subcommands
 -----------
-build   --input data/raw --out data/processed --task text|classification
+build   --input data/raw --out data/processed --task text|classification|images|videos
 check   --dir data/processed   files unchanged since build, splits disjoint, no test text in train
 stats   --dir data/processed   print the manifest summary
 
@@ -49,6 +55,9 @@ PII = [
     ("TELEFON", re.compile(r"(?<![\w/])(?:\+\d{1,3}[\s/-]?|\b0)\(?\d{2,5}\)?[\s/-]?\d{3,}(?:[\s-]?\d{2,})*\b")),
 ]
 SPLIT_NAMES = ("train", "val", "test")
+IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+VIDEO_EXT = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"}
+MEDIA_TASKS = {"images": IMAGE_EXT, "videos": VIDEO_EXT}
 
 
 class DataError(Exception):
@@ -211,11 +220,102 @@ def text_key(text: str) -> str:
     return hashlib.sha256(re.sub(r"\W+", " ", text.lower()).strip().encode()).hexdigest()
 
 
+# ─── images / videos ──────────────────────────────────────────────────────────
+
+def average_hash(path: Path, video: bool) -> int | None:
+    """8×8 grayscale average hash of an image (or a video's first second) via ffmpeg; None without ffmpeg."""
+    import shutil
+    import subprocess
+    if not shutil.which("ffmpeg"):
+        return None
+    args = ["ffmpeg", "-v", "error"] + (["-ss", "0.5"] if video else []) + ["-i", str(path), "-frames:v", "1",
+            "-vf", "scale=8:8:flags=area,format=gray", "-f", "rawvideo", "-"]
+    try:
+        raw = subprocess.run(args, capture_output=True, timeout=60).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if len(raw) != 64:
+        return None
+    mean = sum(raw) / 64
+    return sum(1 << i for i, b in enumerate(raw) if b > mean)
+
+
+def build_media(args: argparse.Namespace, root: Path, out: Path, ratios: tuple[float, float, float]) -> int:
+    exts = MEDIA_TASKS[args.task]
+    if not root.is_dir():
+        raise DataError(f"input folder not found: {root}")
+    files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in exts and not p.name.startswith("."))
+    seen: dict[str, Path] = {}
+    hashes: list[tuple[int, Path]] = []
+    items, exact_drop, near_drop, unhashed = [], 0, 0, 0
+    for path in files:
+        digest = sha256(path)
+        if digest in seen:
+            exact_drop += 1
+            continue
+        seen[digest] = path
+        ahash = average_hash(path, args.task == "videos") if args.near_dup < 1.0 else None
+        if ahash is None:
+            unhashed += 1
+        elif any(bin(ahash ^ h).count("1") <= args.media_near_bits for h, _ in hashes):
+            near_drop += 1
+            continue
+        else:
+            hashes.append((ahash, path))
+        label = path.parent.name if path.parent != root else None
+        items.append({"text": "", "path": str(path.relative_to(root)), "sha256": digest,
+                      "bytes": path.stat().st_size, "label": label, "source": str(path.relative_to(root))})
+    if not items:
+        raise DataError(f"no {args.task} found in {root} ({', '.join(sorted(exts))})")
+    labelled = all(i["label"] for i in items)
+    parts = split(items, ratios, args.seed, labelled)
+    out.mkdir(parents=True, exist_ok=True)
+    outputs = {}
+    for name in SPLIT_NAMES:
+        path = out / f"{name}.jsonl"
+        with open(path, "w", encoding="utf-8") as fh:
+            for i, d in enumerate(parts[name]):
+                rec = {"id": f"{name}-{i:06d}", "path": d["path"], "sha256": d["sha256"], "bytes": d["bytes"]}
+                if labelled:
+                    rec["label"] = d["label"]
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        outputs[name] = {"file": path.name, "sha256": sha256(path), "records": len(parts[name]),
+                         "bytes": sum(d["bytes"] for d in parts[name])}
+    labels = Counter(i["label"] for i in items) if labelled else None
+    manifest = {
+        "version": 1, "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "task": args.task, "seed": args.seed, "split": dict(zip(SPLIT_NAMES, ratios)),
+        "input": {"root": str(root), "files": [{"path": i["path"], "sha256": i["sha256"], "bytes": i["bytes"]}
+                                               for i in items]},
+        "processing": {"records_in": len(files), "too_short_or_unlabelled": 0, "exact_duplicates": exact_drop,
+                       "near_duplicates": near_drop, "near_dup_threshold": f"average hash ≤ {args.media_near_bits} bits",
+                       "not_hashed": unhashed, "pii_scrubbed": "not applicable (media)", "min_chars": None},
+        "outputs": outputs, "records": len(items), "chars": 0, "approx_tokens": 0,
+        "bytes": sum(i["bytes"] for i in items), "labels": dict(sorted(labels.items())) if labels else None,
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_datasheet(out, manifest)
+    if unhashed and args.near_dup < 1.0:
+        print(f"  ⚠ {unhashed} file(s) without a perceptual hash (ffmpeg missing or unreadable) — only exact duplicates removed")
+    if len(items) < 500:
+        print(f"  ⚠ {len(items)} {args.task} is very little for a generator from scratch (aim for thousands; small sets are "
+              f"memorised — fine for a style model of your own material, not for variety)")
+    print(f"[dataset] {len(items)} {args.task} ({manifest['bytes'] / 1e6:.1f} MB) → "
+          + ", ".join(f"{k} {v['records']}" for k, v in outputs.items())
+          + f" · removed: {exact_drop} exact + {near_drop} near duplicates")
+    if len(items) < args.min_records:
+        print(f"  ✗ only {len(items)} files, need at least {args.min_records}")
+        return 1
+    return 0
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     root, out = Path(args.input).resolve(), Path(args.out).resolve()
     ratios = tuple(float(x) for x in args.split.split(","))
     if len(ratios) != 3 or abs(sum(ratios) - 1) > 1e-6 or min(ratios) < 0:
         raise DataError("--split needs three ratios that add up to 1, e.g. 0.8,0.1,0.1")
+    if args.task in MEDIA_TASKS:
+        return build_media(args, root, out, ratios)
     docs, used = collect(root, args.task, args.text_field, args.label_field)
     total_in = len(docs)
     pii: Counter = Counter()
@@ -303,8 +403,9 @@ def write_datasheet(out: Path, m: dict[str, Any]) -> None:
         f"- Exact duplicates removed: {p['exact_duplicates']}; near duplicates (≥ {p['near_dup_threshold']}): {p['near_duplicates']}",
         f"- Personal data replaced: {p['pii_scrubbed']}",
         "", "## Result", "",
-        f"- {m['records']} records, {m['chars']:,} characters (~{m['approx_tokens']:,} tokens)",
-        *[f"- {k}: {v['records']} records, {v['chars']:,} chars" for k, v in m["outputs"].items()],
+        *([f"- {m['records']} files, {m.get('bytes', 0) / 1e6:.1f} MB"] if m["task"] in MEDIA_TASKS else
+          [f"- {m['records']} records, {m['chars']:,} characters (~{m['approx_tokens']:,} tokens)"]),
+        *[f"- {k}: {v['records']} records" + (f", {v['chars']:,} chars" if "chars" in v else "") for k, v in m["outputs"].items()],
     ]
     if m.get("labels"):
         lines += ["", "## Labels", "", "| Label | Records |", "|---|---|", *[f"| {k} | {v} |" for k, v in m["labels"].items()]]
@@ -334,6 +435,17 @@ def check_dataset(directory: Path) -> list[str]:
         if sha256(path) != info["sha256"]:
             problems.append(f"{info['file']} changed since the build (hash differs) — rebuild instead of editing splits")
         recs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if m["task"] in MEDIA_TASKS:
+            media_root = Path(m["input"]["root"])
+            for r in recs:
+                f = media_root / r["path"]
+                if not f.exists():
+                    problems.append(f"{r['path']} ({name}) is missing")
+                elif f.stat().st_size != r["bytes"] or sha256(f) != r["sha256"]:
+                    problems.append(f"{r['path']} ({name}) changed since the build")
+            keys[name] = {r["sha256"] for r in recs}
+            ids[name] = {r["id"] for r in recs}
+            continue
         keys[name] = {text_key(r["text"]) for r in recs}
         ids[name] = {r["id"] for r in recs}
     for a, b in (("train", "val"), ("train", "test"), ("val", "test")):
@@ -373,7 +485,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("build")
     p.add_argument("--input", default="data/raw")
     p.add_argument("--out", default="data/processed")
-    p.add_argument("--task", choices=("text", "classification"), default="text")
+    p.add_argument("--task", choices=("text", "classification", "images", "videos"), default="text")
     p.add_argument("--text-field", default="text")
     p.add_argument("--label-field", default="label")
     p.add_argument("--split", default="0.8,0.1,0.1")
@@ -382,6 +494,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--min-records", type=int, default=10)
     p.add_argument("--near-dup", type=float, default=0.9, help="MinHash similarity treated as duplicate (1.0 = off)")
     p.add_argument("--no-pii-scrub", action="store_true", help="keep e-mails, phone numbers and IBANs (only with consent)")
+    p.add_argument("--media-near-bits", type=int, default=4,
+                   help="images/videos: average-hash distance treated as duplicate (default 4 of 64 bits)")
     p.set_defaults(func=cmd_build)
     p = sub.add_parser("check")
     p.add_argument("--dir", default="data/processed")

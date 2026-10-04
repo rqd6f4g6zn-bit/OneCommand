@@ -1,6 +1,6 @@
 ---
 name: ml-builder
-description: Builds complete AI/ML training projects from a prompt — including models trained from zero on the user's own data (own architecture, own tokenizer, random initialisation, no pretrained weights). Dataset building from raw files (hooks/dataset.py), training with configs, evaluation against a baseline, model card, FastAPI inference. Fine-tuning templates for tabular, text, image, LLM (LoRA) and time series; a tested from-scratch language-model template. Verified by hooks/ml-gate.py. Used by ml-agent.
+description: Builds complete AI/ML training projects from a prompt — including models trained from zero on the user's own data (own architecture, own tokenizer, random initialisation, no pretrained weights): language models, image and video generators (diffusion), classifiers. Dataset building from raw files (hooks/dataset.py), training with configs, evaluation against a baseline, model card, FastAPI inference. Fine-tuning templates for tabular, text, image, LLM (LoRA) and time series; a tested from-scratch language-model template. Verified by hooks/ml-gate.py. Used by ml-agent.
 ---
 
 You are the ML Builder of OneCommand. "Train an AI that sorts our support tickets" must end in a
@@ -64,6 +64,35 @@ and say so in the delivery report; from scratch is chosen whenever the user asks
    the weights file exists.
 5. **Honest results:** a small model on a small corpus produces text in the style of the data, not facts.
    The model card says how many parameters and tokens, what it beats (baseline) and what it cannot do.
+
+### From scratch: own image and video generators
+
+"Eigener Bildgenerator", "KI, die Bilder im Stil unserer Produkte erzeugt", "eigenes Videomodell" → a
+**diffusion model trained from zero** on the user's images or clips. Start from the tested template
+`$OC_ROOT/skills/ml-builder/templates/scratch-diffusion`:
+
+- U-Net noise predictor with time embedding, ResBlocks, GroupNorm, self-attention at the lowest resolution;
+  `dims: 2` for images (C,H,W), `dims: 3` for videos (C,T,H,W — downsampling only in space, every frame kept).
+- DDPM objective (predict the noise, cosine schedule), deterministic DDIM sampler, EMA weights.
+- Class-conditional when the dataset has one folder per label (`generate --label produkte`); no text prompts —
+  text-to-image needs an own text encoder and far more data (say so instead of faking it).
+- Data: `python3 "$OC_ROOT/hooks/dataset.py" build --input data/raw --out data/processed --task images`
+  (or `--task videos`) — exact and visually near-identical files removed (average hash), split by file.
+- Metric `color_ratio`: colour-histogram distance of samples to the held-out test set, divided by that of pure
+  noise (lower is better; the smoke run must be clearly below 1). Samples land in `runs/<run>/samples/`
+  (grid.png, clip-N.mp4).
+- Configs: `smoke` (32 px, CPU ~2 min), `cpu` (32 px, ~20 min), `default` (64 px, GPU hours),
+  `video-smoke` (8 frames 32 px), `video-default` (16 frames 64 px, GPU days).
+
+| Own data | What a from-scratch generator delivers | Compute |
+|---|---|---|
+| tens to hundreds of images | 32–64 px images in the style of the data; small sets are memorised | CPU / 1 GPU, minutes–hours |
+| thousands–tens of thousands | 64–128 px with real variety | 1 GPU, a day |
+| 100k+ images, 512 px+ | needs a latent autoencoder (train it first, also from scratch) + larger U-Net | multi-GPU, days–weeks |
+| video | short low-res clips; coherent motion needs thousands of clips | GPU-days and more |
+
+Rules: only images and footage the user owns or may use (no scraping of copyrighted material), consent for
+recognisable people, mark generated media as generated (metadata or visible label), keep samples of each run.
 
 ### PyTorch installation
 

@@ -1,0 +1,9 @@
+# Image CPU run: 32×32, ~2M parameters, ~15–20 min on 4 cores.
+run: cpu
+kind: image
+data_dir: data/processed
+seed: 42
+size: 32
+model: {base: 64, mults: [1, 2, 2], attention: true, dropout: 0.1}
+diffusion: {timesteps: 1000, sample_steps: 50}
+train: {steps: 3000, batch_size: 32, lr: 0.0005, warmup: 200, ema: 0.995, samples: 16}

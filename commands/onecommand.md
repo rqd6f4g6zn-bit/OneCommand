@@ -347,6 +347,11 @@ Skip frontend-agent, backend-agent for pure OS projects.
   pricing, dashboard screens; reimplements in Tamagui/Flutter (not auto-installed
   since 21st.dev components are web-React)
 
+**If the spec has a `voice` section (phone assistant):** the backend agent follows the `voice-agent` skill
+(telephony webhooks, media-stream gateway, dialogue engine, `POST /api/voice/simulate`, actions, handover) and
+writes `voice/scenarios/*.json` — one test call per intent plus the handover; `hooks/call-sim.py validate` must
+pass before Phase 4. The gate plays every call in its `tour` stage.
+
 **If `videos` is true (spec.media.videos — premium websites):** also dispatch a phase runner with the
 `video-producer` skill in the same message. It cuts the user's footage from `media.raw_dir` (or builds
 Ken-Burns shots from images, or a Remotion motion-graphics video when there is no footage), renders
