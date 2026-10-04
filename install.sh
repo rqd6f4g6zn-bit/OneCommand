@@ -300,7 +300,10 @@ sync_dir "${REPO_ROOT}/" "$OC_CLAUDE_DIR/" "Claude Code plugin files → $(tilde
   --exclude='README.md' \
   --exclude='LICENSE' \
   --exclude='NOTICE' \
-  --exclude='docs'
+  --exclude='docs' \
+  --exclude='tests' \
+  --exclude='.github' \
+  --exclude='CHANGELOG.md'
 
 # /oc-resume and /oc-save also go to ~/.claude/commands as a fallback that
 # works even when plugin loading fails. Updated whenever the source changes.
