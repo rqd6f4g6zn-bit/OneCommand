@@ -69,6 +69,11 @@ For every listed screenshot, open it with the Read tool and check:
   An empty view with demo data loaded is a seed bug — fix prisma/seed (data for every demo account).
 - **Nothing raw or broken**: IDs instead of names, ISO dates, English strings in a German UI,
   truncated or overlapping text, misaligned columns, placeholder images, cut-off buttons.
+- **Looks designed, not generated** (skills/oc-frontend-design "Visual quality bar"): the brand typeface and
+  palette from .onecommand/design.md are visible; one clear focal point per page (title, primary action,
+  key numbers in the display face with tabular figures); aligned edges, even spacing, consistent radii;
+  charts and badges carry labels and colours, not code values; empty space is intentional. Would a paying
+  customer accept this screen next to Linear or Stripe? If not, write what is off as a finding.
 - **Mobile** screenshots: navigation reachable, no horizontal scrolling, tables usable.
 - **Roles**: restricted pages show a clear "keine Berechtigung" state or are hidden in the navigation.
 
@@ -312,6 +317,146 @@ function findIdentifiers(text) {
 }
 """
 
+# Design audit, run inside every visited page. A phone-assistant build passed every functional check and still
+# looked like an unfinished admin template: headings in the OS fallback serif (the CSS named only system font
+# stacks), "callback"/"order_status" in monospace as chart labels, row lines missing in the actions column
+# (`last:border-b-0` on the cells removes the border of the last cell in *every* row) and a sidebar whose
+# background stopped halfway down the full-page screenshot. Each of these is measurable, so the tour measures it.
+# Self-contained: Playwright serialises the function into the page. Shared with the tests.
+DESIGN_JS = r"""
+async function designAudit() {
+  const out = [];
+  const say = (kind, msg) => { if (!out.some((o) => o.msg === msg)) out.push({ kind, msg }); };
+  try { await document.fonts.ready; } catch {}
+  const visible = (el) => {
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none';
+  };
+  const unquote = (f) => f.trim().replace(/^["']|["']$/g, '');
+
+  // Any CSS colour syntax (rgb, oklch, color-mix …) → [r, g, b, a] via a 1×1 canvas.
+  const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  const cache = new Map();
+  const rgba = (c) => {
+    if (cache.has(c)) return cache.get(c);
+    let v = [0, 0, 0, 0];
+    if (c && c !== 'transparent') {
+      cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1);
+      const d = cx.getImageData(0, 0, 1, 1).data; v = [d[0], d[1], d[2], d[3] / 255];
+    }
+    cache.set(c, v); return v;
+  };
+  const blend = (top, base) => base.map((b, i) => b * (1 - top[3]) + top[i] * top[3]);
+  // Background behind an element, composited up to the first opaque layer; null over images and gradients.
+  const background = (el) => {
+    const layers = [];
+    for (let e = el; e; e = e.parentElement) {
+      const s = getComputedStyle(e);
+      if (s.backgroundImage && s.backgroundImage !== 'none') return null;
+      const c = rgba(s.backgroundColor);
+      if (c[3] > 0) { layers.push(c); if (c[3] >= 0.99) break; }
+    }
+    return layers.reverse().reduce((b, c) => blend(c, b), [255, 255, 255]);
+  };
+  const lum = (c) => {
+    const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const hex = (c) => '#' + c.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const ownText = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' ').replace(/\s+/g, ' ').trim();
+
+  // 1. Typography: text must use a font the app ships. A system stack renders differently on every OS
+  //    (DejaVu on Linux, Segoe on Windows) and is the main reason generated UIs look like templates.
+  const GENERIC = /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-serif|ui-sans-serif|ui-monospace|ui-rounded|-apple-system|blinkmacsystemfont|math|emoji)$/i;
+  const loaded = new Set([...document.fonts].filter((f) => f.status === 'loaded').map((f) => unquote(f.family).toLowerCase()));
+  const seen = new Set();
+  for (const [what, el] of [['body text', document.body], ['headings', document.querySelector('h1, h2')]]) {
+    if (!el) continue;
+    const stack = getComputedStyle(el).fontFamily;
+    const first = unquote(stack.split(',')[0]);
+    if (seen.has(first.toLowerCase())) continue;
+    seen.add(first.toLowerCase());
+    if (GENERIC.test(first)) {
+      say('font', `${what} use the system font stack (${stack.slice(0, 70)}) — every OS shows a different default font; ship the design's typeface with the app (next/font/local or @fontsource)`);
+    } else if (!loaded.has(first.toLowerCase())) {
+      say('font', `${what}: font "${first}" is not loaded by the app — visitors without it installed get a fallback font; self-host it (next/font/local or @fontsource)`);
+    }
+  }
+
+  // 2. Code values in monospace ("callback", "order_status" as labels) — the UI shows data, not a label.
+  const MONO = /monospace|\bmono\b|courier|consolas|menlo/i;
+  const CODE = /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$/;
+  const SKIP = 'input, textarea, select, code, pre, kbd, samp, [contenteditable=true], [data-code]';
+  const elements = [...document.body.querySelectorAll('*')].slice(0, 4000);
+  const mono = [];
+  for (const el of elements) {
+    if (mono.length >= 5) break;
+    const t = ownText(el);
+    if (t.length < 3 || !CODE.test(t) || el.closest(SKIP) || !visible(el)) continue;
+    if (MONO.test(getComputedStyle(el).fontFamily) && !mono.includes(t)) mono.push(t);
+  }
+  if (mono.length) say('identifier', `code values shown in monospace: ${mono.map((m) => `"${m}"`).join(', ')} — show the label (e.g. "Rückruf" for callback); monospace only for real reference numbers`);
+
+  // 3. Contrast (WCAG AA): 4.5:1 for text, 3:1 for large text. Disabled controls are exempt.
+  const low = [];
+  for (const el of elements) {
+    const t = ownText(el);
+    if (!t || !/[\p{L}\p{N}]/u.test(t) || !visible(el)) continue;
+    if (el.closest('[aria-hidden=true], :disabled, [aria-disabled=true], .sr-only')) continue;
+    const s = getComputedStyle(el);
+    const bg = background(el);
+    if (!bg) continue;
+    let alpha = 1;
+    for (let e = el; e; e = e.parentElement) alpha *= parseFloat(getComputedStyle(e).opacity);
+    const c = rgba(s.color);
+    const fg = blend([c[0], c[1], c[2], c[3] * alpha], bg);
+    const size = parseFloat(s.fontSize), weight = parseInt(s.fontWeight, 10) || 400;
+    const need = size >= 24 || (size >= 18.66 && weight >= 700) ? 3 : 4.5;
+    const r = ratio(fg, bg);
+    if (r < need - 0.05) low.push({ t: t.slice(0, 40), r, need, fg: hex(fg), bg: hex(bg) });
+  }
+  low.sort((a, b) => a.r - b.r);
+  const worst = low.filter((l, i) => low.findIndex((m) => m.fg === l.fg && m.bg === l.bg) === i).slice(0, 3);
+  if (worst.length) say('contrast', `text contrast below WCAG AA on ${low.length} element(s): ${worst.map((l) => `"${l.t}" ${l.r.toFixed(1)}:1 (${l.fg} on ${l.bg}, needs ${l.need}:1)`).join('; ')}`);
+
+  // 4. Table row lines must run through every column.
+  for (const table of document.querySelectorAll('table')) {
+    if (!visible(table)) continue;
+    const rows = [...table.querySelectorAll('tbody > tr')].filter(visible);
+    const heads = [...table.querySelectorAll('thead th')].map((h) => h.innerText.trim());
+    for (const tr of rows.slice(0, -1)) {
+      if ((parseFloat(getComputedStyle(tr).borderBottomWidth) || 0) > 0) break;
+      const w = [...tr.children].map((c) => parseFloat(getComputedStyle(c).borderBottomWidth) || 0);
+      const gap = w.findIndex((x) => x === 0);
+      if (gap >= 0 && w.some((x) => x > 0)) {
+        say('table', `table row lines stop at column ${gap + 1}${heads[gap] ? ` ("${heads[gap]}")` : ''} — a per-cell rule such as last:border-b-0 hits the last cell of every row; draw the line on the row or exclude only the last row ([&_tbody_tr:last-child_td]:border-b-0)`);
+        break;
+      }
+    }
+  }
+
+  // 5. A sidebar's background must reach the bottom of the page (full-page screenshots, print, short pages).
+  const H = document.documentElement.scrollHeight;
+  if (H > innerHeight + 40) {
+    for (const el of document.querySelectorAll('aside, nav, [data-sidebar], [role=navigation]')) {
+      if (!visible(el)) continue;
+      const r = el.getBoundingClientRect();
+      const edge = r.left <= 2 || r.right >= innerWidth - 2;
+      if (!edge || r.width < 120 || r.width > innerWidth * 0.4 || r.top + scrollY > 80 || r.height < innerHeight * 0.6) continue;
+      if (rgba(getComputedStyle(el).backgroundColor)[3] < 0.5) continue;
+      const bottom = Math.round(r.bottom + scrollY);
+      if (H - bottom > 24) {
+        say('layout', `the sidebar background ends at ${bottom}px, above the page bottom — put the background on the full-height grid column and make only the inner navigation sticky`);
+        break;
+      }
+    }
+  }
+  return out;
+}
+"""
+
 TOUR_JS = r"""
 import fs from 'node:fs';
 import path from 'node:path';
@@ -381,8 +526,11 @@ async function visit(page, acct, vp, target, pattern) {
   catch (e) { rec.warnings.push(`screenshot failed: ${String(e.message || e).split('\n')[0]}`); }
   let text = '';
   try { text = await page.evaluate(() => (document.body ? document.body.innerText : '')); } catch {}
+  rec.design = [];
   const ids = findIdentifiers(text);
-  if (ids.length) rec.warnings.push(`technical identifiers visible: ${ids.slice(0, 5).map((i) => `"${i}"`).join(', ')} — show the user-facing label (e.g. the German intent / status name), not the code value`);
+  if (ids.length) rec.design.push({ kind: 'identifier', msg: `technical identifiers visible: ${ids.slice(0, 5).map((i) => `"${i}"`).join(', ')} — show the user-facing label (e.g. the German intent / status name), not the code value` });
+  try { rec.design.push(...await page.evaluate(designAudit)); }
+  catch (e) { rec.warnings.push(`design audit failed: ${String(e.message || e).split('\n')[0]}`); }
   const hits = [...new Set((text.match(BAD_TEXT) || []).map((s) => s.trim()))];
   if (hits.length) rec.issues.push(`visible text shows ${hits.map((h) => `"${h}"`).join(', ')} — a value is missing or mis-parsed`);
   const labels = (acct === null || acct.email === cfg.first_account) && vp.name === 'desktop' ? (cfg.metric_labels[target] || []) : [];
@@ -563,6 +711,19 @@ def evaluate(data: dict[str, Any], first_account: str | None) -> tuple[list[str]
     return blocking, warnings, notes
 
 
+def design_findings(data: dict[str, Any]) -> list[str]:
+    """Design-audit results of all visits, one line per distinct finding with the pages it occurs on."""
+    pages: dict[str, list[str]] = {}
+    for v in data.get("visits", []):
+        for d in v.get("design") or []:
+            where = f"{v['path']} ({v['viewport']})"
+            pages.setdefault(d["msg"], [])
+            if where not in pages[d["msg"]]:
+                pages[d["msg"]].append(where)
+    return [f"{msg} — on {', '.join(w[:4])}{f' and {len(w) - 4} more' if len(w) > 4 else ''}"
+            for msg, w in pages.items()]
+
+
 def write_reports(out_dir: Path, spec: dict[str, Any], data: dict[str, Any], blocking: list[str],
                   warnings: list[str], notes: list[str], first_account: str | None) -> None:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -577,6 +738,11 @@ def write_reports(out_dir: Path, spec: dict[str, Any], data: dict[str, Any], blo
           f"{'✅ no blocking problems' if not blocking else f'❌ {len(blocking)} blocking problem(s)'}", ""]
     if blocking:
         md += ["## Blocking", ""] + [f"- ✗ {b}" for b in blocking] + [""]
+    design = design_findings(data)
+    report["design"] = design
+    (out_dir / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    if design:
+        md += ["## Design", ""] + [f"- ✗ {d}" for d in design] + [""]
     if warnings:
         md += ["## Warnings", ""] + [f"- ⚠ {w}" for w in warnings] + [""]
     md += ["## Pages", "", "| Account | Viewport | Page | HTTP | LCP | CLS | KB | Screenshot |",
@@ -604,6 +770,11 @@ def write_reports(out_dir: Path, spec: dict[str, Any], data: dict[str, Any], blo
             seen_roles.add(key)
         who = v.get("role") or account or "anonymous"
         review.append(f"- [ ] {v['screenshot']} — {who} · {v['viewport']} · {v['path']}")
+    if design:
+        # Measured, not judged: these stay open until a re-run of the tour no longer finds them.
+        review += ["", "## Design audit (measured — fix the code and re-run the tour; do not tick or delete)", "",
+                   "- design-audit — automated checks: fonts, code values, contrast, table lines, sidebar"]
+        review += [f"  - ✗ {d}" for d in design]
     (out_dir / "review.md").write_text("\n".join(review) + "\n", encoding="utf-8")
 
 
@@ -686,7 +857,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         }
         (out_dir / "config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
         script = out_dir / "tour.mjs"
-        script.write_text(TOUR_JS + IDENTIFIER_JS, encoding="utf-8")
+        script.write_text(TOUR_JS + IDENTIFIER_JS + DESIGN_JS, encoding="utf-8")
         total = len(anon["static"]) + len(anon["dynamic"]) + len(accounts) * (len(priv["static"]) + len(priv["dynamic"]))
         log(f"▶ visiting {total} page(s) with {len(accounts)} demo login(s)")
         try:
@@ -712,13 +883,19 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"  ○ {n}")
     for w in warnings:
         print(f"  ⚠ {w}")
+    design = design_findings(data)
+    for d in design:
+        print(f"  ✗ design: {d}")
     for b in blocking:
         print(f"  ✗ {b}")
     shots = len(list(out_dir.glob("*.png")))
     if blocking:
         log(f"error: {len(blocking)} blocking problem(s) — {out_dir / 'report.md'}")
         return 1
-    log(f"{shots} screenshots, no blocking problems — now review them: {out_dir / 'review.md'}")
+    log(f"{shots} screenshots, no blocking problems"
+        + (f", {len(design)} design finding(s) open (review-status fails until a re-run no longer finds them)"
+           if design else "")
+        + f" — now review them: {out_dir / 'review.md'}")
     return 0
 
 

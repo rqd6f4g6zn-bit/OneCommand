@@ -184,6 +184,11 @@ print('BUILD_MOBILE:', 'mobile' in targets)
 **Frontend** — Generate all pages and components using the `onecommand-spec-analyzer` skill output:
 - Read spec pages list, generate each as a complete Next.js page
 - Use Tailwind CSS + shadcn/ui components
+- Design brief first (`.onecommand/design.md`: personality, typefaces, brand palette, signature element);
+  fonts self-hosted (`@fontsource-variable/*` or `next/font/local`) — never a bare system font stack
+- Labels for every enum (no `order_status`/`callback` on screen, no monospace for labels); sidebar
+  background on the full-height column; table row lines on the row, not `last:border-b-0` on cells;
+  text contrast WCAG AA
 - Mobile-first, with loading states, error states, empty states on every page
 - Generate `lib/api.ts` with typed functions for every API route in the spec
 
@@ -285,7 +290,9 @@ bash "$OC_ROOT/hooks/quality-gate.sh" --stage tour; echo "GATE_EXIT=$?"
 ```
 Then open every screenshot listed in `.onecommand/tour/review.md`, tick it, write findings as `  - ✗ …`
 lines (numbers that differ between pages, labels without their period, empty views for a demo login,
-broken layout), fix them, re-run the tour. Done when
+broken layout, a screen that looks generated rather than designed), fix them, re-run the tour. The tour's
+design audit (system fonts, code values, contrast, broken row lines, short sidebar) lists measured
+findings under "Design audit" — they stay open until a re-run no longer finds them. Done when
 `python3 "$OC_ROOT/hooks/ui-tour.py" review-status` exits 0.
 
 With a `voice` section, the same stage plays every test call plus four built-in calls:

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -255,3 +256,129 @@ def test_visible_identifiers_are_found():
     js = mod.IDENTIFIER_JS + "\nconsole.log(JSON.stringify(findIdentifiers(" + json.dumps(text) + ")));"
     out = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True).stdout
     assert json.loads(out) == ["knowledge_question", "order_status"]
+
+
+# ─── design audit ─────────────────────────────────────────────────────────────
+
+def test_design_findings_open_the_review_until_a_rerun_no_longer_finds_them(tmp_path):
+    font = {"kind": "font", "msg": "body text use the system font stack (ui-sans-serif)"}
+    table = {"kind": "table", "msg": 'table row lines stop at column 5 ("Aktionen")'}
+    visits = [visit(screenshot="001.png", design=[font]), visit(screenshot="002.png", path="/contacts", design=[font, table]),
+              visit(screenshot="003.png", viewport="mobile", design=[font])]
+    tour.write_reports(tmp_path, SPEC, {"logins": [], "visits": visits}, [], [], [], "admin@x.demo")
+    assert tour.design_findings({"visits": visits}) == [
+        f"{font['msg']} — on /dashboard (desktop), /contacts (desktop), /dashboard (mobile)",
+        f"{table['msg']} — on /contacts (desktop)"]
+    review = (tmp_path / "review.md").read_text()
+    assert "## Design audit" in review and len(re.findall(r"^  - ✗ ", review, re.M)) == 2
+    assert "## Design" in (tmp_path / "report.md").read_text()
+    assert len(json.loads((tmp_path / "report.json").read_text())["design"]) == 2
+    ticked = review.replace("- [ ] 001.png", "- [x] 001.png").replace(" — admin · desktop · /dashboard", " → ok: x", 1)
+    (tmp_path / "review.md").write_text(ticked)
+    r = run_tour("review-status", "--project-dir", str(tmp_path), "--out", str(tmp_path))
+    assert r.returncode == 1 and "open finding: body text use the system font stack" in r.stdout
+
+
+BAD_PAGE = """<!doctype html><html><head><style>
+  body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #f6f8f8; }
+  .shell { display: grid; grid-template-columns: 16rem 1fr; }
+  aside { position: sticky; top: 0; height: 100vh; background: #13303a; color: #fff; }
+  main { padding: 24px; height: 2000px; }
+  h1 { font-family: "Fraunces Display", ui-serif, serif; }
+  td { border-bottom: 1px solid #ddd; padding: 8px; }
+  td:last-child { border-bottom: 0; }
+  .muted { color: #b8c2c2; }
+</style></head><body><div class="shell">
+  <aside><nav><a href="/">Dashboard</a></nav></aside>
+  <main><h1>Dashboard</h1><p class="muted">Kennzahlen der letzten 7 Tage</p>
+    <div><span style="font-family: ui-monospace, monospace">callback</span> 5</div>
+    <button disabled style="color:#ccc;background:#eee">Senden</button>
+    <code>order_status</code>
+    <table><thead><tr><th>Titel</th><th>Aktionen</th></tr></thead><tbody>
+      <tr><td>Versand</td><td>Bearbeiten</td></tr><tr><td>Zahlung</td><td>Bearbeiten</td></tr>
+      <tr><td>Rückgabe</td><td>Bearbeiten</td></tr></tbody></table>
+  </main></div></body></html>"""
+
+GOOD_PAGE = """<!doctype html><html><head><style>
+  @font-face { font-family: "Brand Sans"; src: url(/brand.ttf); }
+  body { margin: 0; font-family: "Brand Sans", sans-serif; background: #f6f8f8; color: #14232a; }
+  .shell { display: grid; grid-template-columns: 16rem 1fr; }
+  .col { background: #13303a; color: #fff; }
+  aside { position: sticky; top: 0; height: 100vh; }
+  main { padding: 24px; height: 2000px; }
+  tr { border-bottom: 1px solid #ddd; } table { border-collapse: collapse; }
+  tbody tr:last-child { border-bottom: 0; } td { padding: 8px; }
+  .muted { color: #56666b; }
+</style></head><body><div class="shell">
+  <div class="col"><aside><nav><a style="color:#fff" href="/">Dashboard</a></nav></aside></div>
+  <main><h1>Dashboard</h1><p class="muted">Kennzahlen der letzten 7 Tage</p>
+    <div>Rückruf 5 · Bestellung <span style="font-family: ui-monospace, monospace">NT-4711</span></div>
+    <code>order_status</code>
+    <table><thead><tr><th>Titel</th><th>Aktionen</th></tr></thead><tbody>
+      <tr><td>Versand</td><td>Bearbeiten</td></tr><tr><td>Zahlung</td><td>Bearbeiten</td></tr></tbody></table>
+  </main></div></body></html>"""
+
+AUDIT_RUNNER = r"""
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
+const [, , projectDir, fontFile] = process.argv;
+const req = createRequire(projectDir + '/package.json');
+let pw; try { pw = req('@playwright/test'); } catch { pw = req('playwright'); }
+const browser = await pw.chromium.launch();
+const result = {};
+try {
+  for (const name of ['bad', 'good']) {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.route('**/*', (route) => {
+      const u = new URL(route.request().url());
+      if (u.pathname === '/brand.ttf') return route.fulfill({ body: fs.readFileSync(fontFile), contentType: 'font/ttf' });
+      return route.fulfill({ body: fs.readFileSync(`${process.env.PAGES}/${name}.html`), contentType: 'text/html' });
+    });
+    await page.goto('http://audit.test/');
+    result[name] = await page.evaluate(designAudit);
+    await page.close();
+  }
+} finally { await browser.close(); }
+console.log(JSON.stringify(result));
+"""
+
+
+def playwright_project() -> Path | None:
+    """A directory whose node_modules hold Playwright: OC_PLAYWRIGHT_PROJECT, else the repo itself."""
+    import os
+    for candidate in (os.environ.get("OC_PLAYWRIGHT_PROJECT"), str(HOOKS.parent)):
+        if candidate and any((Path(candidate) / "node_modules" / m / "package.json").exists()
+                             for m in ("@playwright/test", "playwright")):
+            return Path(candidate)
+    return None
+
+
+def test_design_audit_in_a_real_browser(tmp_path):
+    import shutil
+    import subprocess
+    if shutil.which("node") is None:
+        pytest.skip("node not installed")
+    project_dir = playwright_project()
+    fonts = sorted(Path("/usr/share/fonts").rglob("*.ttf")) if Path("/usr/share/fonts").exists() else []
+    if project_dir is None or not fonts:
+        pytest.skip("Playwright (OC_PLAYWRIGHT_PROJECT) or a .ttf font not available")
+    (tmp_path / "bad.html").write_text(BAD_PAGE)
+    (tmp_path / "good.html").write_text(GOOD_PAGE)
+    script = tmp_path / "audit.mjs"
+    script.write_text(AUDIT_RUNNER + tour.DESIGN_JS)
+    import os
+    r = subprocess.run(["node", str(script), str(project_dir), str(fonts[0])], capture_output=True, text=True,
+                       timeout=120, env={**os.environ, "PAGES": str(tmp_path)})
+    assert r.returncode == 0, r.stderr[-2000:]
+    result = json.loads(r.stdout.strip().splitlines()[-1])
+    bad: dict[str, str] = {}
+    for f in result["bad"]:
+        bad[f["kind"]] = (bad.get(f["kind"], "") + " | " + f["msg"]).strip(" |")
+    assert set(bad) == {"font", "identifier", "contrast", "table", "layout"}, result["bad"]
+    assert "system font stack" in bad["font"]
+    assert '"callback"' in bad["identifier"] and "order_status" not in bad["identifier"]  # <code> is fine
+    assert "Kennzahlen" in bad["contrast"] and "Senden" not in bad["contrast"]  # disabled is exempt
+    assert 'column 2 ("Aktionen")' in bad["table"]
+    assert "sidebar background ends at 900px" in bad["layout"]
+    assert '"Fraunces Display" is not loaded' in bad["font"]
+    assert result["good"] == [], result["good"]

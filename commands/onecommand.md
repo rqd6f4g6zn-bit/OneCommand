@@ -329,6 +329,8 @@ Skip frontend-agent, backend-agent for pure OS projects.
 - **Then** generates project-specific / domain-specific components from scratch
   for what 21st.dev doesn't cover
 - Uses `oc-frontend-design` and `oc-ui-ux` skills (bundled) for layout/typography/spacing rules
+- Writes the design brief `.onecommand/design.md` first (personality, self-hosted typefaces, brand palette,
+  signature element) — the UI tour's design audit and screenshot review hold the build to it
 
 **Backend Agent** (`backend-agent`):
 - Generates all API routes, DB schema, auth, seed data

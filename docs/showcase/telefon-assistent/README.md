@@ -57,5 +57,27 @@ Testanrufe sind das genau die Fälle, die ein echter Test mit Anrufersätzen gez
 Ab v1.11.0 lässt jeder dieser Fehler den Build durchfallen oder wird beim Durchsehen der Screenshots gemeldet. Die
 Regeln dafür stehen im Skill `voice-agent`.
 
+## Design-Prüfung: vorher und nachher
+
+Die Oberfläche funktionierte, sah aber nach Vorlage aus. Die Design-Prüfung der UI-Tour (ab v1.11.0) misst jede Seite
+und meldet an diesem Build 22 Befunde:
+
+| Befund | Ursache im Code |
+|---|---|
+| Schrift ist die Systemschrift (DejaVu unter Linux, Segoe unter Windows) | CSS nennt nur `ui-sans-serif` / `ui-serif` |
+| `callback`, `order_status` in Monospace als Beschriftung | Labels vorhanden (`INTENT_LABELS`), aber nicht benutzt |
+| Zeilenlinien fehlen in der letzten Spalte jeder Tabelle | `last:border-b-0` an der Zelle statt an der letzten Zeile |
+| Sidebar-Hintergrund endet nach 900 px | Hintergrund am `sticky h-screen`-Element statt an der Spalte |
+
+Mit den Regeln aus `oc-frontend-design` → „Visual quality bar“ angewendet (selbst gehostete Schriften Fraunces und
+Manrope, Labels, Linien an der Zeile, Hintergrund an der Spalte) meldet derselbe Rundgang **0 Befunde**:
+
+![Dashboard nach den Design-Regeln](07-dashboard-neu.png)
+
+![Wissensbasis nach den Design-Regeln](08-wissensbasis-neu.png)
+
+Neue Builds schreiben vor der ersten Komponente einen Design-Brief (`.onecommand/design.md`: Charakter, Schriften,
+Markenpalette, Wiedererkennungsmerkmal). Die Tour hält den Build daran fest.
+
 ---
 Gebaut mit OneCommand · USC Software UG

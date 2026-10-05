@@ -21,6 +21,9 @@ Note: `tech_stack.frontend`, `pages`, `features`, `auth_type`, `project_name`.
 ## Step 2: Invoke frontend-design skill
 
 Use the `frontend-design` skill to establish:
+- **Design brief** `.onecommand/design.md` (skills/oc-frontend-design → "Visual quality bar"): personality,
+  self-hosted typefaces, brand palette with tinted neutrals, shape, one signature element, reference
+  products. Every token in `globals.css` / `tailwind.config` comes from it.
 - Design system (color palette, typography scale, spacing)
 - Component library choice (shadcn/ui for Next.js projects)
 - Layout patterns (sidebar vs top nav, etc.)

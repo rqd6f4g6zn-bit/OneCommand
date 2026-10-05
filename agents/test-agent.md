@@ -96,6 +96,11 @@ server with fresh secrets, every page as every demo login.
    ```
    Blocking: login fails, HTTP 5xx, uncaught exceptions, failed API calls, "undefined"/"NaN"/"Invalid Date"
    on screen, session lost, a metric without its spec label on a page in its `shown_on`. Heal like Stage B.
+   The **design audit** measures every page too: fonts not shipped with the app (system stack), code values
+   in monospace or snake_case, text contrast below WCAG AA, table row lines that stop at a column, a sidebar
+   background that ends above the page bottom. Its findings stand in review.md under "Design audit" and
+   keep `review-status` red until a re-run no longer finds them — fix them in the code (the fix for each is
+   in the message and in skills/oc-frontend-design → "Visual quality bar"), never by editing review.md.
 2. **Review** — open `.onecommand/tour/review.md`. For every listed screenshot: open it with the Read tool,
    check it against the list at the top of review.md, tick it (`- [x]`), end the line with a note
    (`→ ok: <what you checked>` or `→ see findings`) and write each finding as an indented `  - ✗ …` line.

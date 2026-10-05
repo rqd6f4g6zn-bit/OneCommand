@@ -23,6 +23,68 @@ to custom generation.
 Token budget benefit: ~60-80% of typical landing/dashboard UI is covered by
 21st.dev. Generating from scratch is the exception, not the default.
 
+## Visual quality bar (read before writing any page)
+
+Functional checks pass long before a UI looks good. A phone-assistant build passed every gate and still
+looked like an unfinished admin template: headings in the OS fallback serif, "callback" and "order_status"
+in monospace as chart labels, row lines missing in the actions column, a sidebar background that stopped
+halfway down the page. The UI tour now measures these (`hooks/ui-tour.py`, design audit) and keeps
+`review-status` red until they are gone — but the goal is a UI a paying customer shows to their boss.
+
+### 1. Design brief first — `.onecommand/design.md`
+
+Before the first component, write the brief and derive every token from it:
+
+| Field | Content |
+|---|---|
+| Personality | 3 adjectives from the domain and audience (tea shop: warm, calm, crafted — bank: precise, sober, trustworthy) |
+| Typefaces | display face + text face, both shipped with the app (below); one may be a variable font |
+| Palette | brand hue → primary (buttons, focus), one accent, neutrals *tinted towards the brand hue* (not stock slate/zinc), success/warning/danger tuned to the palette; light **and** dark values |
+| Shape | radius scale (e.g. 6/10/16 px), border vs. shadow style, density (comfortable / compact for data-heavy tools) |
+| Signature | one recognisable element used consistently — e.g. a brand gradient band in the page header, illustrated empty states, a custom chart palette, a distinctive KPI tile |
+| References | 2–3 products whose quality level is the bar (Linear, Stripe Dashboard, Vercel, Notion, Shopify Polaris …) |
+
+Write the tokens into `globals.css` (CSS variables) and `tailwind.config` from the brief. Stock shadcn
+defaults with a changed primary colour are not a design.
+
+### 2. Typography — ship the fonts
+
+- **Never** a bare system stack (`ui-sans-serif, system-ui …`, `Georgia`, `Arial`) as the first family: it
+  renders as DejaVu on Linux, Segoe on Windows, SF on Mac — the tour reports it.
+- Self-host: `npm i @fontsource-variable/<name>` and import it in the root layout, or `next/font/local` with
+  the files in `app/fonts/`. `next/font/google` downloads at build time and fails in offline CI — only when
+  the build machine is known to be online.
+- Good pairings: Inter / Inter Display, Geist / Geist Mono, Manrope / Fraunces, Plus Jakarta Sans / Newsreader,
+  IBM Plex Sans / IBM Plex Serif, DM Sans / DM Serif Display. Match the personality from the brief.
+- Scale with contrast: page title ≥ 1.75 × body size, tighter tracking (`tracking-tight`) on large headings;
+  key figures (KPIs, prices, durations) in the display face, `tabular-nums`, 28–36 px.
+- Monospace only for real reference values a user copies (order number, tracking code, API key) — never
+  for labels, intents or statuses.
+
+### 3. Layout details the tour measures
+
+- **Sidebar**: background on the full-height grid column, sticky only on the inner nav —
+  `<div className="bg-sidebar"><aside className="sticky top-0 h-screen">…</aside></div>`. A sticky
+  `h-screen` element *with* the background ends at 100 vh in full-page screenshots and print.
+- **Table row lines**: draw them on the row (`<tr className="border-b last:border-0">`) or exclude only the
+  last row (`[&_tbody_tr:last-child_td]:border-b-0`). `last:border-b-0` on the cell removes the line from
+  the last *column* of every row.
+- **Contrast**: WCAG AA — 4.5:1 for text, 3:1 for text ≥ 24 px (or ≥ 18.7 px bold). Muted text on tinted
+  cards fails first; check it in both themes.
+- **Code values**: every enum shown to a user goes through a label map (`INTENT_LABELS[intent]`,
+  `STATUS_LABELS[status]`), including chart axes, badges and filters.
+
+### 4. Composition
+
+- One focal point per page: title + one primary action top right; secondary actions as outline/ghost.
+- Dashboards: KPI tiles with trend (delta vs. previous period, sparkline), one real chart (recharts) with
+  labelled axes and the brand palette, lists with avatars/icons — not bare progress bars with code labels.
+- Row actions: an icon button group with tooltips or a "⋯" menu, not two text buttons per row.
+- Empty states: icon or illustration, one sentence what goes here, the primary action.
+- Spacing: 4 px grid, page padding 24–32 px desktop / 16 px mobile, cards 20–24 px, section gap 24–32 px;
+  align card edges to one grid.
+- Dark mode is designed, not inverted: own surface steps, softer borders, the same brand accent.
+
 ## Stack (from spec)
 - **Framework**: Next.js 14 App Router
 - **Styling**: Tailwind CSS + shadcn/ui
@@ -188,6 +250,6 @@ export const api = {
 ## Performance Rules
 
 - Images: always `next/image` with `width` + `height` or `fill`
-- Fonts: always `next/font/google` with `display: swap`
+- Fonts: self-hosted (`@fontsource-variable/*` or `next/font/local`) with `display: swap` — see Visual quality bar
 - Dynamic imports for heavy components: `const Chart = dynamic(() => import("./chart"), { ssr: false })`
 - Never import entire icon packs — import individually: `import { User } from "lucide-react"`

@@ -14,6 +14,9 @@ You are the UI/UX excellence layer for OneCommand. Every interface you touch mus
 4. **Mobile-first** — design for 375px, then scale up
 5. **Feedback for every action** — loading, success, error — never silence
 
+Visual identity (brief, fonts, palette, the details the UI tour measures) is defined in
+`oc-frontend-design` → "Visual quality bar". This layer adds usability on top of it.
+
 ## Color System
 
 Always use semantic Tailwind tokens — never raw hex:

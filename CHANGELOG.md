@@ -5,6 +5,24 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 ## [1.11.0] — 2026-10-05
 
 ### Added
+- **Design audit in the UI tour.** Every visited page is measured in the browser. The audit reports:
+  - text in a system font stack, or in a font the app does not load;
+  - code values shown in monospace (`callback`, `order_status`);
+  - text contrast below WCAG AA (disabled controls are exempt);
+  - table row lines that stop at a column (`last:border-b-0` on cells);
+  - a sidebar background that ends above the page bottom.
+
+  The findings appear in `report.md` and under "Design audit" in `review.md`. They keep `review-status` red
+  until a re-run no longer finds them.
+- **Visual quality bar** in `oc-frontend-design`:
+  - a design brief `.onecommand/design.md` with personality, typefaces, brand palette with tinted neutrals,
+    shape, signature element and reference products;
+  - self-hosted fonts (`@fontsource-variable/*`, `next/font/local`) and pairings;
+  - type scale and tabular KPI figures;
+  - the layout details the tour measures, and composition rules for dashboards, row actions and empty states.
+
+  The frontend agent, the orchestrator, the test agent and the Codex skill follow it. The screenshot review
+  gains a "looks designed, not generated" check.
 - **Human-sounding voice for phone assistants.** The skill `voice-agent` has a new section "Voice — it must sound
   like a person":
   - One neural voice for every sentence: ElevenLabs Flash v2.5 or Multilingual v2, or Azure Neural HD.

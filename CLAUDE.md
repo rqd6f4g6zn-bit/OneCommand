@@ -48,6 +48,8 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
   file both sides import; fails on hand-edited types, missing route handlers and untyped handlers/fetches.
 - `hooks/ui-tour.py` (stage `tour`): demo seed, production start with fresh secrets, every page as every
   `demo.accounts` login, screenshots + `.onecommand/tour/review.md`; `review-status` must pass before delivery.
+  Its design audit (`DESIGN_JS`: shipped fonts, code values, WCAG contrast, table lines, sidebar) adds
+  measured findings that stay open until a re-run no longer finds them.
 - `hooks/ml-gate.py`: quality-gate.sh hands specs with build target `ml` to it — install, lint, tests,
   smoke training, metric ≥ `ml.metric.smoke_min`, model card, `POST /predict`. Same result.json.
 - `hooks/dataset.py build|check|stats`: the user's own raw files → cleaned, PII-scrubbed, deduplicated,
