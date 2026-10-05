@@ -199,6 +199,10 @@ def _tone(path: Path, freq: int, seconds: float = 2.0, rate: int = 22050, af: st
             "-ar", str(rate), "-ac", "1", str(path))
 
 
+def sources(root: Path, *entries: dict) -> None:
+    (root / "sources.json").write_text(json.dumps({"sources": list(entries)}, ensure_ascii=False), encoding="utf-8")
+
+
 @pytest.fixture
 def speech(tmp_path: Path) -> Path:
     import shutil as _sh
@@ -226,6 +230,9 @@ def speech(tmp_path: Path) -> Path:
     _sh2.copy(r / "wavs" / "c01.wav", r / "wavs" / "zz-dup.wav")    # exact duplicate with a transcript
     lines.append("zz-dup|Ihre Bestellung ist unterwegs.")
     (r / "metadata.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (r / "consent").mkdir()
+    (r / "consent" / "einwilligung.txt").write_text("Einwilligung der Sprecherin", encoding="utf-8")
+    sources(r, {"path": ".", "name": "Eigene Aufnahmen", "license": "own", "consent": "consent/einwilligung.txt"})
     _tone(r / "phone.wav", 660, rate=8000)                       # sidecar transcript, telephone quality
     (r / "phone.txt").write_text("Aufnahme vom Telefon.", encoding="utf-8")
     return r
@@ -252,7 +259,9 @@ def test_build_speech_dataset(tmp_path, speech):
     recs = [json.loads(l) for name in ("train", "val", "test") for l in (out / f"{name}.jsonl").read_text().splitlines()]
     assert {x["sample_rate"] for x in recs} == {22050} and all(x["text"] and x["seconds"] for x in recs)
     sheet = (out / "DATASHEET.md").read_text()
-    assert "Voice readiness" in sheet and "Consent" in sheet
+    assert "Voice readiness" in sheet and "Consent" in sheet and "| Eigene Aufnahmen | own | 13 |" in sheet
+    assert m["commercial_use"] is True and m["sources"][0]["clips"] == 13
+    assert not (out / "ATTRIBUTION.md").exists()
     assert "train a TTS model from scratch" in r.stdout
 
 
@@ -271,3 +280,68 @@ def test_speech_without_recordings(tmp_path):
     (tmp_path / "raw" / "notes.txt").write_text("kein Audio")
     r = ds("build", "--input", str(tmp_path / "raw"), "--out", str(tmp_path / "out"), "--task", "speech")
     assert r.returncode == 2 and ("no recordings" in r.stderr or "ffmpeg" in r.stderr)
+
+
+def _speech_build(root: Path, out: Path, *extra: str):
+    return ds("build", "--input", str(root), "--out", str(out), "--task", "speech", *extra)
+
+
+def test_speech_needs_sources(tmp_path, speech):
+    (speech / "sources.json").unlink()
+    r = _speech_build(speech, tmp_path / "out")
+    assert r.returncode == 2 and "sources.json is missing" in r.stderr
+
+
+@pytest.mark.parametrize("entry,message", [
+    ({"path": ".", "name": "Stimmen von YouTube", "license": "CC0-1.0", "url": "https://www.youtube.com/watch?v=x"},
+     "content from youtube.com"),
+    ({"path": ".", "name": "Songs", "license": "CC0-1.0", "url": "https://open.spotify.com/track/1"}, "content from spotify.com"),
+    ({"path": ".", "name": "Korpus", "license": "CC-BY-NC-4.0"}, "forbids commercial use"),
+    ({"path": ".", "name": "Korpus", "license": "CC-BY-ND-4.0"}, "forbids commercial use"),
+    ({"path": ".", "name": "Korpus", "license": "proprietary"}, "not on the allow-list"),
+    ({"path": ".", "name": "Korpus"}, "no licence recorded"),
+    ({"path": ".", "name": "Sprecherin", "license": "own"}, "written consent"),
+    ({"path": ".", "name": "Sprecherin", "license": "own", "consent": "fehlt.pdf"}, "fehlt.pdf"),
+])
+def test_speech_rejects_unlicensed_sources(tmp_path, speech, entry, message):
+    sources(speech, entry)
+    r = _speech_build(speech, tmp_path / "out")
+    assert r.returncode == 2 and message in r.stdout and "source problem" in r.stderr
+
+
+def test_speech_noncommercial_only_for_research(tmp_path, speech):
+    sources(speech, {"path": ".", "name": "Forschungskorpus", "license": "CC-BY-NC-4.0"})
+    out = tmp_path / "out"
+    r = _speech_build(speech, out, "--allow-noncommercial")
+    assert r.returncode == 0 and "research only" in r.stdout
+    m = json.loads((out / "manifest.json").read_text())
+    assert m["commercial_use"] is False
+    assert "Commercial use: **no — research only**" in (out / "DATASHEET.md").read_text()
+
+
+def test_speech_corpus_plus_own_voice(tmp_path):
+    import shutil as _sh
+    if not (_sh.which("ffmpeg") and _sh.which("ffprobe")):
+        pytest.skip("ffmpeg not installed")
+    r = tmp_path / "voice"
+    meta = {"cv": [], "sprecherin": [], "fremd": []}
+    for i, text in enumerate(SENTENCES):
+        folder = ("cv/spk1", "cv/spk2", "sprecherin", "fremd")[i % 4]
+        _tone(r / folder / f"c{i:02d}.wav", 200 + 25 * i)
+        (r / folder / f"c{i:02d}.txt").write_text(text, encoding="utf-8")
+    (r / "einwilligung.pdf").write_bytes(b"%PDF signed")
+    sources(r, {"path": "cv", "name": "Multilingual LibriSpeech (de)", "license": "CC-BY-4.0",
+                "url": "https://www.openslr.org/94/"},
+            {"path": "sprecherin", "name": "Eigene Sprecherin", "license": "own", "consent": "einwilligung.pdf",
+             "speaker": "markenstimme"})
+    out = tmp_path / "out"
+    res = _speech_build(r, out, "--min-records", "5")
+    assert res.returncode == 0, res.stdout + res.stderr
+    m = json.loads((out / "manifest.json").read_text())
+    assert set(m["speakers"]) == {"cv/spk1", "cv/spk2", "markenstimme"} and m["records"] == 9
+    assert {x["path"] for x in m["processing"]["rejected"]} == {f"fremd/c{i:02d}.wav" for i in (3, 7, 11)}
+    assert all(x["reason"] == "no source/licence recorded in sources.json" for x in m["processing"]["rejected"])
+    assert {x["name"]: x["clips"] for x in m["sources"]} == {"Multilingual LibriSpeech (de)": 6, "Eigene Sprecherin": 3}
+    attribution = (out / "ATTRIBUTION.md").read_text()
+    assert "Multilingual LibriSpeech (de) — CC-BY-4.0 — https://www.openslr.org/94/" in attribution
+    assert "Eigene Sprecherin" not in attribution

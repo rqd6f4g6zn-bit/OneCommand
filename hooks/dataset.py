@@ -27,6 +27,17 @@ Speech (--task speech — recordings of one voice for a text-to-speech model / v
             ends, speaking rate plausible for the transcript (catches swapped or truncated texts)
   report    hours per speaker and which voice path the data supports (clone ≥ 0.5 h, fine-tune ≥ 1 h,
             production fine-tune ≥ 3 h, from scratch ≥ 24 h); rejected clips with the reason
+  sources   <input>/sources.json is required — where every folder comes from and under which licence:
+              {"sources": [{"path": "common-voice-de", "name": "Mozilla Common Voice 17 (de)",
+                            "license": "CC0-1.0", "url": "https://commonvoice.mozilla.org"},
+                           {"path": "sprecherin", "name": "Eigene Aufnahmen", "license": "own",
+                            "consent": "consent/einwilligung-sprecherin.pdf"}]}
+            allowed: CC0, public domain, CC BY, MIT/Apache, own recordings with a consent file;
+            share-alike is accepted with a warning; non-commercial / no-derivatives only with
+            --allow-noncommercial (manifest then says commercial_use: false); content from video,
+            music or social platforms (YouTube, TikTok, Spotify …) is always rejected — their terms
+            forbid downloading for training and the voices belong to their speakers.
+            CC BY sources are listed in ATTRIBUTION.md.
 
 Subcommands
 -----------
@@ -45,6 +56,7 @@ import hashlib
 import html
 import io
 import json
+import os
 import random
 import re
 import sys
@@ -69,6 +81,12 @@ VIDEO_EXT = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"}
 MEDIA_TASKS = {"images": IMAGE_EXT, "videos": VIDEO_EXT}
 AUDIO_EXT = {".wav", ".flac", ".mp3", ".m4a", ".ogg", ".opus"}
 FILE_TASKS = {"images", "videos", "speech"}  # records reference files by path + hash
+LICENSE_OK = {"cc0", "cc0-1.0", "public-domain", "publicdomain", "pd", "pddl", "cc-by", "cc-by-3.0", "cc-by-4.0",
+              "mit", "apache-2.0", "own"}
+LICENSE_SHARE_ALIKE = {"cc-by-sa", "cc-by-sa-3.0", "cc-by-sa-4.0", "odbl"}
+PLATFORM_HOSTS = ("youtube.com", "youtu.be", "tiktok.com", "instagram.com", "facebook.com", "spotify.com",
+                  "soundcloud.com", "twitch.tv", "twitter.com", "x.com", "vimeo.com", "netflix.com", "deezer.com",
+                  "music.apple.com", "dailymotion.com")
 # hours of clean single-speaker audio each way of getting an own voice needs
 VOICE_READINESS = [(0.5, "voice clone at a provider (e.g. ElevenLabs Professional Voice Clone)"),
                    (1.0, "fine-tune an open, commercially licensed TTS model (usable)"),
@@ -414,16 +432,85 @@ def judge_clip(a: dict[str, Any], text: str, args: argparse.Namespace) -> str | 
     return None
 
 
+def load_sources(root: Path, allow_nc: bool) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    """sources.json → (sources sorted longest path first, errors, warnings)."""
+    path = root / "sources.json"
+    if not path.exists():
+        raise DataError(f"{path} is missing — record for every folder where the voices come from and under which "
+                        f"licence (see dataset.py --help); voice data without a known source is not used")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise DataError(f"{path} is not valid JSON: {exc}") from None
+    sources = data.get("sources") if isinstance(data, dict) else None
+    if not isinstance(sources, list) or not sources:
+        raise DataError(f"{path}: needs a non-empty \"sources\" list")
+    errors, warnings, ok = [], [], []
+    for i, src in enumerate(sources, 1):
+        if not isinstance(src, dict):
+            errors.append(f"source {i}: must be an object")
+            continue
+        label = src.get("name") or src.get("path") or f"source {i}"
+        lic = re.sub(r"\s+", "-", str(src.get("license", "")).strip().lower())
+        url = str(src.get("url", "")).lower()
+        host = next((h for h in PLATFORM_HOSTS if h in url), None)
+        if not src.get("path"):
+            errors.append(f"{label}: 'path' (folder under {root.name}/, '.' for all) is required")
+        elif host:
+            errors.append(f"{label}: content from {host} — platform terms forbid downloading it for training and the "
+                          f"voices belong to their speakers; use licensed corpora or own recordings")
+        elif not lic:
+            errors.append(f"{label}: no licence recorded")
+        elif lic == "own":
+            consent = src.get("consent")
+            cpath = (root / consent) if consent and not os.path.isabs(consent) else Path(consent or "")
+            if not consent or not cpath.is_file():
+                errors.append(f"{label}: own recordings need the speaker's written consent — 'consent' must name an "
+                              f"existing file (got {consent or 'nothing'})")
+            else:
+                ok.append(src)
+        elif lic in LICENSE_OK:
+            ok.append(src)
+        elif lic in LICENSE_SHARE_ALIKE:
+            warnings.append(f"{label}: {src['license']} is share-alike — check whether it extends to the trained model")
+            ok.append(src)
+        elif "nc" in lic.split("-") or "nd" in lic.split("-") or "noncommercial" in lic:
+            if allow_nc:
+                warnings.append(f"{label}: {src['license']} — research only, the voice may not be used commercially")
+                ok.append({**src, "_noncommercial": True})
+            else:
+                errors.append(f"{label}: {src['license']} forbids commercial use or derivatives — a company voice "
+                              f"cannot be trained on it (--allow-noncommercial for research only)")
+        else:
+            errors.append(f"{label}: licence '{src['license']}' is not on the allow-list (CC0, public domain, CC BY, "
+                          f"MIT, Apache-2.0, own) — check it and record its SPDX id")
+    ok.sort(key=lambda s: -len(Path(str(s["path"])).parts) if s["path"] != "." else 0)
+    return ok, errors, warnings
+
+
+def source_for(rel: Path, sources: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for src in sources:
+        prefix = Path(str(src["path"]))
+        if str(prefix) == "." or rel.parts[:len(prefix.parts)] == prefix.parts:
+            return src
+    return None
+
+
 def build_speech(args: argparse.Namespace, root: Path, out: Path, ratios: tuple[float, float, float]) -> int:
     import shutil
     if not root.is_dir():
         raise DataError(f"input folder not found: {root}")
     if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
         raise DataError("--task speech needs ffmpeg and ffprobe (apt install ffmpeg / brew install ffmpeg)")
-    texts = read_transcripts(root)
     files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in AUDIO_EXT and not p.name.startswith("."))
     if not files:
         raise DataError(f"no recordings found in {root} ({', '.join(sorted(AUDIO_EXT))})")
+    sources, src_errors, src_warnings = load_sources(root, args.allow_noncommercial)
+    if src_errors:
+        for e in src_errors:
+            print(f"  ✗ {e}")
+        raise DataError(f"{len(src_errors)} source problem(s) in {root / 'sources.json'} — fix them before training a voice")
+    texts = read_transcripts(root)
     seen: set[str] = set()
     items, rejected, exact_drop = [], [], 0
     digits = 0
@@ -440,8 +527,12 @@ def build_speech(args: argparse.Namespace, root: Path, out: Path, ratios: tuple[
                     text = side.read_text(encoding="utf-8", errors="replace")
                     break
         text = clean(text or "").replace("\n", " ")
-        a = analyse_audio(path)
         rel = path.relative_to(root)
+        src = source_for(rel, sources)
+        if src is None:
+            rejected.append({"path": str(rel), "reason": "no source/licence recorded in sources.json"})
+            continue
+        a = analyse_audio(path)
         reason = judge_clip(a, text, args)
         if reason:
             rejected.append({"path": str(rel), "reason": reason})
@@ -449,10 +540,19 @@ def build_speech(args: argparse.Namespace, root: Path, out: Path, ratios: tuple[
         seen.add(digest)
         if re.search(r"\d", text):
             digits += 1
-        speaker = rel.parts[0] if len(rel.parts) > 1 and rel.parts[0] != "wavs" else "default"
+        prefix = Path(str(src["path"]))
+        inner = rel.parts[len(prefix.parts):] if str(prefix) != "." else rel.parts
+        inner = tuple(p for p in inner[:-1] if p != "wavs")
+        if src.get("speaker"):
+            speaker = src["speaker"]
+        elif str(prefix) == ".":
+            speaker = inner[0] if inner else "default"
+        else:
+            speaker = f"{src['path']}/{inner[0]}" if inner else str(src["path"])
         items.append({"text": text, "path": str(rel), "sha256": digest, "bytes": path.stat().st_size,
-                      "label": None, "speaker": speaker, "seconds": round(a["seconds"], 3),
-                      "sample_rate": a["sample_rate"], "source": str(rel)})
+                      "label": None, "speaker": speaker, "source": src.get("name") or src["path"],
+                      "seconds": round(a["seconds"], 3),
+                      "sample_rate": a["sample_rate"]})
     if not items:
         for r in rejected[:10]:
             print(f"  ✗ {r['path']}: {r['reason']}")
@@ -476,7 +576,7 @@ def build_speech(args: argparse.Namespace, root: Path, out: Path, ratios: tuple[
         speakers[d["speaker"]] += d["seconds"]
     main_hours = max(speakers.values()) / 3600
     readiness = [{"hours": h, "path": what, "ready": main_hours >= h} for h, what in VOICE_READINESS]
-    categories = ("no transcript", "too short", "too long", "sample rate", "clipped", "too quiet", "silence",
+    categories = ("no source", "no transcript", "too short", "too long", "sample rate", "clipped", "too quiet", "silence",
                   "letters per second", "not a readable audio file")
     reasons = Counter(next((c for c in categories if c in r["reason"]), "other") for r in rejected)
     manifest = {
@@ -493,9 +593,24 @@ def build_speech(args: argparse.Namespace, root: Path, out: Path, ratios: tuple[
         "bytes": sum(i["bytes"] for i in items), "labels": None, "seconds": round(seconds, 1),
         "hours": round(hours, 3), "speakers": {k: round(v / 3600, 3) for k, v in sorted(speakers.items())},
         "sample_rates": dict(Counter(str(d["sample_rate"]) for d in items)), "readiness": readiness,
+        "sources": [{k: v for k, v in {**src, "clips": sum(1 for d in items if d["source"] == (src.get("name") or src["path"])),
+                                       "hours": round(sum(d["seconds"] for d in items
+                                                          if d["source"] == (src.get("name") or src["path"])) / 3600, 3)}.items()
+                     if not k.startswith("_")} for src in sources],
+        "commercial_use": not any(src.get("_noncommercial") for src in sources
+                                  if any(d["source"] == (src.get("name") or src["path"]) for d in items)),
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     write_datasheet(out, manifest)
+    credits = [s_ for s_ in manifest["sources"] if str(s_.get("license", "")).lower().startswith("cc-by") and s_["clips"]]
+    if credits:
+        (out / "ATTRIBUTION.md").write_text("# Attribution\n\nThis voice was trained with:\n\n" + "\n".join(
+            f"- {c.get('name', c['path'])} — {c['license']}" + (f" — {c['url']}" if c.get("url") else "") for c in credits)
+            + "\n\nName these sources wherever the model or its voice is published.\n", encoding="utf-8")
+    for w in src_warnings:
+        print(f"  ⚠ {w}")
+    if not manifest["commercial_use"]:
+        print("  ⚠ non-commercial sources used — this voice is for research only, not for a company hotline")
     for r in rejected[:20]:
         print(f"  ✗ {r['path']}: {r['reason']}")
     if len(rejected) > 20:
@@ -619,6 +734,11 @@ def write_datasheet(out: Path, m: dict[str, Any]) -> None:
           [f"- {m['records']} records, {m['chars']:,} characters (~{m['approx_tokens']:,} tokens)"]),
         *[f"- {k}: {v['records']} records" + (f", {v['chars']:,} chars" if "chars" in v else "") for k, v in m["outputs"].items()],
     ]
+    if m.get("sources"):
+        lines += ["", "## Sources and licences", "", "| Source | Licence | Clips | Hours | Consent / URL |", "|---|---|---|---|---|",
+                  *[f"| {x.get('name', x['path'])} | {x.get('license')} | {x['clips']} | {x['hours']} | "
+                    f"{x.get('consent') or x.get('url') or ''} |" for x in m["sources"]],
+                  "", f"Commercial use: **{'yes' if m.get('commercial_use') else 'no — research only'}**"]
     if m.get("readiness"):
         lines += ["", "## Voice readiness", "", "| Needs | Path | Ready |", "|---|---|---|",
                   *[f"| {r['hours']} h | {r['path']} | {'yes' if r['ready'] else 'no'} |" for r in m["readiness"]],
@@ -717,6 +837,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--min-sample-rate", type=int, default=22050, help="speech: minimum sample rate in Hz")
     p.add_argument("--max-clip-seconds", type=float, default=20, help="speech: longest usable clip")
     p.add_argument("--min-hours", type=float, default=0, help="speech: fail below this many hours of one voice")
+    p.add_argument("--allow-noncommercial", action="store_true",
+                   help="speech: accept NC/ND-licensed corpora for research (manifest: commercial_use false)")
     p.set_defaults(func=cmd_build)
     p = sub.add_parser("check")
     p.add_argument("--dir", default="data/processed")

@@ -144,8 +144,10 @@ That includes the handover and DTMF replies, so callers never hear Twilio's buil
 sample for listening.
 
 For an **own brand voice**, the build delivers a recording script and guide. `dataset.py --task speech` checks
-the recordings: sample rate, clipping, silence, and whether each transcript fits its clip. It then reports the
-hours of audio and which voice paths they support:
+the recordings: sample rate, clipping, silence, and whether each transcript fits its clip. Every source needs a
+recorded licence, and own recordings need the speaker's consent. YouTube and other platform content is rejected;
+for a base model, use licensed corpora such as Common Voice or Multilingual LibriSpeech instead. It then reports
+the hours of audio and which voice paths they support:
 
 | Voice path | Hours of recordings |
 |---|---|

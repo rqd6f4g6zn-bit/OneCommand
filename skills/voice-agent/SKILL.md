@@ -68,6 +68,23 @@ Callers judge the voice before the content. A robotic voice makes them press 0 o
 | **Own model, self-hosted** — fine-tune an open, commercially licensed TTS model on your recordings | 1 h usable, 3 h+ for production | your own weights on your server, no per-minute cost | GPU for training (hours); licence of the base model must allow commercial use — check and record it (e.g. Piper: MIT; Kokoro, Fish Speech: Apache 2.0 — verify the current licence of the exact checkpoint). Non-commercial weights (XTTS-v2, F5-TTS) are excluded |
 | From scratch | 24 h+ (50 h+ for natural prosody) of one speaker | fully own model | with less data it sounds robotic — say so plainly and recommend the fine-tune |
 
+Where voice data may come from — every folder is recorded in `voice/recordings/sources.json` (name, licence,
+URL; own recordings with the consent file), `dataset.py --task speech` refuses to build without it:
+
+| Source | Use | Licence |
+|---|---|---|
+| Your own speaker (studio recordings, written consent) | the brand voice itself | own |
+| Mozilla Common Voice | base model: many speakers, 100+ languages, with text | CC0 |
+| Multilingual LibriSpeech (OpenSLR 94) | base model: read audiobooks in 8 languages incl. German | CC BY 4.0 (credit → ATTRIBUTION.md) |
+| LibriVox | base model: public-domain audiobooks | public domain |
+
+Never YouTube, TikTok, Spotify, podcasts or other platform content — their terms forbid downloading for
+training, the recordings are copyrighted and the voices belong to their speakers (personality rights, GDPR);
+`dataset.py` rejects platform URLs. Singing does not help a speaking voice. Non-commercial corpora (CC BY-NC,
+e.g. many research sets) only with `--allow-noncommercial` for research — never for a company hotline.
+Mixing works like this: a base model learns the language from many licensed speakers, then 1–3 h of your own
+speaker turn it into one consistent voice.
+
 Recording kit (the build writes it to `voice/recording/`):
 - `script.md`: every sentence the assistant says (greeting, all knowledge-base answers, handover, goodbye),
   numbers 0–100, weekdays, months, times, prices, order-number digits, product and street names, plus

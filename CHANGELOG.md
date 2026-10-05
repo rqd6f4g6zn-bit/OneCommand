@@ -31,6 +31,17 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
   - The manifest records hours per speaker and the readiness per voice path: clone 0.5 h, fine-tune 1 h,
     production 3 h, from scratch 24 h.
   - The datasheet carries the consent note. `--min-hours` fails the build when the recordings are too short.
+  - **Source and licence check:** `<input>/sources.json` must record, for every folder, its name, licence and
+    URL. Own recordings need a consent file. The build refuses to run without it.
+    - Allowed: CC0, public domain, CC BY, MIT, Apache-2.0, and own recordings. Share-alike is accepted with a
+      warning.
+    - NC and ND licences only pass with `--allow-noncommercial`, and the manifest then records
+      `commercial_use: false`.
+    - Content from YouTube, TikTok, Spotify and other platforms is always rejected.
+    - Clips outside a recorded source are dropped. CC BY sources are listed in `ATTRIBUTION.md`, and the
+      datasheet has a sources table.
+  - The skill names licensed corpora for a base model: Mozilla Common Voice (CC0), Multilingual LibriSpeech
+    (CC BY 4.0) and LibriVox (public domain). A model trained on them is then fine-tuned with your own speaker.
 - **`call-sim.py`**:
   - **Small-talk probe** in every run. A separate call says "Hallo?", "Ja, hallo" and "Moment bitte". A "not
     understood" reply, a handover or an ended call fails the run.
