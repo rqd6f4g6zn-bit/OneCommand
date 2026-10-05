@@ -2,6 +2,57 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.11.0] — 2026-10-05
+
+### Added
+- **Human-sounding voice for phone assistants.** The skill `voice-agent` has a new section "Voice — it must sound
+  like a person":
+  - One neural voice for every sentence: ElevenLabs Flash v2.5 or Multilingual v2, or Azure Neural HD.
+  - Audio is streamed in telephone format.
+  - Text is made speakable: numbers, dates and order numbers are written as spoken.
+  - A pronunciation lexicon covers company and product names, and prosody follows the rules in the section.
+  - The assistant serves `POST /api/voice/tts` with an `X-Voice-Provider` header.
+- **Own brand voice** (new enterprise module `brand-voice`):
+  - Two paths: a consented voice clone at the provider, or an own model on your server, fine-tuned from a
+    commercially licensed base.
+  - The build delivers a recording kit (`voice/recording/script.md`, `GUIDE.md`) and documents the speaker's
+    consent and the base model's licence.
+  - The skill says plainly that training from scratch needs 24 h+ of recordings and sounds robotic with less.
+    Non-commercial weights such as XTTS-v2 and F5-TTS are excluded.
+- **`dataset.py --task speech`** checks voice recordings and their transcripts:
+  - Transcripts come from `metadata.csv` (LJSpeech format or a CSV header) or a sidecar `.txt`.
+  - Each clip is checked with ffmpeg. Clips are rejected when they:
+    - have no transcript, or are shorter than 1 s or longer than 20 s,
+    - are below 22.05 kHz,
+    - are clipped or too quiet,
+    - have more than 1 s of silence at either end,
+    - have a speaking rate that does not fit the transcript.
+  - Transcripts with digits produce a warning.
+  - The manifest records hours per speaker and the readiness per voice path: clone 0.5 h, fine-tune 1 h,
+    production 3 h, from scratch 24 h.
+  - The datasheet carries the consent note. `--min-hours` fails the build when the recordings are too short.
+- **`call-sim.py`**:
+  - **Small-talk probe** in every run. A separate call says "Hallo?", "Ja, hallo" and "Moment bitte". A "not
+    understood" reply, a handover or an ended call fails the run.
+  - **Voice code check.** `validate` fails on TwiML `<Say>` and `.say()`, because they use Twilio's built-in
+    second voice. It also fails on eSpeak, Festival, Flite and Pico.
+  - **Content check.** A scenario turn that checks only length or latency is rejected.
+  - **Voice samples.** With `voice.tts_endpoint`, call-sim synthesises the greeting and every reply into
+    `.onecommand/calls/audio/` and lists them in report.md.
+    - Fails on a missing audio reply, on a robotic engine, and on speech faster than 25 or slower than 8 letters/s.
+    - Skips with a warning in test mode without credentials.
+- Blueprint `phone-assistant` v2: `smalltalk` intent (mvp), voice requirements and criteria for the TTS endpoint
+  and TwiML without `<Say>`, `tts_endpoint`, and the `brand-voice` module.
+- The delivery report has a phone-assistant section: test calls, the small-talk probe, voice samples to listen
+  to, and the recording kit.
+
+### Fixed (found by a real build: "Telefon-KI-Assistent für Nordlicht Tee", v1.10.0, 61 criteria, 60/60 automated acceptance tests and 11/11 test calls green)
+- "Hallo?" after the greeting was answered with "nicht verstanden". After "Ja, hallo" and "Moment bitte" the
+  call was handed over to an employee. The scenario passed anyway because its turn checked only the reply length.
+- The DTMF handover spoke through TwiML `<Say>`, so callers heard Twilio's robotic voice instead of the
+  configured neural voice.
+- `dataset.py`: a stray copy without a transcript no longer pushes out the transcribed original as a "duplicate".
+
 ## [1.10.0] — 2026-10-04
 
 ### Added

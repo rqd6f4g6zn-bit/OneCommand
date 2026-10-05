@@ -1,7 +1,7 @@
 {
   "id": "phone-assistant",
   "name": "KI-Telefonassistent für den Support",
-  "version": 1,
+  "version": 2,
   "ui_language": "de",
   "aliases": ["telefonassistent", "telefon-assistent", "telefon assistent", "telefon-ki", "telefon ki", "ki-telefon", "voicebot", "voice bot", "voice-agent", "voice agent", "sprachassistent", "callbot", "anrufbeantworter mit ki", "telefonbot", "hotline-ki", "ki-hotline", "ki am telefon", "support telefon", "telefonsupport"],
   "summary": "Nimmt Support-Anrufe an, sagt dass es eine KI ist, versteht das Anliegen, antwortet kurz aus der eigenen Wissensbasis, erledigt Aktionen (Bestellstatus, Ticket, Rückruf) und übergibt an Menschen — mit Gesprächsprotokoll, Datenschutz und Auswertung.",
@@ -32,10 +32,11 @@
        {"title": "Greeting names the company and says it is an AI assistant", "verification": "api", "steps": ["POST /api/voice/simulate with empty text (call start)"], "expected": ["Reply contains the company name", "Reply contains 'KI' or 'digitaler Assistent'"]}
      ]},
     {"id": "dialogue-kb", "name": "Dialog & Wissensbasis", "tier": "mvp",
-     "features": ["Antworten aus der eigenen Wissensbasis (Retrieval über veröffentlichte Artikel)", "Kurz und sprechbar: höchstens zwei Sätze, Zahlen ausgeschrieben wo nötig", "Keine erfundenen Antworten: ohne Quelle Übergabe anbieten", "Rückfrage bei Unklarheit"],
+     "features": ["Antworten aus der eigenen Wissensbasis (Retrieval über veröffentlichte Artikel)", "Kurz und sprechbar: höchstens zwei Sätze, Zahlen ausgeschrieben wo nötig", "Small Talk (\"Hallo?\", \"Moment bitte\", \"Sind Sie noch da?\") freundlich beantworten — nie \"nicht verstanden\", nie deswegen übergeben", "Keine erfundenen Antworten: ohne Quelle Übergabe anbieten", "Rückfrage bei Unklarheit"],
      "criteria": [
        {"title": "Question answered from the knowledge base", "verification": "api", "steps": ["Publish article 'Öffnungszeiten: Mo–Fr 8 bis 18 Uhr'", "Simulate the caller asking 'Wann haben Sie geöffnet?'"], "expected": ["Reply contains '8' and '18'", "Intent is 'opening_hours'", "Reply has at most 300 characters"]},
-       {"title": "Question outside the knowledge base gets no invented answer", "verification": "api", "steps": ["Simulate 'Wie hoch ist der Aktienkurs Ihrer Firma?'"], "expected": ["Reply says the assistant cannot answer that reliably", "Reply offers a human or a callback"]}
+       {"title": "Question outside the knowledge base gets no invented answer", "verification": "api", "steps": ["Simulate 'Wie hoch ist der Aktienkurs Ihrer Firma?'"], "expected": ["Reply says the assistant cannot answer that reliably", "Reply offers a human or a callback"]},
+       {"title": "Small talk is answered, not treated as not understood", "verification": "api", "steps": ["Start a call (empty text)", "Simulate 'Hallo?' and then 'Ja, hallo'"], "expected": ["Neither reply says the assistant did not understand", "handover and end_call are false", "Intent is 'smalltalk'"]}
      ]},
     {"id": "handover", "name": "Übergabe an Menschen", "tier": "mvp",
      "features": ["Übergabe auf Wunsch, bei Frust oder nach zwei erfolglosen Versuchen", "Warme Übergabe mit Zusammenfassung an den Mitarbeiter", "Taste 0 jederzeit: Mensch", "Außerhalb der Zeiten: Rückruf statt Warteschleife"],
@@ -60,9 +61,11 @@
        {"title": "Own intent model reaches the accuracy target on held-out transcripts", "verification": "manual", "steps": ["Train with the ml gate on data/processed (classification)"], "expected": ["macro_f1 ≥ 0.85 on the test split", "No pretrained weights (ml gate step 'scratch')"]}
      ]},
     {"id": "speech", "name": "Sprache", "tier": "pro",
-     "features": ["Spracherkennung Deutsch in Echtzeit (Cloud oder selbst gehostet, z. B. Whisper)", "Natürliche Stimme (TTS), Aussprache von Firmennamen per Lexikon", "Unterbrechen erlaubt (Barge-in)", "Antwortzeit unter 1,5 s"],
+     "features": ["Spracherkennung Deutsch in Echtzeit (Cloud oder selbst gehostet, z. B. Whisper)", "Natürliche, menschlich klingende Stimme (neuronales TTS, z. B. ElevenLabs Flash v2.5 oder Azure Neural HD) — nie eine Roboterstimme", "Eine Stimme für alles: auch Übergabe, Warteansagen und DTMF-Antworten über die konfigurierte Stimme, nie TwiML <Say>", "Sprechbare Texte: Zahlen, Daten und Bestellnummern ausgeschrieben, Aussprache-Lexikon für Firmen- und Produktnamen", "Hörproben aller Antworten vor dem Livegang (POST /api/voice/tts, call-sim)", "Unterbrechen erlaubt (Barge-in)", "Antwortzeit unter 1,5 s"],
      "criteria": [
-       {"title": "DTMF 0 hands over to a human at any time", "verification": "api", "steps": ["POST the DTMF digit 0 during a call"], "expected": ["handover is true"]}
+       {"title": "DTMF 0 hands over to a human at any time", "verification": "api", "steps": ["POST the DTMF digit 0 during a call"], "expected": ["handover is true"]},
+       {"title": "TTS endpoint returns audio from the configured neural voice", "verification": "api", "steps": ["POST /api/voice/tts with the greeting text (test mode)"], "expected": ["Status 200 with an audio content type, or 503 when no voice provider is configured", "Header X-Voice-Provider names the provider (fake in test mode without credentials)"]},
+       {"title": "DTMF and handover replies use the configured voice", "verification": "api", "steps": ["POST the DTMF digit 0 to the DTMF webhook"], "expected": ["The TwiML response plays synthesised audio or streams it — it contains no <Say> element"]}
      ]},
     {"id": "analytics", "name": "Auswertung", "tier": "pro",
      "features": ["Automatisierungsquote, Übergabequote, durchschnittliche Gesprächsdauer", "Häufigste Anliegen und unbeantwortete Fragen (Lücken der Wissensbasis)"],
@@ -93,6 +96,12 @@
      "features": ["Spracherkennung, Sprachausgabe und Sprachmodell auf eigenen Servern (z. B. faster-whisper, Piper, lokales LLM)", "Keine Gesprächsdaten an Dritte"],
      "criteria": [
        {"title": "With self-hosted mode on, no request leaves to external speech or LLM APIs", "verification": "manual", "steps": ["Enable self-hosted mode", "Run the call-sim scenarios with outbound network blocked"], "expected": ["All scenarios pass"]}
+     ]},
+    {"id": "brand-voice", "name": "Eigene Markenstimme", "tier": "enterprise",
+     "features": ["Stimme einer eigenen Sprecherin / eines eigenen Sprechers: Klon beim Anbieter (30 min – 3 h Aufnahmen) oder eigenes Modell auf eigenem Server (Fine-Tuning eines kommerziell lizenzierten Basismodells, ab 1 h, für Produktion 3 h+)", "Aufnahme-Paket: Sprechskript mit allen Sätzen des Assistenten, Zahlen, Daten, Produktnamen und lautreichen Sätzen; Aufnahme-Leitfaden", "Prüfung der Aufnahmen mit dataset.py --task speech (Abtastrate, Übersteuerung, Stille, Text passt zur Länge, Stunden je Weg)", "Schriftliche Einwilligung der sprechenden Person, Lizenz des Basismodells dokumentiert", "Von null nur ab 24 h Aufnahmen — darunter klingt es roboterhaft"],
+     "criteria": [
+       {"title": "Recordings for the brand voice are checked before training", "verification": "manual", "steps": ["Put the recordings and metadata.csv into voice/recordings", "Run dataset.py build --task speech --min-hours 1"], "expected": ["Exit code 0", "DATASHEET.md lists the hours, the readiness per voice path and the consent note"]},
+       {"title": "Recording kit is delivered", "verification": "manual", "steps": ["Open voice/recording/script.md and GUIDE.md"], "expected": ["The script contains every reply template of the assistant", "The guide names format (≥ 44.1 kHz WAV), level (peaks around −6 dB) and the consent form"]}
      ]}
   ],
   "non_functional": [
@@ -113,7 +122,9 @@
     "disclosure": ["KI", "künstliche Intelligenz", "digitaler Assistent", "digitale Assistentin"],
     "max_ms": 2000,
     "max_reply_chars": 300,
-    "intents": {"mvp": ["opening_hours", "knowledge_question", "handover", "goodbye"], "pro": ["order_status", "create_ticket", "callback"]}
+    "tts_endpoint": "/api/voice/tts",
+    "smalltalk": ["Hallo?", "Ja, hallo", "Moment bitte"],
+    "intents": {"mvp": ["opening_hours", "smalltalk", "knowledge_question", "handover", "goodbye"], "pro": ["order_status", "create_ticket", "callback"]}
   },
   "production_dependencies": {"mvp": ["telephony", "speech"], "pro": ["telephony", "speech", "email"], "enterprise": ["telephony", "speech", "email"]},
   "pages": {"mvp": ["/login", "/calls", "/calls/[id]", "/knowledge", "/settings/telephony"], "pro": ["/dashboard", "/callbacks", "/intents", "/settings/voice"], "enterprise": ["/quality"]}

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
+import shutil
 import threading
+import wave
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -15,22 +18,54 @@ from conftest import py, write_json
 GREETING = "Willkommen bei Servicehafen. Sie sprechen mit unserem digitalen Assistenten, einer KI."
 
 
+def wav(seconds: float) -> bytes:
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\x00\x00" * int(16000 * seconds))
+    return buf.getvalue()
+
+
 class Assistant(BaseHTTPRequestHandler):
     """A tiny rule-based assistant with the /api/voice/simulate contract."""
     greeting = GREETING
     slow_ms = 0
     long_reply = False
+    smalltalk_fallback = False
+    tts = "elevenlabs"          # X-Voice-Provider; "503" = no provider configured
+    letters_per_s = 13.0
 
     def log_message(self, *args):
         pass
 
+    def speak(self, text: str):
+        if self.tts == "503":
+            self.send_response(503)
+            self.end_headers()
+            self.wfile.write(b'{"error":"no TTS provider configured"}')
+            return
+        letters = sum(ch.isalnum() for ch in text)
+        data = wav(letters / self.letters_per_s)
+        self.send_response(200)
+        self.send_header("content-type", "audio/wav")
+        self.send_header("x-voice-provider", self.tts)
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["content-length"])))
+        if self.path == "/api/voice/tts":
+            return self.speak(body["text"])
         text = body["text"].lower()
         if self.slow_ms:
             time.sleep(self.slow_ms / 1000)
         if not text:
             out = {"reply": self.greeting, "intent": "greeting"}
+        elif any(w in text for w in ("hallo", "moment")) and "mensch" not in text:
+            out = {"reply": "Wie bitte? Das habe ich leider nicht verstanden." if self.smalltalk_fallback
+                   else "Hallo! Wie kann ich Ihnen helfen?", "intent": None if self.smalltalk_fallback else "smalltalk"}
         elif "geöffnet" in text:
             reply = "Wir sind Montag bis Freitag von 8 bis 18 Uhr für Sie da."
             out = {"reply": reply * (20 if self.long_reply else 1), "intent": "opening_hours"}
@@ -55,6 +90,7 @@ def server():
     yield f"http://127.0.0.1:{srv.server_address[1]}"
     srv.shutdown()
     Assistant.greeting, Assistant.slow_ms, Assistant.long_reply = GREETING, 0, False
+    Assistant.smalltalk_fallback, Assistant.tts, Assistant.letters_per_s = False, "elevenlabs", 13.0
 
 
 SCENARIOS = {
@@ -87,9 +123,10 @@ def test_all_calls_pass(tmp_path, server):
     assert sim("validate", "--project-dir", str(p)).returncode == 0
     r = sim("run", "--project-dir", str(p), "--base-url", server)
     assert r.returncode == 0, r.stdout
-    assert "3/3 calls passed" in r.stdout
+    assert "4/4 calls passed" in r.stdout and "Small talk (built-in)" in r.stdout
     report = json.loads((p / ".onecommand" / "calls" / "report.json").read_text())
-    assert report["passed"] and report["turns"] == 4 and report["latency_ms_p95"] is not None
+    assert report["passed"] and report["turns"] == 7 and report["latency_ms_p95"] is not None
+    assert report["audio"] is None
     md = (p / ".onecommand" / "calls" / "report.md").read_text()
     assert "**Caller:** Wo ist meine Bestellung 4711?" in md and "digitalen Assistenten" in md
 
@@ -148,3 +185,67 @@ def test_unreachable_assistant(tmp_path):
 def test_no_voice_section_is_not_applicable(tmp_path):
     write_json(tmp_path / ".onecommand-spec.json", {"project_name": "web"})
     assert sim("run", "--project-dir", str(tmp_path)).returncode == 3
+
+
+def test_smalltalk_answered_with_not_understood_fails(tmp_path, server):
+    Assistant.smalltalk_fallback = True
+    r = sim("run", "--project-dir", str(project(tmp_path)), "--base-url", server)
+    assert r.returncode == 1
+    assert "answers small talk with 'not understood'" in r.stdout and "'Hallo?'" in r.stdout
+
+
+def test_smalltalk_probe_can_be_switched_off(tmp_path, server):
+    Assistant.smalltalk_fallback = True
+    r = sim("run", "--project-dir", str(project(tmp_path, smalltalk=[])), "--base-url", server)
+    assert r.returncode == 0 and "3/3 calls passed" in r.stdout
+
+
+def test_twiml_say_and_robotic_engines_fail_validation(tmp_path):
+    p = project(tmp_path)
+    route = p / "app" / "api" / "voice" / "dtmf" / "route.ts"
+    route.parent.mkdir(parents=True)
+    route.write_text('const xml = `<Response><Say language="de-DE">${reply}</Say></Response>`;\n')
+    (p / "lib").mkdir()
+    (p / "lib" / "tts.py").write_text('subprocess.run(["espeak-ng", "-v", "de", text])\n# espeak would be robotic\n')
+    r = sim("validate", "--project-dir", str(p))
+    assert r.returncode == 1
+    assert "app/api/voice/dtmf/route.ts:1: TwiML <Say>" in r.stdout
+    assert "lib/tts.py:1: robotic speech engine" in r.stdout and "tts.py:2" not in r.stdout
+
+
+def test_turn_that_checks_only_length_is_rejected(tmp_path):
+    sc = {"hallo": {"name": "Hallo", "turns": [{"say": "Hallo", "expect": {"max_chars": 300}}]}, **SCENARIOS}
+    r = sim("validate", "--project-dir", str(project(tmp_path, sc, intents=[])))
+    assert r.returncode == 1 and "hallo.json turn 1: checks only length/latency" in r.stdout
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_voice_samples_are_saved_for_listening(tmp_path, server):
+    p = project(tmp_path, tts_endpoint="/api/voice/tts")
+    r = sim("run", "--project-dir", str(p), "--base-url", server)
+    assert r.returncode == 0, r.stdout
+    assert "voice: " in r.stdout and "(elevenlabs" in r.stdout
+    audio = json.loads((p / ".onecommand" / "calls" / "report.json").read_text())["audio"]
+    assert audio["status"] == "ok" and len(audio["files"]) == 8      # greeting + 7 replies
+    assert (p / ".onecommand" / "calls" / "audio" / "greeting.wav").exists()
+    assert all(12 <= a["letters_per_s"] <= 14 for a in audio["files"])
+    md = (p / ".onecommand" / "calls" / "report.md").read_text()
+    assert "## 🔊 Voice samples" in md and "(audio/greeting.wav)" in md
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_rushed_speech_fails(tmp_path, server):
+    Assistant.letters_per_s = 60
+    r = sim("run", "--project-dir", str(project(tmp_path, tts_endpoint="/api/voice/tts")), "--base-url", server)
+    assert r.returncode == 1 and "letters/s — speech is too fast" in r.stdout
+
+
+@pytest.mark.parametrize("provider,code,message", [
+    ("503", 0, "no voice provider configured"),
+    ("fake", 0, "no voice provider configured"),
+    ("espeak-ng", 1, "is a robotic engine"),
+])
+def test_voice_provider_states(tmp_path, server, provider, code, message):
+    Assistant.tts = provider
+    r = sim("run", "--project-dir", str(project(tmp_path, tts_endpoint="/api/voice/tts")), "--base-url", server)
+    assert r.returncode == code and message in r.stdout

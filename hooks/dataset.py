@@ -19,9 +19,18 @@ Images and videos (--task images | videos — for image / video generators train
   split     by file, stratified per label; records reference the files with their hashes
   The training project decodes and resizes them itself.
 
+Speech (--task speech — recordings of one voice for a text-to-speech model / voice clone):
+  collect   .wav .flac .mp3 .m4a .ogg with the spoken text: metadata.csv (LJSpeech "clip|text" or a header
+            with file,text) or a sidecar clip.txt; one sub-folder per speaker optional
+  check     per clip via ffmpeg: transcript present, 1–20 s, sample rate ≥ --min-sample-rate (22.05 kHz;
+            telephone recordings cannot teach a voice), no clipping, not too quiet, ≤ 1 s silence at the
+            ends, speaking rate plausible for the transcript (catches swapped or truncated texts)
+  report    hours per speaker and which voice path the data supports (clone ≥ 0.5 h, fine-tune ≥ 1 h,
+            production fine-tune ≥ 3 h, from scratch ≥ 24 h); rejected clips with the reason
+
 Subcommands
 -----------
-build   --input data/raw --out data/processed --task text|classification|images|videos
+build   --input data/raw --out data/processed --task text|classification|images|videos|speech
 check   --dir data/processed   files unchanged since build, splits disjoint, no test text in train
 stats   --dir data/processed   print the manifest summary
 
@@ -58,6 +67,13 @@ SPLIT_NAMES = ("train", "val", "test")
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 VIDEO_EXT = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"}
 MEDIA_TASKS = {"images": IMAGE_EXT, "videos": VIDEO_EXT}
+AUDIO_EXT = {".wav", ".flac", ".mp3", ".m4a", ".ogg", ".opus"}
+FILE_TASKS = {"images", "videos", "speech"}  # records reference files by path + hash
+# hours of clean single-speaker audio each way of getting an own voice needs
+VOICE_READINESS = [(0.5, "voice clone at a provider (e.g. ElevenLabs Professional Voice Clone)"),
+                   (1.0, "fine-tune an open, commercially licensed TTS model (usable)"),
+                   (3.0, "fine-tune for production quality"),
+                   (24.0, "train a TTS model from scratch (below this it sounds robotic)")]
 
 
 class DataError(Exception):
@@ -309,6 +325,198 @@ def build_media(args: argparse.Namespace, root: Path, out: Path, ratios: tuple[f
     return 0
 
 
+# ─── speech ───────────────────────────────────────────────────────────────────
+
+def read_transcripts(root: Path) -> dict[Path, str]:
+    """metadata.csv files (LJSpeech `clip|text[|normalised]` or a header with file,text) → {audio path: text}."""
+    texts: dict[Path, str] = {}
+    for meta in sorted(root.rglob("metadata.csv")):
+        raw = meta.read_text(encoding="utf-8", errors="replace")
+        lines = [l for l in raw.splitlines() if l.strip()]
+        if not lines:
+            continue
+        if "|" in lines[0]:
+            rows = [[c.strip() for c in l.split("|")] for l in lines]
+        else:
+            reader = csv.DictReader(io.StringIO(raw))
+            fields = {f.lower(): f for f in reader.fieldnames or []}
+            fcol = next((fields[k] for k in ("file", "audio", "path", "filename", "clip") if k in fields), None)
+            tcol = next((fields[k] for k in ("text", "transcript", "sentence", "normalized_text") if k in fields), None)
+            if not fcol or not tcol:
+                raise DataError(f"{meta}: needs columns file and text (or LJSpeech lines 'clip|text')")
+            rows = [[r.get(fcol) or "", r.get(tcol) or ""] for r in reader]
+        for row in rows:
+            if len(row) < 2 or not row[0]:
+                continue
+            name = row[0]
+            text = next((c for c in reversed(row[1:]) if c), "")
+            candidates = [meta.parent / name] + [meta.parent / f"{name}{e}" for e in sorted(AUDIO_EXT)] \
+                + [meta.parent / "wavs" / f"{name}{e}" for e in sorted(AUDIO_EXT)]
+            hit = next((c for c in candidates if c.is_file()), None)
+            if hit:
+                texts[hit.resolve()] = text
+    return texts
+
+
+def analyse_audio(path: Path) -> dict[str, Any]:
+    """Duration, sample rate, loudness, clipping and edge silence of one clip via ffprobe/ffmpeg."""
+    import subprocess
+    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+                            "stream=sample_rate,channels:format=duration", "-of", "json", str(path)],
+                           capture_output=True, text=True, timeout=60)
+    try:
+        info = json.loads(probe.stdout or "{}")
+        stream = info["streams"][0]
+        seconds = float(info["format"]["duration"])
+    except (ValueError, KeyError, IndexError):
+        return {"error": "not a readable audio file"}
+    run = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af",
+                          "silencedetect=n=-45dB:d=0.25,volumedetect", "-f", "null", "-"],
+                         capture_output=True, text=True, timeout=300)
+    log = run.stderr
+    def last(pattern: str) -> float | None:
+        found = re.findall(pattern, log)
+        return float(found[-1]) if found else None
+    n_samples = last(r"n_samples: (\d+)") or 0
+    clipped = last(r"histogram_0db: (\d+)") or 0
+    starts = [float(x) for x in re.findall(r"silence_start: (-?[\d.]+)", log)]
+    ends = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", log)]
+    lead = ends[0] if starts and starts[0] <= 0.05 and ends else 0.0
+    trail = seconds - starts[-1] if starts and (len(ends) < len(starts) or ends[-1] >= seconds - 0.05) else 0.0
+    return {"seconds": seconds, "sample_rate": int(stream.get("sample_rate", 0)), "channels": stream.get("channels"),
+            "mean_db": last(r"mean_volume: (-?[\d.]+) dB"), "max_db": last(r"max_volume: (-?[\d.]+) dB"),
+            "clipped": int(clipped), "n_samples": int(n_samples), "lead_silence": round(lead, 2),
+            "trail_silence": round(max(trail, 0.0), 2)}
+
+
+def judge_clip(a: dict[str, Any], text: str, args: argparse.Namespace) -> str | None:
+    """Reason the clip is unusable for voice training, or None."""
+    if "error" in a:
+        return a["error"]
+    if not text.strip():
+        return "no transcript"
+    if a["seconds"] < 1.0:
+        return f"too short ({a['seconds']:.1f} s)"
+    if a["seconds"] > args.max_clip_seconds:
+        return f"too long ({a['seconds']:.0f} s, max {args.max_clip_seconds}) — cut into sentences"
+    if a["sample_rate"] < args.min_sample_rate:
+        return f"sample rate {a['sample_rate']} Hz below {args.min_sample_rate} (phone-quality audio cannot teach a voice)"
+    if a["clipped"] > max(10, a["n_samples"] * 1e-4):
+        return f"clipped ({a['clipped']} samples at full scale) — record with more headroom"
+    if a["mean_db"] is not None and a["mean_db"] < -40:
+        return f"too quiet (mean {a['mean_db']} dB)"
+    if max(a["lead_silence"], a["trail_silence"]) > 1.0:
+        return f"{max(a['lead_silence'], a['trail_silence']):.1f} s silence at the start/end — trim the clip"
+    letters = len(re.sub(r"[^\w]", "", text))
+    rate = letters / max(a["seconds"] - a["lead_silence"] - a["trail_silence"], 0.1)
+    if not 5 <= rate <= 25:
+        return f"{rate:.0f} letters per second does not fit speech — transcript belongs to another clip or is cut off"
+    return None
+
+
+def build_speech(args: argparse.Namespace, root: Path, out: Path, ratios: tuple[float, float, float]) -> int:
+    import shutil
+    if not root.is_dir():
+        raise DataError(f"input folder not found: {root}")
+    if not (shutil.which("ffmpeg") and shutil.which("ffprobe")):
+        raise DataError("--task speech needs ffmpeg and ffprobe (apt install ffmpeg / brew install ffmpeg)")
+    texts = read_transcripts(root)
+    files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in AUDIO_EXT and not p.name.startswith("."))
+    if not files:
+        raise DataError(f"no recordings found in {root} ({', '.join(sorted(AUDIO_EXT))})")
+    seen: set[str] = set()
+    items, rejected, exact_drop = [], [], 0
+    digits = 0
+    for path in files:
+        digest = sha256(path)
+        if digest in seen:  # only accepted clips count, so a stray copy cannot push out the transcribed original
+            exact_drop += 1
+            continue
+        text = texts.get(path.resolve())
+        if text is None:
+            for ext in (".txt", ".lab"):
+                side = path.with_suffix(ext)
+                if side.is_file():
+                    text = side.read_text(encoding="utf-8", errors="replace")
+                    break
+        text = clean(text or "").replace("\n", " ")
+        a = analyse_audio(path)
+        rel = path.relative_to(root)
+        reason = judge_clip(a, text, args)
+        if reason:
+            rejected.append({"path": str(rel), "reason": reason})
+            continue
+        seen.add(digest)
+        if re.search(r"\d", text):
+            digits += 1
+        speaker = rel.parts[0] if len(rel.parts) > 1 and rel.parts[0] != "wavs" else "default"
+        items.append({"text": text, "path": str(rel), "sha256": digest, "bytes": path.stat().st_size,
+                      "label": None, "speaker": speaker, "seconds": round(a["seconds"], 3),
+                      "sample_rate": a["sample_rate"], "source": str(rel)})
+    if not items:
+        for r in rejected[:10]:
+            print(f"  ✗ {r['path']}: {r['reason']}")
+        raise DataError(f"no usable recordings in {root} — all {len(rejected)} clip(s) rejected")
+    parts = split(items, ratios, args.seed, False)
+    out.mkdir(parents=True, exist_ok=True)
+    outputs = {}
+    for name in SPLIT_NAMES:
+        path = out / f"{name}.jsonl"
+        with open(path, "w", encoding="utf-8") as fh:
+            for i, d in enumerate(parts[name]):
+                fh.write(json.dumps({"id": f"{name}-{i:06d}", "path": d["path"], "text": d["text"],
+                                     "speaker": d["speaker"], "seconds": d["seconds"], "sample_rate": d["sample_rate"],
+                                     "sha256": d["sha256"], "bytes": d["bytes"]}, ensure_ascii=False) + "\n")
+        outputs[name] = {"file": path.name, "sha256": sha256(path), "records": len(parts[name]),
+                         "seconds": round(sum(d["seconds"] for d in parts[name]), 1)}
+    seconds = sum(d["seconds"] for d in items)
+    hours = seconds / 3600
+    speakers = Counter()
+    for d in items:
+        speakers[d["speaker"]] += d["seconds"]
+    main_hours = max(speakers.values()) / 3600
+    readiness = [{"hours": h, "path": what, "ready": main_hours >= h} for h, what in VOICE_READINESS]
+    categories = ("no transcript", "too short", "too long", "sample rate", "clipped", "too quiet", "silence",
+                  "letters per second", "not a readable audio file")
+    reasons = Counter(next((c for c in categories if c in r["reason"]), "other") for r in rejected)
+    manifest = {
+        "version": 1, "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "task": "speech", "seed": args.seed, "split": dict(zip(SPLIT_NAMES, ratios)),
+        "input": {"root": str(root), "files": [{"path": i["path"], "sha256": i["sha256"], "bytes": i["bytes"]}
+                                               for i in items]},
+        "processing": {"records_in": len(files), "too_short_or_unlabelled": len(rejected), "exact_duplicates": exact_drop,
+                       "near_duplicates": 0, "near_dup_threshold": "not applicable (speech)",
+                       "pii_scrubbed": "not applicable (scripted recordings — never record real customer calls)",
+                       "min_chars": None, "rejected": rejected, "rejected_by_reason": dict(reasons),
+                       "transcripts_with_digits": digits},
+        "outputs": outputs, "records": len(items), "chars": sum(len(d["text"]) for d in items), "approx_tokens": 0,
+        "bytes": sum(i["bytes"] for i in items), "labels": None, "seconds": round(seconds, 1),
+        "hours": round(hours, 3), "speakers": {k: round(v / 3600, 3) for k, v in sorted(speakers.items())},
+        "sample_rates": dict(Counter(str(d["sample_rate"]) for d in items)), "readiness": readiness,
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_datasheet(out, manifest)
+    for r in rejected[:20]:
+        print(f"  ✗ {r['path']}: {r['reason']}")
+    if len(rejected) > 20:
+        print(f"  … {len(rejected) - 20} more rejected clip(s) in manifest.json")
+    if digits:
+        print(f"  ⚠ {digits} transcript(s) contain digits — write numbers the way they are spoken ('vierzehn Uhr')")
+    if len(speakers) > 1:
+        print(f"  ⚠ {len(speakers)} speakers — a voice is trained per speaker; hours below count the largest one")
+    print(f"[dataset] {len(items)} clips, {hours:.2f} h usable ({len(rejected)} rejected, {exact_drop} duplicates) → "
+          + ", ".join(f"{k} {v['records']}" for k, v in outputs.items()))
+    for r in readiness:
+        print(f"  {'✓' if r['ready'] else '·'} {r['hours']:>4} h  {r['path']}")
+    if len(items) < args.min_records:
+        print(f"  ✗ only {len(items)} usable clips, need at least {args.min_records}")
+        return 1
+    if main_hours < args.min_hours:
+        print(f"  ✗ {main_hours:.2f} h of one voice, need at least {args.min_hours} h for the chosen voice path")
+        return 1
+    return 0
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     root, out = Path(args.input).resolve(), Path(args.out).resolve()
     ratios = tuple(float(x) for x in args.split.split(","))
@@ -316,6 +524,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         raise DataError("--split needs three ratios that add up to 1, e.g. 0.8,0.1,0.1")
     if args.task in MEDIA_TASKS:
         return build_media(args, root, out, ratios)
+    if args.task == "speech":
+        return build_speech(args, root, out, ratios)
     docs, used = collect(root, args.task, args.text_field, args.label_field)
     total_in = len(docs)
     pii: Counter = Counter()
@@ -403,10 +613,16 @@ def write_datasheet(out: Path, m: dict[str, Any]) -> None:
         f"- Exact duplicates removed: {p['exact_duplicates']}; near duplicates (≥ {p['near_dup_threshold']}): {p['near_duplicates']}",
         f"- Personal data replaced: {p['pii_scrubbed']}",
         "", "## Result", "",
-        *([f"- {m['records']} files, {m.get('bytes', 0) / 1e6:.1f} MB"] if m["task"] in MEDIA_TASKS else
+        *([f"- {m['records']} clips, {m['hours']:.2f} h of speech, speakers (h): {m['speakers']}, "
+           f"sample rates: {m['sample_rates']}"] if m["task"] == "speech" else
+          [f"- {m['records']} files, {m.get('bytes', 0) / 1e6:.1f} MB"] if m["task"] in MEDIA_TASKS else
           [f"- {m['records']} records, {m['chars']:,} characters (~{m['approx_tokens']:,} tokens)"]),
         *[f"- {k}: {v['records']} records" + (f", {v['chars']:,} chars" if "chars" in v else "") for k, v in m["outputs"].items()],
     ]
+    if m.get("readiness"):
+        lines += ["", "## Voice readiness", "", "| Needs | Path | Ready |", "|---|---|---|",
+                  *[f"| {r['hours']} h | {r['path']} | {'yes' if r['ready'] else 'no'} |" for r in m["readiness"]],
+                  "", "Consent: written consent of the speaker to train and use this voice: **to be attached by the owner.**"]
     if m.get("labels"):
         lines += ["", "## Labels", "", "| Label | Records |", "|---|---|", *[f"| {k} | {v} |" for k, v in m["labels"].items()]]
     lines += ["", "## Known limitations", "", "- To be completed: gaps, biases, languages, time range of the data."]
@@ -435,7 +651,7 @@ def check_dataset(directory: Path) -> list[str]:
         if sha256(path) != info["sha256"]:
             problems.append(f"{info['file']} changed since the build (hash differs) — rebuild instead of editing splits")
         recs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
-        if m["task"] in MEDIA_TASKS:
+        if m["task"] in FILE_TASKS:
             media_root = Path(m["input"]["root"])
             for r in recs:
                 f = media_root / r["path"]
@@ -474,7 +690,9 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 def cmd_stats(args: argparse.Namespace) -> int:
     m = load_manifest(Path(args.dir).resolve())
-    print(json.dumps({k: m[k] for k in ("task", "records", "chars", "approx_tokens", "labels", "processing")},
+    keys = ("task", "records", "hours", "speakers", "readiness") if m["task"] == "speech" else \
+        ("task", "records", "chars", "approx_tokens", "labels", "processing")
+    print(json.dumps({k: m.get(k) for k in keys},
                      indent=2, ensure_ascii=False))
     return 0
 
@@ -485,7 +703,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("build")
     p.add_argument("--input", default="data/raw")
     p.add_argument("--out", default="data/processed")
-    p.add_argument("--task", choices=("text", "classification", "images", "videos"), default="text")
+    p.add_argument("--task", choices=("text", "classification", "images", "videos", "speech"), default="text")
     p.add_argument("--text-field", default="text")
     p.add_argument("--label-field", default="label")
     p.add_argument("--split", default="0.8,0.1,0.1")
@@ -496,6 +714,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-pii-scrub", action="store_true", help="keep e-mails, phone numbers and IBANs (only with consent)")
     p.add_argument("--media-near-bits", type=int, default=4,
                    help="images/videos: average-hash distance treated as duplicate (default 4 of 64 bits)")
+    p.add_argument("--min-sample-rate", type=int, default=22050, help="speech: minimum sample rate in Hz")
+    p.add_argument("--max-clip-seconds", type=float, default=20, help="speech: longest usable clip")
+    p.add_argument("--min-hours", type=float, default=0, help="speech: fail below this many hours of one voice")
     p.set_defaults(func=cmd_build)
     p = sub.add_parser("check")
     p.add_argument("--dir", default="data/processed")

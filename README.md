@@ -138,6 +138,21 @@ your call transcripts. `hooks/call-sim.py` plays scripted test calls in the gate
 an AI, understand every intent, answer briefly and correctly, hand over when asked and stay within the latency
 budget.
 
+**A real voice, not a robot.** Every sentence is spoken by one neural voice (ElevenLabs or Azure Neural HD).
+That includes the handover and DTMF replies, so callers never hear Twilio's built-in voice. Small talk such as
+"Hallo?" is answered instead of "nicht verstanden". Before go-live, the gate saves every reply as an audio
+sample for listening.
+
+For an **own brand voice**, the build delivers a recording script and guide. `dataset.py --task speech` checks
+the recordings: sample rate, clipping, silence, and whether each transcript fits its clip. It then reports the
+hours of audio and which voice paths they support:
+
+| Voice path | Hours of recordings |
+|---|---|
+| Voice clone at the provider | from 0.5 h |
+| Own fine-tuned model on your server | from 1 h, 3 h for production quality |
+| Training from scratch | from 24 h; with less audio the voice sounds robotic |
+
 ## Premium Websites, Videos Included
 
 "Webseite im 100k-Preissegment" selects the enterprise tier of the `website` blueprint: design system,

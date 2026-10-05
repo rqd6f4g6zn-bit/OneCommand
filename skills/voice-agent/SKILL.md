@@ -1,6 +1,6 @@
 ---
 name: voice-agent
-description: Builds AI phone / voice support assistants — telephony (Twilio, SIP), real-time speech recognition and synthesis, a dialogue engine that answers from the company's own knowledge base, actions (order status, tickets, callbacks), warm handover to humans, AI disclosure and GDPR, call log and analytics. Own intent model trained from the company's call transcripts (ml-builder). Verified with scripted test calls (hooks/call-sim.py). Used for specs with a "voice" section (blueprint phone-assistant).
+description: Builds AI phone / voice support assistants — telephony (Twilio, SIP), real-time speech recognition, a natural human-sounding voice (never robotic; own brand voice by consented clone or an own fine-tuned TTS model), a dialogue engine that answers from the company's own knowledge base, small talk, actions (order status, tickets, callbacks), warm handover to humans, AI disclosure and GDPR, call log and analytics. Own intent model trained from the company's call transcripts (ml-builder). Verified with scripted test calls, a small-talk probe and voice samples (hooks/call-sim.py). Used for specs with a "voice" section (blueprint phone-assistant).
 ---
 
 You are the Voice Agent skill of OneCommand. A phone assistant is judged in the first ten seconds of a
@@ -31,32 +31,87 @@ Caller ──PSTN──▶ Twilio / SIP trunk ──webhook──▶ POST /api/v
 |---|---|---|
 | Telephony | Twilio Programmable Voice + Media Streams; sipgate / SIP trunk | Asterisk / FreeSWITCH + SIP trunk |
 | Speech-to-text | Deepgram, Azure Speech, Google STT (streaming, de-DE) | faster-whisper (GPU), Vosk (CPU) |
-| Text-to-speech | ElevenLabs, Azure Neural TTS | Piper, Coqui XTTS |
+| Text-to-speech | ElevenLabs (Flash v2.5 / Multilingual v2), Azure Neural HD | own fine-tuned model on a commercially licensed base (§3), Piper |
 | Dialogue | Claude (Anthropic API) with tool use for actions | local LLM (llama.cpp / vLLM) |
 
 Credentials are production dependencies (`telephony`, `speech`) — the delivery report lists the account
 steps. Test mode (`ONECOMMAND_E2E=1`) uses the simulate endpoint and fake providers.
 
-## 3. Dialogue engine
+## 3. Voice — it must sound like a person
+
+Callers judge the voice before the content. A robotic voice makes them press 0 or hang up.
+
+- **One voice for everything.** Every sentence the caller hears is synthesised by the configured TTS — greeting,
+  answers, hold messages, the handover sentence, errors. Never TwiML `<Say>` / `response.say()` (Twilio's built-in
+  voice is a second, robotic voice) and never eSpeak, Festival, Flite or Pico. `call-sim validate` fails on both.
+  For TwiML paths (DTMF, fallback) synthesise the text and `<Play>` the file, or speak through the media stream.
+- **Neural, streaming, low latency:** ElevenLabs Flash v2.5 (≈ 75 ms) or Multilingual v2 for the most natural
+  German; Azure Neural HD as the one-vendor option. Stream audio as it arrives; start speaking on the first
+  sentence of the LLM reply.
+- **Telephone format:** request 8 kHz μ-law (or 16 kHz and resample once) — no double conversion.
+- **Speakable text:** numbers, dates, times, prices and order numbers written the way they are spoken
+  ("vierzehn Uhr", "vier sieben eins eins"); abbreviations expanded; the company and product names in a
+  pronunciation lexicon (phonemes / alias); no lists, brackets, emoji or URLs.
+- **Prosody:** short sentences, a comma where a person breathes, a question at the end when a reply is
+  expected; slightly slower than reading speed (call-sim requires 8–25 letters/s).
+- **`POST /api/voice/tts {"text"}` → audio** (test mode and authenticated admins only), header
+  `X-Voice-Provider: elevenlabs|azure|own-model|fake`, 503 when no provider is configured. Set
+  `voice.tts_endpoint` in the spec: call-sim then synthesises every greeting and reply into
+  `.onecommand/calls/audio/` — the owner listens to them before go-live (linked in the delivery report).
+
+### Own voice (brand voice)
+
+| Way | Data needed | Result | Notes |
+|---|---|---|---|
+| Catalogue voice | none | professional, natural | fastest start |
+| Voice clone at the provider (ElevenLabs Professional Voice Clone) | 30 min – 3 h studio recordings of one speaker | sounds like your speaker | written consent of the speaker; voice stays with the provider |
+| **Own model, self-hosted** — fine-tune an open, commercially licensed TTS model on your recordings | 1 h usable, 3 h+ for production | your own weights on your server, no per-minute cost | GPU for training (hours); licence of the base model must allow commercial use — check and record it (e.g. Piper: MIT; Kokoro, Fish Speech: Apache 2.0 — verify the current licence of the exact checkpoint). Non-commercial weights (XTTS-v2, F5-TTS) are excluded |
+| From scratch | 24 h+ (50 h+ for natural prosody) of one speaker | fully own model | with less data it sounds robotic — say so plainly and recommend the fine-tune |
+
+Recording kit (the build writes it to `voice/recording/`):
+- `script.md`: every sentence the assistant says (greeting, all knowledge-base answers, handover, goodbye),
+  numbers 0–100, weekdays, months, times, prices, order-number digits, product and street names, plus
+  phonetically varied German sentences (ä ö ü ß, ich-/ach-Laut, pf, z, ng, sp/st, r-Varianten) — 1 sentence per clip,
+  3–15 seconds each.
+- `GUIDE.md`: quiet room (no echo), the same microphone and distance every session, 44.1 or 48 kHz WAV,
+  peaks around −6 dB (never clipping), friendly and calm like on the phone, 0.3 s silence before and after,
+  breaks every 30 minutes, the speaker's signed consent (training, use, duration, revocation).
+- Check the recordings before training:
+
+```bash
+python3 "$OC_ROOT/hooks/dataset.py" build --input voice/recordings --out voice/dataset --task speech --min-hours 1
+```
+
+  It rejects clips without transcript, too short/long, below 22.05 kHz (phone recordings cannot teach a voice),
+  clipped, too quiet, with long silence or with a transcript that does not fit the audio length, and prints
+  which way the hours support. Real customer calls are never training data for a voice.
+
+The voice is still an AI voice: the greeting discloses it (EU AI Act Art. 50); a cloned real person's voice only
+with their written consent, and never to impersonate a person.
+
+## 4. Dialogue engine
 
 1. **Greeting** (call start = empty text): company name + AI disclosure ("Sie sprechen mit dem digitalen
    Assistenten von …, einer KI") + recording notice only when recording is on, with how to object.
-2. **Understand**: own intent model first (§4) — above the confidence threshold route directly; below it,
+2. **Small talk** (`smalltalk` intent): "Hallo?", "Ja, hallo", "Moment bitte", "Sind Sie noch da?", "Danke" are
+   normal on the phone — greet back / wait / confirm and ask how to help. Never "nicht verstanden", never a
+   handover because of them (call-sim plays these in every run).
+3. **Understand**: own intent model first (§5) — above the confidence threshold route directly; below it,
    ask back once or let the LLM route with the intent list as tools.
-3. **Answer** from the knowledge base: retrieve published articles (embeddings or BM25), answer only
+4. **Answer** from the knowledge base: retrieve published articles (embeddings or BM25), answer only
    from retrieved text; no source → "Das kann ich Ihnen nicht sicher sagen" + offer a human/callback.
    Never invent prices, dates, legal statements.
-4. **Act** through tools: `lookup_order(number|phone)`, `create_ticket(summary)`, `book_callback(phone, window)`
+5. **Act** through tools: `lookup_order(number|phone)`, `create_ticket(summary)`, `book_callback(phone, window)`
    — confirm before writing actions, read back numbers.
-5. **Hand over** on request, on frustration (repeated "Mensch", swearing, two failed attempts), on DTMF 0:
+6. **Hand over** on request, on frustration (repeated "Mensch", swearing, two failed attempts), on DTMF 0:
    warm transfer with a two-sentence summary to the agent; outside opening hours a callback instead.
-6. **Close**: summary of what happens next, `end_call: true`.
-7. **Log** every turn (masked with the same patterns as `hooks/dataset.py`: e-mail, IBAN, phone, card numbers).
+7. **Close**: summary of what happens next, `end_call: true`.
+8. **Log** every turn (masked with the same patterns as `hooks/dataset.py`: e-mail, IBAN, phone, card numbers).
 
 Latency budget per turn (target ≤ 1.5 s from caller stop to first audio): endpointing 300 ms · STT final
 200 ms · dialogue 600 ms (stream the LLM, start TTS on the first sentence) · TTS first chunk 300 ms.
 
-## 4. Own intent model (from own call data)
+## 5. Own intent model (from own call data)
 
 The company's model, trained from zero (ml-builder §0): export transcripts of handled calls (or the support
 mailbox), label them by intent (one folder per intent or a CSV `text,label`), then
@@ -65,14 +120,17 @@ mailbox), label them by intent (one folder per intent or a CSV `text,label`), th
 python3 "$OC_ROOT/hooks/dataset.py" build --input data/raw --out data/processed --task classification
 ```
 
-train a small text classifier from scratch (own tokenizer, random init) with `ml.from_scratch`, verify with the
+train a small text classifier from scratch (own tokenizer, random init) with `ml.from_scratch` (include small talk
+as its own class), verify with the
 ML gate (macro_f1 ≥ target on the test split), export it for the dialogue engine (ONNX or a small FastAPI
 service). Retrain from approved transcripts monthly. Without call data yet: start with LLM routing and log
 everything — the log becomes the training set.
 
-## 5. Test calls (the verdict)
+## 6. Test calls (the verdict)
 
-Every intent and the handover get a scenario in `voice/scenarios/*.json` (format in `hooks/call-sim.py`):
+Every intent and the handover get a scenario in `voice/scenarios/*.json` (format in `hooks/call-sim.py`). Every
+turn checks content — an intent or words; a turn that only checks length or latency is rejected, because a
+"not understood" reply would pass it:
 
 ```json
 {"name": "Bestellstatus", "caller": "+4930111222", "turns": [
@@ -88,10 +146,11 @@ python3 "$OC_ROOT/hooks/call-sim.py" run             # starts the production ser
 
 The quality gate runs them in its `tour` stage (spec `voice`): greeting without AI disclosure, wrong intent,
 missing facts, invented answers (`reply_not_contains`), replies over 300 characters or over the latency
-budget fail the build. `.onecommand/calls/report.md` is the transcript of every test call — it goes into
+budget, small talk answered with "not understood" or a handover, TwiML `<Say>` or a robotic engine in the code,
+and (with credentials) voice samples that are missing or rushed fail the build. `.onecommand/calls/report.md` is the transcript of every test call — it goes into
 the delivery report.
 
-## 6. Compliance
+## 7. Compliance
 
 - EU AI Act Art. 50: callers are told at the start that they talk to an AI.
 - GDPR: recording only with notice and the option to object; transcripts masked; retention (default 90 days

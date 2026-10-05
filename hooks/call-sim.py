@@ -27,6 +27,17 @@ expect: intent · reply_contains (all) · reply_contains_any · reply_not_contai
 Every call additionally checks the greeting: it must contain one of voice.disclosure
 ("KI", "digitaler Assistent" …) — callers must know they talk to an AI.
 
+Built-in checks besides the scenarios:
+  small talk   a separate call says voice.smalltalk ("Hallo?", "Ja, hallo", "Moment bitte"); the reply must
+               not be a "not understood" fallback, hand over or end the call — the first seconds decide
+               whether callers trust the assistant
+  voice code   validate fails on TwiML <Say> (Twilio's built-in voice: a second, robotic voice next to the
+               configured one) and on robotic engines (eSpeak, Festival, Flite, Pico) in the source
+  listening    with voice.tts_endpoint (POST {"text"} → audio) every greeting and reply is synthesised with
+               the configured voice and saved to .onecommand/calls/audio/ for listening; checked: audio
+               returned, speaking rate 8–25 letters/s, no robotic engine (X-Voice-Provider header).
+               503 or provider "fake" (test mode without credentials) → skipped with a warning
+
 Subcommands
 -----------
 validate   check spec "voice" and the scenario files
@@ -41,6 +52,9 @@ import argparse
 import importlib.util
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
 import time
 import urllib.error
@@ -51,6 +65,12 @@ from typing import Any
 
 EXPECT_KEYS = {"intent", "reply_contains", "reply_contains_any", "reply_not_contains", "action", "handover",
                "end_call", "max_ms", "max_chars"}
+DEFAULT_SMALLTALK = ["Hallo?", "Ja, hallo", "Moment bitte"]
+NOT_UNDERSTOOD = ["nicht verstanden", "wie bitte", "nicht ganz verstanden", "nicht richtig verstanden",
+                  "didn't understand", "did not understand", "sorry, what"]
+ROBOTIC_ENGINES = ("espeak", "festival", "flite", "pico", "sam", "mbrola")
+CODE_DIRS = ("app", "src", "lib", "server", "pages", "api", "services")
+CODE_EXT = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".xml"}
 DEFAULT_DISCLOSURE = ["KI", "künstliche Intelligenz", "digitaler Assistent", "digitale Assistentin", "virtueller Assistent", "AI"]
 
 
@@ -95,15 +115,40 @@ def load_scenarios(project: Path, v: dict[str, Any]) -> tuple[list[dict[str, Any
                 errors.append(f"{f.name} turn {i + 1}: unknown expect key(s) {', '.join(sorted(unknown))}")
             if not turn.get("expect"):
                 errors.append(f"{f.name} turn {i + 1}: 'expect' is empty — every turn checks something")
+            elif not set(turn["expect"]) - {"max_ms", "max_chars"}:
+                errors.append(f"{f.name} turn {i + 1}: checks only length/latency — say which intent or words the "
+                              f"reply needs (a 'not understood' answer would pass)")
         scenarios.append(sc)
     return scenarios, errors
+
+
+def voice_code_problems(project: Path) -> list[str]:
+    """Spoken output that bypasses the configured voice: TwiML <Say> or robotic speech engines."""
+    problems = []
+    say = re.compile(r"<Say[\s>]|\.say\(")
+    engine = re.compile(r"\b(espeak(-ng)?|text2wave|flite|pico2wave)\b|festival\s+--tts", re.I)
+    for folder in CODE_DIRS:
+        root = project / folder
+        if not root.is_dir():
+            continue
+        for f in sorted(root.rglob("*")):
+            if f.suffix not in CODE_EXT or not f.is_file() or "node_modules" in f.parts or ".next" in f.parts:
+                continue
+            for n, line in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                rel = f.relative_to(project)
+                if say.search(line):
+                    problems.append(f"{rel}:{n}: TwiML <Say> speaks with Twilio's built-in voice — callers hear a second, "
+                                    f"robotic voice; synthesise the text with the configured TTS and <Play>/stream it")
+                elif engine.search(line) and not line.lstrip().startswith(("//", "#", "*")):
+                    problems.append(f"{rel}:{n}: robotic speech engine — use a neural voice (see voice-agent skill)")
+    return problems
 
 
 def validate(spec: dict[str, Any], project: Path) -> list[str]:
     v = voice_cfg(spec)
     if v is None:
         return []
-    errors = []
+    errors = voice_code_problems(project)
     if not str(v.get("endpoint", "")).startswith("/"):
         errors.append("voice.endpoint must be a path like /api/voice/simulate")
     scenarios, problems = load_scenarios(project, v)
@@ -197,6 +242,116 @@ def play(base: str, v: dict[str, Any], sc: dict[str, Any], defaults: dict[str, A
     return record
 
 
+def not_understood(reply: str, v: dict[str, Any]) -> bool:
+    low = reply.lower()
+    fallback = str(v.get("fallback_reply") or "").strip().lower()
+    return any(w in low for w in NOT_UNDERSTOOD) or bool(fallback and low.startswith(fallback[:40]))
+
+
+def smalltalk_probe(base: str, v: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
+    url = base.rstrip("/") + v["endpoint"]
+    session = f"sim-smalltalk-{uuid.uuid4().hex[:8]}"
+    record: dict[str, Any] = {"name": "Small talk (built-in)", "file": "smalltalk", "session": session, "turns": [], "failures": []}
+    status, resp, ms = post(url, {"session_id": session, "text": "", "caller": "+4930000001"}, defaults["timeout"])
+    record["greeting"] = {"reply": resp.get("reply", "") if isinstance(resp, dict) else "", "ms": round(ms)}
+    if status != 200:
+        record["failures"].append(f"call start: HTTP {status}")
+        return record
+    for i, say in enumerate(v.get("smalltalk") or DEFAULT_SMALLTALK, 1):
+        status, resp, ms = post(url, {"session_id": session, "text": say, "caller": "+4930000001"}, defaults["timeout"])
+        fails = []
+        if status != 200 or not isinstance(resp, dict):
+            fails.append(f"HTTP {status}")
+        else:
+            reply = str(resp.get("reply", ""))
+            if not_understood(reply, v):
+                fails.append(f"answers small talk with 'not understood': '{reply[:120]}' — greet back and ask how to help")
+            if resp.get("handover") or resp.get("end_call"):
+                fails.append("small talk must not hand over or end the call")
+            if ms > defaults["max_ms"]:
+                fails.append(f"answered in {ms:.0f} ms, budget {defaults['max_ms']} ms")
+        record["turns"].append({"say": say, "reply": resp.get("reply") if isinstance(resp, dict) else None,
+                                "intent": resp.get("intent") if isinstance(resp, dict) else None,
+                                "ms": round(ms), "failures": fails})
+        record["failures"] += [f"turn {i} ('{say}'): {f}" for f in fails]
+    return record
+
+
+def audio_seconds(path: Path) -> float | None:
+    if not shutil.which("ffprobe"):
+        return None
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+                             capture_output=True, text=True, timeout=30).stdout.strip()
+        return float(out)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def synthesise(url: str, text: str, timeout: int) -> tuple[int, bytes, dict[str, str], float]:
+    req = urllib.request.Request(url, data=json.dumps({"text": text}).encode(), method="POST",
+                                 headers={"content-type": "application/json"})
+    start = time.monotonic()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 — local or given URL
+            body, status, headers = resp.read(), resp.status, {k.lower(): v for k, v in resp.headers.items()}
+    except urllib.error.HTTPError as exc:
+        body, status, headers = exc.read(), exc.code, {k.lower(): v for k, v in exc.headers.items()}
+    except (urllib.error.URLError, OSError):
+        return 0, b"", {}, (time.monotonic() - start) * 1000
+    return status, body, headers, (time.monotonic() - start) * 1000
+
+
+EXT = {"audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/wave": ".wav",
+       "audio/ogg": ".ogg", "audio/webm": ".webm", "audio/basic": ".ulaw", "audio/x-mulaw": ".ulaw"}
+
+
+def listen(base: str, v: dict[str, Any], results: list[dict[str, Any]], out: Path, timeout: int) -> dict[str, Any]:
+    """Synthesise greeting + replies with the assistant's voice; save them for a listening review."""
+    url = base.rstrip("/") + v["tts_endpoint"]
+    texts: list[tuple[str, str]] = []
+    for r in results:
+        if r["greeting"]["reply"] and not texts:
+            texts.append(("greeting", r["greeting"]["reply"]))
+        for i, t in enumerate(r["turns"], 1):
+            if t.get("reply"):
+                texts.append((f"{Path(r['file']).stem}-{i}", t["reply"]))
+    status, body, headers, ms = synthesise(url, texts[0][1], timeout) if texts else (0, b"", {}, 0)
+    provider = headers.get("x-voice-provider", "").lower()
+    if status == 503 or provider == "fake":
+        return {"status": "skipped", "warning": "no voice provider configured (test mode) — audio samples skipped; "
+                "set the TTS credentials and rerun to listen before go-live", "files": []}
+    if status != 200:
+        return {"status": "failed", "failures": [f"{v['tts_endpoint']}: HTTP {status} — {body[:120]!r}"], "files": [],
+                "provider": provider or "unknown"}
+    if any(e in provider for e in ROBOTIC_ENGINES):
+        return {"status": "failed", "failures": [f"voice provider '{provider}' is a robotic engine — use a neural voice"],
+                "files": [], "provider": provider}
+    folder = out / "audio"
+    folder.mkdir(parents=True, exist_ok=True)
+    files, failures, first_ms = [], [], []
+    for n, (name, text) in enumerate(texts):
+        if n:
+            status, body, headers, ms = synthesise(url, text, timeout)
+        ctype = headers.get("content-type", "").split(";")[0].strip()
+        if status != 200 or not ctype.startswith("audio/") or len(body) < 100:
+            failures.append(f"{name}: no audio (HTTP {status}, {ctype or 'no content-type'}, {len(body)} bytes)")
+            continue
+        path = folder / f"{name}{EXT.get(ctype, '.audio')}"
+        path.write_bytes(body)
+        seconds = audio_seconds(path)
+        entry = {"name": name, "file": str(path.relative_to(out)), "text": text, "ms": round(ms), "seconds": seconds}
+        if seconds:
+            rate = len(re.sub(r"\W", "", text)) / seconds
+            entry["letters_per_s"] = round(rate, 1)
+            if not 8 <= rate <= 25:
+                failures.append(f"{name}: {rate:.0f} letters/s — speech is {'too fast' if rate > 25 else 'too slow or padded'}")
+        files.append(entry)
+        first_ms.append(ms)
+    return {"status": "failed" if failures else "ok", "failures": failures, "files": files,
+            "provider": provider or "unknown", "tts_ms_max": round(max(first_ms)) if first_ms else None}
+
+
 def ui_tour_module():
     spec = importlib.util.spec_from_file_location("oc_ui_tour", Path(__file__).with_name("ui-tour.py"))
     mod = importlib.util.module_from_spec(spec)
@@ -238,6 +393,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     server = None
+    audio = None
     base = args.base_url
     try:
         if not base:
@@ -251,23 +407,34 @@ def cmd_run(args: argparse.Namespace) -> int:
                 return 1
             base = server.base_url
         results = []
-        for sc in scenarios:
-            rec = play(base, v, sc, defaults)
+        probes = [lambda: smalltalk_probe(base, v, defaults)] if v.get("smalltalk", DEFAULT_SMALLTALK) else []
+        for job in [lambda sc=sc: play(base, v, sc, defaults) for sc in scenarios] + probes:
+            rec = job()
             results.append(rec)
             mark = "✓" if not rec["failures"] else "✗"
             slowest = max([t["ms"] for t in rec["turns"]] + [rec["greeting"]["ms"]])
             print(f"  {mark} {rec['name']} — {len(rec['turns'])} turn(s), slowest {slowest} ms")
             for f in rec["failures"]:
                 print(f"      ✗ {f}")
+        audio = listen(base, v, results, out, args.timeout) if v.get("tts_endpoint") else None
+        if audio:
+            if audio["status"] == "skipped":
+                print(f"  ⚠ {audio['warning']}")
+            else:
+                print(f"  {'✓' if audio['status'] == 'ok' else '✗'} voice: {len(audio['files'])} audio sample(s) "
+                      f"({audio['provider']}, slowest {audio.get('tts_ms_max')} ms) — {out / 'audio'}")
+                for f in audio["failures"]:
+                    print(f"      ✗ {f}")
     finally:
         if server:
             server.stop()
 
     failed = [r for r in results if r["failures"]]
+    audio_failed = bool(audio and audio["status"] == "failed")
     latencies = sorted(t["ms"] for r in results for t in r["turns"])
     p95 = latencies[min(len(latencies) - 1, int(len(latencies) * 0.95))] if latencies else None
-    report = {"version": 1, "passed": not failed, "scenarios": len(results), "failed": len(failed),
-              "turns": len(latencies), "latency_ms_p95": p95, "results": results}
+    report = {"version": 1, "passed": not failed and not audio_failed, "scenarios": len(results), "failed": len(failed),
+              "turns": len(latencies), "latency_ms_p95": p95, "results": results, "audio": audio}
     (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     md = [f"# Test calls — {spec.get('project_name', 'assistant')}", "",
           f"{len(results) - len(failed)}/{len(results)} calls passed · {len(latencies)} turns · p95 latency {p95} ms", ""]
@@ -277,9 +444,17 @@ def cmd_run(args: argparse.Namespace) -> int:
             md += [f"**Caller:** {t['say']}  ", f"**Assistant** ({t['intent']}, {t['ms']} ms): {t['reply']}", ""]
             md += [f"- ✗ {f}" for f in t["failures"]]
         md += [f"- ✗ {f}" for f in r["failures"] if not f.startswith("turn ")] + [""]
+    if audio and audio.get("files"):
+        md += ["## 🔊 Voice samples", "", f"Provider: {audio['provider']} — listen to every file before go-live.", "",
+               "| Sample | Seconds | Letters/s | Text |", "|---|---|---|---|"]
+        md += [f"| [{a['name']}]({a['file']}) | {a['seconds'] or '?'} | {a.get('letters_per_s', '?')} | {a['text'][:80]} |"
+               for a in audio["files"]]
+        md += [f"- ✗ {f}" for f in audio["failures"]] + [""]
+    elif audio:
+        md += ["## 🔊 Voice samples", "", f"⚠ {audio.get('warning') or '; '.join(audio['failures'])}", ""]
     (out / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print(f"[call-sim] {len(results) - len(failed)}/{len(results)} calls passed, p95 {p95} ms — {out / 'report.md'}")
-    return 1 if failed else 0
+    return 1 if failed or audio_failed else 0
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -349,8 +349,12 @@ Skip frontend-agent, backend-agent for pure OS projects.
 
 **If the spec has a `voice` section (phone assistant):** the backend agent follows the `voice-agent` skill
 (telephony webhooks, media-stream gateway, dialogue engine, `POST /api/voice/simulate`, actions, handover) and
-writes `voice/scenarios/*.json` — one test call per intent plus the handover; `hooks/call-sim.py validate` must
-pass before Phase 4. The gate plays every call in its `tour` stage.
+writes `voice/scenarios/*.json` — one test call per intent plus the handover, every turn checking content;
+`hooks/call-sim.py validate` must pass before Phase 4 (it also rejects TwiML `<Say>` and robotic speech engines).
+Every spoken sentence uses the one configured neural voice, and `POST /api/voice/tts` serves it. Small talk gets
+its own intent. With module `brand-voice`, the build writes the recording kit (`voice/recording/script.md`,
+`GUIDE.md`). The gate plays every call plus a small-talk probe in its `tour` stage. With voice credentials, it
+also saves voice samples to `.onecommand/calls/audio/` for listening.
 
 **If `videos` is true (spec.media.videos — premium websites):** also dispatch a phase runner with the
 `video-producer` skill in the same message. It cuts the user's footage from `media.raw_dir` (or builds

@@ -183,3 +183,91 @@ def test_media_without_files(tmp_path):
     (tmp_path / "empty").mkdir()
     r = ds("build", "--input", str(tmp_path / "empty"), "--out", str(tmp_path / "out"), "--task", "images")
     assert r.returncode == 2 and "no images found" in r.stderr
+
+
+# ─── speech (own voice) ───────────────────────────────────────────────────────
+
+SENTENCES = ["Guten Tag, hier ist Nordlicht Tee.", "Ihre Bestellung ist unterwegs.", "Wir rufen Sie gerne zurück.",
+             "Der Versand dauert zwei Tage.", "Rücksendungen sind kostenlos.", "Einen Moment bitte, ich verbinde.",
+             "Vielen Dank für Ihren Anruf.", "Grüner Tee braucht achtzig Grad.", "Unsere Teeküche hat geöffnet.",
+             "Das kann ich Ihnen gern erklären.", "Schönen Abend und auf Wiederhören.", "Möchten Sie noch etwas wissen?"]
+
+
+def _tone(path: Path, freq: int, seconds: float = 2.0, rate: int = 22050, af: str | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _ffmpeg("-f", "lavfi", "-i", f"sine=frequency={freq}:duration={seconds}", *(["-af", af] if af else []),
+            "-ar", str(rate), "-ac", "1", str(path))
+
+
+@pytest.fixture
+def speech(tmp_path: Path) -> Path:
+    import shutil as _sh
+    if not (_sh.which("ffmpeg") and _sh.which("ffprobe")):
+        pytest.skip("ffmpeg not installed")
+    r = tmp_path / "voice"
+    for i, text in enumerate(SENTENCES):
+        _tone(r / "wavs" / f"c{i:02d}.wav", 200 + 25 * i)
+    lines = [f"c{i:02d}|{t}" for i, t in enumerate(SENTENCES)]
+    _tone(r / "wavs" / "digits.wav", 520)
+    lines.append("digits|Wir haben bis 18 Uhr geöffnet.")
+    _tone(r / "wavs" / "mismatch.wav", 540)
+    lines.append("mismatch|" + "Dieser Text ist viel zu lang für zwei Sekunden Aufnahme und gehört zu einem anderen Clip. " * 2)
+    _tone(r / "wavs" / "clipped.wav", 560, af="volume=30")
+    lines.append("clipped|Das ist zu laut aufgenommen.")
+    _tone(r / "wavs" / "quiet.wav", 580, af="volume=0.001")
+    lines.append("quiet|Das ist viel zu leise aufgenommen.")
+    _tone(r / "wavs" / "padded.wav", 600, af="apad=pad_dur=2")
+    lines.append("padded|Hier fehlt der Schnitt am Ende.")
+    _tone(r / "wavs" / "long.wav", 620, seconds=25)
+    lines.append("long|Ein sehr langer Absatz.")
+    _tone(r / "wavs" / "notext.wav", 640)
+    import shutil as _sh2
+    _sh2.copy(r / "wavs" / "c00.wav", r / "wavs" / "c00-copy.wav")  # stray copy without a transcript
+    _sh2.copy(r / "wavs" / "c01.wav", r / "wavs" / "zz-dup.wav")    # exact duplicate with a transcript
+    lines.append("zz-dup|Ihre Bestellung ist unterwegs.")
+    (r / "metadata.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _tone(r / "phone.wav", 660, rate=8000)                       # sidecar transcript, telephone quality
+    (r / "phone.txt").write_text("Aufnahme vom Telefon.", encoding="utf-8")
+    return r
+
+
+def test_build_speech_dataset(tmp_path, speech):
+    out = tmp_path / "out"
+    r = ds("build", "--input", str(speech), "--out", str(out), "--task", "speech")
+    assert r.returncode == 0, r.stdout + r.stderr
+    m = json.loads((out / "manifest.json").read_text())
+    assert m["task"] == "speech" and m["records"] == 13, r.stdout  # 12 sentences + the clip with digits
+    assert m["processing"]["exact_duplicates"] == 1
+    reasons = {x["path"]: x["reason"] for x in m["processing"]["rejected"]}
+    assert "letters per second" in reasons["wavs/mismatch.wav"]
+    assert "clipped" in reasons["wavs/clipped.wav"]
+    assert "too quiet" in reasons["wavs/quiet.wav"]
+    assert "silence" in reasons["wavs/padded.wav"]
+    assert "too long" in reasons["wavs/long.wav"]
+    assert reasons["wavs/notext.wav"] == reasons["wavs/c00-copy.wav"] == "no transcript"
+    assert "sample rate 8000" in reasons["phone.wav"]
+    assert m["processing"]["transcripts_with_digits"] == 1 and "digits" in r.stdout
+    assert m["seconds"] == pytest.approx(26, abs=0.5) and m["speakers"] == {"default": m["hours"]}
+    assert [x["ready"] for x in m["readiness"]] == [False, False, False, False]
+    recs = [json.loads(l) for name in ("train", "val", "test") for l in (out / f"{name}.jsonl").read_text().splitlines()]
+    assert {x["sample_rate"] for x in recs} == {22050} and all(x["text"] and x["seconds"] for x in recs)
+    sheet = (out / "DATASHEET.md").read_text()
+    assert "Voice readiness" in sheet and "Consent" in sheet
+    assert "train a TTS model from scratch" in r.stdout
+
+
+def test_speech_check_and_min_hours(tmp_path, speech):
+    out = tmp_path / "out"
+    r = ds("build", "--input", str(speech), "--out", str(out), "--task", "speech", "--min-hours", "0.5")
+    assert r.returncode == 1 and "need at least 0.5 h" in r.stdout
+    assert ds("check", "--dir", str(out)).returncode == 0
+    _tone(speech / "wavs" / "c03.wav", 999)
+    r = ds("check", "--dir", str(out))
+    assert r.returncode == 1 and "c03.wav" in r.stdout and "changed since the build" in r.stdout
+
+
+def test_speech_without_recordings(tmp_path):
+    (tmp_path / "raw").mkdir()
+    (tmp_path / "raw" / "notes.txt").write_text("kein Audio")
+    r = ds("build", "--input", str(tmp_path / "raw"), "--out", str(tmp_path / "out"), "--task", "speech")
+    assert r.returncode == 2 and ("no recordings" in r.stderr or "ffmpeg" in r.stderr)

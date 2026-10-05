@@ -148,6 +148,17 @@ poster — plus where it is used, and a link to assets/CREDITS.md with the sourc
 
 ---
 
+## Phone assistant (spec with a voice section)
+
+<only when .onecommand/calls/report.json exists: "<passed>/<N> test calls passed, p95 <ms> ms" and the transcripts
+of three calls (greeting, one action, the handover) from .onecommand/calls/report.md; the small-talk probe result;
+voice: provider and a table of the audio samples (copy .onecommand/calls/audio/ to docs/voice-samples/ and link each
+file) with "listen to them before go-live" — or, when they were skipped, the steps to add the voice credentials and
+rerun `call-sim.py run`; with module brand-voice: links to voice/recording/script.md and GUIDE.md, the hours
+needed per voice path (clone 0.5 h, own fine-tuned model 1–3 h, from scratch 24 h+) and the consent requirement>
+
+---
+
 ## Screenshots
 
 <only when .onecommand/tour/report.json exists: embed the desktop screenshot of every page the first demo account
