@@ -127,6 +127,24 @@ python3 "$OC_ROOT/hooks/ui-tour.py" validate --spec .onecommand-spec.json       
 ```
 Exit 1 → fix the reported criteria / contract / demo section and validate again.
 
+Special build types — check the spec and follow the matching skill as well:
+```bash
+python3 -c "
+import json; s=json.load(open('.onecommand-spec.json'))
+print('ML:', 'ml' in s.get('build_targets', []), '· VOICE:', 'voice' in s, '· VIDEOS:', bool((s.get('media') or {}).get('videos')))
+"
+```
+- **ML: True** (train a model): follow the `ml-builder` skill (data pipeline, from-scratch templates when
+  `ml.from_scratch`, `dataset.py`). The quality gate hands the project to `hooks/ml-gate.py` itself.
+- **VOICE: True** (phone assistant): follow the `voice-agent` skill and write `voice/scenarios/*.json` — one
+  test call per intent plus the handover, every turn checking content. Then:
+  ```bash
+  python3 "$OC_ROOT/hooks/call-sim.py" validate --project-dir .
+  ```
+  It must pass before Phase 2 ends. It also fails on TwiML `<Say>` and robotic speech engines.
+- **VIDEOS: True** (premium website): follow the `video-producer` skill, then check the result with
+  `python3 "$OC_ROOT/hooks/video.py" check`.
+
 **Skill plan — consider every available skill** (bundled and user-installed):
 ```bash
 python3 "$OC_ROOT/hooks/skill-catalog.py" scan --oc-root "$OC_ROOT" --home "$HOME"
@@ -153,6 +171,13 @@ print('BUILD_WEB:', 'web' in targets)
 print('BUILD_MOBILE:', 'mobile' in targets)
 "
 ```
+
+**Phone assistant** (spec has `voice`): follow the `voice-agent` skill in the backend. That means:
+- one dialogue engine behind the telephony webhooks and `POST /api/voice/simulate`,
+- conversation memory (last intent, topic, order and phone numbers),
+- `smalltalk` and `complaint` intents,
+- caller recognition with a second factor before any change,
+- one neural voice for every sentence (`POST /api/voice/tts`, never TwiML `<Say>`), and `POST /api/voice/stt`.
 
 **Frontend** — Generate all pages and components using the `onecommand-spec-analyzer` skill output:
 - Read spec pages list, generate each as a complete Next.js page
@@ -260,6 +285,15 @@ Then open every screenshot listed in `.onecommand/tour/review.md`, tick it, writ
 lines (numbers that differ between pages, labels without their period, empty views for a demo login,
 broken layout), fix them, re-run the tour. Done when
 `python3 "$OC_ROOT/hooks/ui-tour.py" review-status` exits 0.
+
+With a `voice` section, the same stage plays every test call plus four built-in calls:
+- small talk ("Hallo?") must be answered, not "nicht verstanden";
+- a complaint must be recognised;
+- a follow-up ("Wann kommt es denn genau?") must not ask for the order number again;
+- a known caller who asks to change the address must be verified first.
+
+With voice credentials, it also saves audio samples and runs the pronunciation round trip. Results are in
+`.onecommand/calls/report.md`.
 
 **If GATE_EXIT is not 0**, read `.onecommand/gate/errors.txt` and use the `self-healer` skill with it. Re-run the same stage. Max 5 healing rounds per stage. Fix the application, never weaken tests or edit `acceptance_criteria`. Finish with `--stage all` after any change in Stage B.
 

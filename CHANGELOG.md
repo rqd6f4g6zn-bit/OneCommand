@@ -89,6 +89,12 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 - The delivery report has a phone-assistant section: test calls, the small-talk probe, voice samples to listen
   to, and the recording kit.
 
+### Changed
+- The Codex orchestrator (`/einbefehl`) now also knows ML training, website videos and phone assistants. It
+  covers `call-sim validate`, the `voice-agent` rules and the built-in test calls. Before this it covered
+  none of the three. A new test fails when the Codex skill falls behind `commands/onecommand.md` for a build
+  type.
+
 ### Fixed (found by probing the same build with 15 realistic caller turns: 8 good, 7 weak)
 - After "Wo ist meine Bestellung 4711?" the question "Wann kommt es denn genau?" was answered with "Wie lautet
   Ihre Bestellnummer?". After the return policy, "Kostet das was?" got the shipping costs. Cause: no
