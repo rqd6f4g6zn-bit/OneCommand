@@ -29,13 +29,13 @@ nicht nachbearbeitet. Gebaut wurde mit v1.10.0.
 ![Dashboard mit Automatisierungsquote, Übergaben, Gesprächsdauer und häufigsten Anliegen](01-dashboard.png)
 
 ## Gespräch mit Übergabe an eine Mitarbeiterin
-![Transkript mit Übergabe-Zusammenfassung](03-gespraech-mit-uebergabe.png)
+![Transkript mit Übergabe-Zusammenfassung](03-transkript.png)
 
 ## Wissensbasis: aus diesen Artikeln antwortet der Assistent
 ![Wissensbasis](04-wissensbasis.png)
 
 ## Stimme und Datenschutz: Aufzeichnung nur mit Hinweis, Löschfristen, Löschung pro Rufnummer
-![Einstellungen Stimme und Datenschutz](05-stimme-und-datenschutz.png)
+![Einstellungen Stimme und Datenschutz](05-einstellungen.png)
 
 ## Mobil
 <img src="06-mobil-dashboard.png" width="320" alt="Dashboard auf dem Handy">
