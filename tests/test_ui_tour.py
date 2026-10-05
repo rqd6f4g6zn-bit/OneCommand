@@ -237,3 +237,21 @@ def test_server_that_exits_is_reported_with_its_log(tmp_path):
     r = run_tour("run", "--project-dir", str(p), "--no-seed", "--start-timeout", "60")
     assert r.returncode == 1
     assert "server exited with code 1" in r.stdout and "AUTH_SECRET must be set" in r.stdout
+
+
+def test_visible_identifiers_are_found():
+    import importlib.util
+    import shutil
+    import subprocess
+    from conftest import HOOKS
+    if shutil.which("node") is None:
+        pytest.skip("node not installed")
+    spec = importlib.util.spec_from_file_location("uitour", HOOKS / "ui-tour.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    text = ("Häufigste Anliegen\ncallback 5\nknowledge_question 3\nIntent: order_status, Konfidenz 96 %\n"
+            "max_mustermann@example.com https://x.de/a_b /settings/user_roles token=abc_def\n"
+            "Rückruf vereinbaren (Absicht: handover)\nAPI_KEY Snake_Case")
+    js = mod.IDENTIFIER_JS + "\nconsole.log(JSON.stringify(findIdentifiers(" + json.dumps(text) + ")));"
+    out = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True).stdout
+    assert json.loads(out) == ["knowledge_question", "order_status"]

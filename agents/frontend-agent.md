@@ -75,6 +75,10 @@ For EACH page in `spec.pages`, generate a complete implementation:
 // Summary cards (stat tiles), recent activity list or table,
 // quick action buttons, real data from API hooks
 ```
+Never render code values. Enum, status and intent values such as `order_status`, `create_ticket` or `in_progress`
+are mapped to their label in the UI language through one label map per enum ("Bestellstatus", "Ticket anlegen"),
+in every table, chart, badge and filter. The UI tour warns about visible snake_case identifiers.
+
 Every tile that shows a metric from `spec.metrics` uses its label from the generated `METRICS` export
 (`METRICS.win_rate.label` → "Abschlussquote (dieser Monat)"). Counts shown next to a metric
 ("5 gewonnen, 2 verloren") come from the same endpoint fields and the same period as the metric —

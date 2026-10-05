@@ -89,6 +89,13 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 - The delivery report has a phone-assistant section: test calls, the small-talk probe, voice samples to listen
   to, and the recording kit.
 
+- **UI tour: visible code values.** Every page is checked for snake_case identifiers in the visible text, such
+  as `order_status` or `knowledge_question`, and they are reported as a warning. The frontend agent maps every
+  enum, status and intent to its label. The Nordlicht dashboard, call log and intent page showed raw intent
+  ids, and the tour finds them for all three roles.
+- Showcase `docs/showcase/telefon-assistent/` holds screenshots of the phone build, the simulator during a test
+  call, and what the v1.11.0 checks find in it.
+
 ### Changed
 - The Codex orchestrator (`/einbefehl`) now also knows ML training, website videos and phone assistants. It
   covers `call-sim validate`, the `voice-agent` rules and the built-in test calls. Before this it covered

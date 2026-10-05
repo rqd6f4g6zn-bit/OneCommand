@@ -298,6 +298,20 @@ class Server:
 
 # ─── browser script ───────────────────────────────────────────────────────────
 
+# Visible snake_case identifiers ("order_status", "knowledge_question") mean the UI shows a code value instead of
+# its label. E-mail addresses, URLs and paths are not counted. Shared with the tests.
+IDENTIFIER_JS = r"""
+function findIdentifiers(text) {
+  const found = new Set();
+  for (const raw of text.split(/\s+/)) {
+    if (!raw || /[@\/=]|:\/\//.test(raw)) continue;
+    const w = raw.replace(/^[("'„“‚]+|[)"'“”.,:;!?…]+$/g, '');
+    if (/^[a-z][a-z0-9]*(_[a-z0-9]+)+$/.test(w)) found.add(w);
+  }
+  return [...found];
+}
+"""
+
 TOUR_JS = r"""
 import fs from 'node:fs';
 import path from 'node:path';
@@ -367,6 +381,8 @@ async function visit(page, acct, vp, target, pattern) {
   catch (e) { rec.warnings.push(`screenshot failed: ${String(e.message || e).split('\n')[0]}`); }
   let text = '';
   try { text = await page.evaluate(() => (document.body ? document.body.innerText : '')); } catch {}
+  const ids = findIdentifiers(text);
+  if (ids.length) rec.warnings.push(`technical identifiers visible: ${ids.slice(0, 5).map((i) => `"${i}"`).join(', ')} — show the user-facing label (e.g. the German intent / status name), not the code value`);
   const hits = [...new Set((text.match(BAD_TEXT) || []).map((s) => s.trim()))];
   if (hits.length) rec.issues.push(`visible text shows ${hits.map((h) => `"${h}"`).join(', ')} — a value is missing or mis-parsed`);
   const labels = (acct === null || acct.email === cfg.first_account) && vp.name === 'desktop' ? (cfg.metric_labels[target] || []) : [];
@@ -670,7 +686,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         }
         (out_dir / "config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
         script = out_dir / "tour.mjs"
-        script.write_text(TOUR_JS, encoding="utf-8")
+        script.write_text(TOUR_JS + IDENTIFIER_JS, encoding="utf-8")
         total = len(anon["static"]) + len(anon["dynamic"]) + len(accounts) * (len(priv["static"]) + len(priv["dynamic"]))
         log(f"▶ visiting {total} page(s) with {len(accounts)} demo login(s)")
         try:
