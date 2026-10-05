@@ -1,0 +1,7 @@
+# Smoke run: proves data, tokenizer, model and training loop work — CPU, about 1–2 minutes.
+run: smoke
+data_dir: data/processed
+seed: 42
+vocab_size: 1000
+model: {n_layer: 2, n_head: 2, n_embd: 96, block_size: 64, dropout: 0.0}
+train: {steps: 300, batch_size: 16, lr: 0.002, warmup: 30, eval_every: 100, eval_batches: 20, weight_decay: 0.1}

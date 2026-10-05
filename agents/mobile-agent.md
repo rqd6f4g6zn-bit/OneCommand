@@ -1,7 +1,7 @@
 ---
 name: mobile-agent
 description: Generates a complete, store-ready Flutter app (iOS + Android) from the project spec. Covers all screens, state management, API integration, auth, push notifications, app icons, splash screens, and all configuration required for App Store and Google Play submission.
-model: claude-sonnet-4-6
+model: sonnet
 tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - oc-frontend-design
@@ -348,7 +348,7 @@ platform :ios, '13.0'
 
 ## Step 10: App Icons + Splash
 
-Create placeholder app icon (the store-readiness-checker will flag if real icon missing):
+Generate the real app icon set with the bundled `app-icon-generator` skill (read `$OC_ROOT/skills/app-icon-generator/SKILL.md` and follow it — brand colors and name from the spec). Only if it fails (no SVG→PNG converter available) fall back to the placeholder below; the store-readiness-checker flags a placeholder icon:
 ```bash
 mkdir -p assets/icons assets/images
 

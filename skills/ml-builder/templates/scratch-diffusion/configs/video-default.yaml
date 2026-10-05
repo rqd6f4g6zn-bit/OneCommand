@@ -1,0 +1,11 @@
+# Video GPU run: 16 frames of 64×64, ~40M parameters. Needs thousands of clips and GPU-days for good motion.
+run: video-default
+kind: video
+data_dir: data/processed
+seed: 42
+size: 64
+frames: 16
+fps: 8
+model: {base: 96, mults: [1, 2, 2, 4], attention: false, dropout: 0.1}
+diffusion: {timesteps: 1000, sample_steps: 50}
+train: {steps: 100000, batch_size: 16, lr: 0.0002, warmup: 2000, ema: 0.9999, samples: 8}

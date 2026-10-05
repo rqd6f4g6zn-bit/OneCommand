@@ -1,7 +1,7 @@
 ---
 name: game-agent
 description: Orchestrates generation of a complete 2D/3D game. Selects the optimal engine (Godot 4, Three.js, Phaser 3), generates all game code, worlds, characters, assets, and export configuration. Delivers a playable, store-ready game project.
-model: claude-sonnet-4-6
+model: sonnet
 tools: Read, Write, Edit, Bash, Glob, Grep
 skills:
   - game-engine-selector

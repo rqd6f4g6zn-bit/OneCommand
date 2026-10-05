@@ -1,0 +1,17 @@
+{
+  "description": "OneCommand: check for a newer release at session start and install it automatically (throttled, never during a running build).",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/update.py\" auto --quiet",
+            "timeout": 360
+          }
+        ]
+      }
+    ]
+  }
+}

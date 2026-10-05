@@ -1,0 +1,9 @@
+# Image GPU run: 64×64, ~35M parameters. One 24 GB GPU: several hours for 50k steps on thousands of images.
+run: default
+kind: image
+data_dir: data/processed
+seed: 42
+size: 64
+model: {base: 128, mults: [1, 2, 2, 4], attention: true, dropout: 0.1}
+diffusion: {timesteps: 1000, sample_steps: 50}
+train: {steps: 50000, batch_size: 64, lr: 0.0002, warmup: 1000, ema: 0.9999, samples: 64}

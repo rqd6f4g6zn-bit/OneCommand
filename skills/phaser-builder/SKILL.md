@@ -1,7 +1,7 @@
 ---
 name: phaser-builder
 description: Generates a complete Phaser 3 web 2D game with multiple scenes, tilemap levels, animated sprites, physics, enemies, HUD, save system, and fullscreen support.
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 # Phaser 3 Game Builder

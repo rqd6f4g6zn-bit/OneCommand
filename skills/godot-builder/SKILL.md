@@ -1,7 +1,7 @@
 ---
 name: godot-builder
 description: Generates a complete Godot 4 project with all scenes, GDScript, 3D/2D world design, character controllers, physics, UI, audio, and export configuration. Works for both 2D and 3D games.
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 # Godot 4 Builder

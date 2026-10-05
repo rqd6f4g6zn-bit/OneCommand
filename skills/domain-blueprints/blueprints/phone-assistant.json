@@ -1,0 +1,120 @@
+{
+  "id": "phone-assistant",
+  "name": "KI-Telefonassistent für den Support",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["telefonassistent", "telefon-assistent", "telefon assistent", "telefon-ki", "telefon ki", "ki-telefon", "voicebot", "voice bot", "voice-agent", "voice agent", "sprachassistent", "callbot", "anrufbeantworter mit ki", "telefonbot", "hotline-ki", "ki-hotline", "ki am telefon", "support telefon", "telefonsupport"],
+  "summary": "Nimmt Support-Anrufe an, sagt dass es eine KI ist, versteht das Anliegen, antwortet kurz aus der eigenen Wissensbasis, erledigt Aktionen (Bestellstatus, Ticket, Rückruf) und übergibt an Menschen — mit Gesprächsprotokoll, Datenschutz und Auswertung.",
+  "roles": [
+    {"id": "admin", "name": "Admin", "can": "alles inkl. Telefonie, Stimme, Wissensbasis, Benutzer"},
+    {"id": "agent", "name": "Support-Mitarbeiter", "can": "Übergaben annehmen, Gespräche und Transkripte ansehen, Rückrufe erledigen"},
+    {"id": "supervisor", "name": "Teamleitung", "can": "Auswertungen, Qualitätsprüfung, Wissensbasis freigeben", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "Call", "fields": ["callSid", "caller", "startedAt", "endedAt", "language", "outcome(resolved|handover|callback|abandoned)", "intent", "summary", "recordingUrl", "consentRecording"], "tier": "mvp"},
+    {"name": "Turn", "fields": ["callId", "speaker(caller|assistant)", "text", "intent", "confidence", "latencyMs", "at"], "tier": "mvp"},
+    {"name": "KnowledgeArticle", "fields": ["title", "body", "tags", "status(draft|published)", "updatedAt"], "tier": "mvp"},
+    {"name": "Handover", "fields": ["callId", "reason", "summary", "agentId", "acceptedAt"], "tier": "mvp"},
+    {"name": "Callback", "fields": ["callId", "phone", "preferredTime", "topic", "status", "doneAt"], "tier": "pro"},
+    {"name": "IntentModel", "fields": ["version", "trainedAt", "accuracy", "labels", "artifact"], "tier": "pro"},
+    {"name": "Setting", "fields": ["openingHours", "handoverNumber", "voice", "language", "recording", "retentionDays"], "tier": "mvp"}
+  ],
+  "modules": [
+    {"id": "telephony", "name": "Telefonie", "tier": "mvp",
+     "features": ["Eingehende Rufnummer (Twilio, SIP-Trunk oder Telefonanlage)", "Webhook für eingehende Anrufe mit Signaturprüfung", "Audio-Streaming in Echtzeit (Media Streams / WebSocket)", "Test-Endpunkt POST /api/voice/simulate für Textgespräche (Tests, Simulator)"],
+     "criteria": [
+       {"title": "Incoming call webhook answers with a media stream connection", "verification": "api", "steps": ["POST /api/voice/incoming with a valid provider signature"], "expected": ["Status 200", "Response connects the call to the assistant's media stream"]},
+       {"title": "Webhook without a valid signature is rejected", "verification": "api", "steps": ["POST /api/voice/incoming without a signature"], "expected": ["Status 403", "No call is created"]}
+     ]},
+    {"id": "greeting-disclosure", "name": "Begrüßung & KI-Hinweis", "tier": "mvp",
+     "features": ["Begrüßung mit Firmenname", "Hinweis, dass ein KI-Assistent spricht (EU AI Act Art. 50)", "Hinweis auf Aufzeichnung nur wenn aktiv, mit Widerspruchsmöglichkeit", "Öffnungszeiten: außerhalb Rückruf anbieten"],
+     "criteria": [
+       {"title": "Greeting names the company and says it is an AI assistant", "verification": "api", "steps": ["POST /api/voice/simulate with empty text (call start)"], "expected": ["Reply contains the company name", "Reply contains 'KI' or 'digitaler Assistent'"]}
+     ]},
+    {"id": "dialogue-kb", "name": "Dialog & Wissensbasis", "tier": "mvp",
+     "features": ["Antworten aus der eigenen Wissensbasis (Retrieval über veröffentlichte Artikel)", "Kurz und sprechbar: höchstens zwei Sätze, Zahlen ausgeschrieben wo nötig", "Keine erfundenen Antworten: ohne Quelle Übergabe anbieten", "Rückfrage bei Unklarheit"],
+     "criteria": [
+       {"title": "Question answered from the knowledge base", "verification": "api", "steps": ["Publish article 'Öffnungszeiten: Mo–Fr 8 bis 18 Uhr'", "Simulate the caller asking 'Wann haben Sie geöffnet?'"], "expected": ["Reply contains '8' and '18'", "Intent is 'opening_hours'", "Reply has at most 300 characters"]},
+       {"title": "Question outside the knowledge base gets no invented answer", "verification": "api", "steps": ["Simulate 'Wie hoch ist der Aktienkurs Ihrer Firma?'"], "expected": ["Reply says the assistant cannot answer that reliably", "Reply offers a human or a callback"]}
+     ]},
+    {"id": "handover", "name": "Übergabe an Menschen", "tier": "mvp",
+     "features": ["Übergabe auf Wunsch, bei Frust oder nach zwei erfolglosen Versuchen", "Warme Übergabe mit Zusammenfassung an den Mitarbeiter", "Taste 0 jederzeit: Mensch", "Außerhalb der Zeiten: Rückruf statt Warteschleife"],
+     "criteria": [
+       {"title": "Caller asking for a human is handed over with a summary", "verification": "api", "steps": ["Simulate 'Ich möchte mit einem Menschen sprechen'"], "expected": ["handover is true", "A handover record with a summary exists"]},
+       {"title": "Agent sees the handover with summary and transcript", "verification": "e2e", "start": "/calls", "requires_auth": true, "steps": ["Agent opens the newest handed-over call"], "expected": ["Summary and the full transcript are visible"]}
+     ]},
+    {"id": "call-log", "name": "Gesprächsprotokoll", "tier": "mvp",
+     "features": ["Jeder Anruf mit Transkript, Anliegen, Dauer, Ergebnis", "Filter nach Ergebnis und Zeitraum", "Audio nur bei Einwilligung"],
+     "criteria": [
+       {"title": "Finished test call appears in the call log with outcome and transcript", "verification": "e2e", "start": "/calls", "requires_auth": true, "steps": ["Run a simulated call that ends with 'Danke, tschüss'", "Open /calls"], "expected": ["The call is listed with outcome 'Gelöst'", "Its detail page shows every turn"]}
+     ]},
+    {"id": "actions", "name": "Aktionen", "tier": "pro",
+     "features": ["Bestellstatus abfragen (Bestellnummer oder Rufnummer)", "Ticket anlegen mit Zusammenfassung", "Rückruf terminieren", "Aktionen über konfigurierbare API-Anbindungen (Shop, CRM, Helpdesk)"],
+     "criteria": [
+       {"title": "Order status is looked up by order number", "verification": "api", "steps": ["Simulate 'Wo ist meine Bestellung 4711?'"], "expected": ["Action 'lookup_order' was called with 4711", "Reply states the order's current status"]},
+       {"title": "Caller can book a callback", "verification": "api", "steps": ["Simulate 'Bitte rufen Sie mich morgen Vormittag zurück'"], "expected": ["A callback for the caller's number with the time window exists", "Reply confirms the time window"]}
+     ]},
+    {"id": "intent-model", "name": "Eigenes Absichts-Modell", "tier": "pro",
+     "features": ["Eigenes Klassifikationsmodell für Anliegen, von null trainiert auf eigenen Gesprächsprotokollen (dataset.py + ml-builder)", "Konfidenzschwelle: unsicher → Rückfrage oder Sprachmodell-Routing", "Neu-Training aus freigegebenen Transkripten"],
+     "criteria": [
+       {"title": "Own intent model reaches the accuracy target on held-out transcripts", "verification": "manual", "steps": ["Train with the ml gate on data/processed (classification)"], "expected": ["macro_f1 ≥ 0.85 on the test split", "No pretrained weights (ml gate step 'scratch')"]}
+     ]},
+    {"id": "speech", "name": "Sprache", "tier": "pro",
+     "features": ["Spracherkennung Deutsch in Echtzeit (Cloud oder selbst gehostet, z. B. Whisper)", "Natürliche Stimme (TTS), Aussprache von Firmennamen per Lexikon", "Unterbrechen erlaubt (Barge-in)", "Antwortzeit unter 1,5 s"],
+     "criteria": [
+       {"title": "DTMF 0 hands over to a human at any time", "verification": "api", "steps": ["POST the DTMF digit 0 during a call"], "expected": ["handover is true"]}
+     ]},
+    {"id": "analytics", "name": "Auswertung", "tier": "pro",
+     "features": ["Automatisierungsquote, Übergabequote, durchschnittliche Gesprächsdauer", "Häufigste Anliegen und unbeantwortete Fragen (Lücken der Wissensbasis)"],
+     "criteria": [
+       {"title": "Dashboard shows automation rate for the last 7 days", "verification": "e2e", "start": "/dashboard", "requires_auth": true, "steps": ["Seeded: 8 resolved and 2 handed-over calls in the last 7 days"], "expected": ["Tile 'Automatisiert gelöst (letzte 7 Tage)' shows '80 %'"]}
+     ]},
+    {"id": "privacy", "name": "Datenschutz", "tier": "pro",
+     "features": ["Personenbezogene Daten in Transkripten maskiert (E-Mail, IBAN, Kartennummern)", "Löschfrist für Aufnahmen und Transkripte", "Auskunft und Löschung pro Rufnummer"],
+     "criteria": [
+       {"title": "IBAN spoken by the caller is masked in the stored transcript", "verification": "api", "steps": ["Simulate 'Meine IBAN ist DE89 3704 0044 0532 0130 00'"], "expected": ["The stored turn contains '[IBAN]' instead of the number"]}
+     ]},
+    {"id": "multilingual", "name": "Mehrsprachig", "tier": "enterprise",
+     "features": ["Deutsch, Englisch, Türkisch (Spracherkennung beim ersten Satz)", "Wissensbasis pro Sprache"],
+     "criteria": [
+       {"title": "English caller gets English answers", "verification": "api", "steps": ["Simulate 'What are your opening hours?'"], "expected": ["Reply is in English and contains the opening hours"]}
+     ]},
+    {"id": "outbound", "name": "Ausgehende Anrufe", "tier": "enterprise",
+     "features": ["Terminierte Rückrufe automatisch durchführen", "Erinnerungsanrufe mit Bestätigung per Taste"],
+     "criteria": [
+       {"title": "Due callback triggers an outbound call", "verification": "api", "steps": ["Callback due now (seeded)", "Run the scheduler"], "expected": ["One outbound call request to the caller's number"]}
+     ]},
+    {"id": "quality-monitoring", "name": "Qualitätsüberwachung", "tier": "enterprise",
+     "features": ["Testanrufe (call-sim Szenarien) laufen nächtlich gegen Produktion", "Alarm bei Fehlschlag oder Latenz über Budget", "Stichproben-Review von Transkripten"],
+     "criteria": [
+       {"title": "Nightly scenario run alerts on a failed scenario", "verification": "manual", "steps": ["Break the opening-hours article", "Run the nightly job"], "expected": ["An alert names the failed scenario"]}
+     ]},
+    {"id": "self-hosted-speech", "name": "Datensouveräne Sprachverarbeitung", "tier": "enterprise",
+     "features": ["Spracherkennung, Sprachausgabe und Sprachmodell auf eigenen Servern (z. B. faster-whisper, Piper, lokales LLM)", "Keine Gesprächsdaten an Dritte"],
+     "criteria": [
+       {"title": "With self-hosted mode on, no request leaves to external speech or LLM APIs", "verification": "manual", "steps": ["Enable self-hosted mode", "Run the call-sim scenarios with outbound network blocked"], "expected": ["All scenarios pass"]}
+     ]}
+  ],
+  "non_functional": [
+    {"tier": "mvp", "text": "Antwortzeit pro Gesprächszug unter 2 s (Ziel 1,5 s), gemessen im Simulator"},
+    {"tier": "mvp", "text": "Antworten höchstens 300 Zeichen, keine Listen oder Markdown — sie werden vorgelesen"},
+    {"tier": "mvp", "text": "KI-Hinweis am Gesprächsbeginn (EU AI Act Art. 50), Aufzeichnung nur mit Hinweis und Widerspruchsmöglichkeit (DSGVO)"},
+    {"tier": "pro", "text": "Transkripte nach 90 Tagen gelöscht, Aufnahmen nach 30 Tagen (konfigurierbar)"},
+    {"tier": "enterprise", "text": "Betrieb ohne Drittanbieter für Sprache und Sprachmodell möglich"}
+  ],
+  "metrics": [
+    {"id": "automation_rate", "tier": "pro", "label": "Automatisiert gelöst (letzte 7 Tage)", "unit": "%", "definition": "Anrufe mit Ergebnis gelöst ohne Übergabe / alle angenommenen Anrufe der letzten 7 Tage", "period": "letzte 7 Tage", "shown_on": ["/dashboard"]},
+    {"id": "handover_rate", "tier": "pro", "label": "Übergaben (letzte 7 Tage)", "unit": "%", "definition": "Anrufe mit Übergabe an Menschen / alle angenommenen Anrufe der letzten 7 Tage", "period": "letzte 7 Tage", "shown_on": ["/dashboard"]},
+    {"id": "avg_handle_time", "tier": "pro", "label": "Ø Gesprächsdauer (letzte 7 Tage)", "unit": "Sekunden", "definition": "Mittlere Dauer angenommener Anrufe der letzten 7 Tage", "period": "letzte 7 Tage", "shown_on": ["/dashboard"]}
+  ],
+  "voice": {
+    "endpoint": "/api/voice/simulate",
+    "scenarios": "voice/scenarios",
+    "disclosure": ["KI", "künstliche Intelligenz", "digitaler Assistent", "digitale Assistentin"],
+    "max_ms": 2000,
+    "max_reply_chars": 300,
+    "intents": {"mvp": ["opening_hours", "knowledge_question", "handover", "goodbye"], "pro": ["order_status", "create_ticket", "callback"]}
+  },
+  "production_dependencies": {"mvp": ["telephony", "speech"], "pro": ["telephony", "speech", "email"], "enterprise": ["telephony", "speech", "email"]},
+  "pages": {"mvp": ["/login", "/calls", "/calls/[id]", "/knowledge", "/settings/telephony"], "pro": ["/dashboard", "/callbacks", "/intents", "/settings/voice"], "enterprise": ["/quality"]}
+}

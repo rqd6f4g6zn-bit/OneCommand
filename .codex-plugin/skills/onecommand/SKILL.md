@@ -67,6 +67,12 @@ ls package.json src/ app/ 2>/dev/null | head -5
 If existing code found, ask:
 > "Existing project detected. Build inside it (adapting stack), or create a new subdirectory?"
 
+**Self-update** (Codex has no session hooks, so the check runs here — throttled, never during a running build):
+```bash
+python3 "$HOME/.codex/skills/onecommand/hooks/update.py" auto --quiet
+```
+If it prints "✅ OneCommand updated", tell the user the new version is active from the next Codex session and continue with the current one.
+
 ---
 
 ## Phase 1: SPEC
@@ -99,7 +105,12 @@ EOF
 
 Apply relevant learnings before generating — pre-empt known errors from any previous build.
 
-Use the `onecommand-spec-analyzer` skill with the project prompt.
+Use the `onecommand-spec-analyzer` skill with the project prompt. For known system types it starts from a domain blueprint so a short prompt gets the full professional feature set:
+```bash
+python3 "$HOME/.codex/skills/onecommand/hooks/blueprint.py" detect --prompt "<user prompt>"
+# on a match: … blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json
+# build the spec on top of the draft, then: … blueprint.py check --spec .onecommand-spec.json
+```
 Then use the `onecommand-stack-detector` skill.
 
 Verify `.onecommand-spec.json` was created:
@@ -107,10 +118,31 @@ Verify `.onecommand-spec.json` was created:
 cat .onecommand-spec.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Spec: {d[\"project_name\"]} ({d[\"app_type\"]})')"
 ```
 
+The spec MUST contain `acceptance_criteria` (see `spec-analyzer` → Acceptance Criteria). Validate it — do not start Phase 2 with an invalid spec:
+```bash
+OC_ROOT="$HOME/.codex/skills/onecommand"   # install.sh syncs hooks/ here
+python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
+python3 "$OC_ROOT/hooks/api-contract.py" validate --spec .onecommand-spec.json   # api_contract + metrics
+python3 "$OC_ROOT/hooks/ui-tour.py" validate --spec .onecommand-spec.json        # pages + demo logins
+```
+Exit 1 → fix the reported criteria / contract / demo section and validate again.
+
+**Skill plan — consider every available skill** (bundled and user-installed):
+```bash
+python3 "$OC_ROOT/hooks/skill-catalog.py" scan --oc-root "$OC_ROOT" --home "$HOME"
+```
+For every external skill listed, write a decision (phases + use, or reason) to `.onecommand/skill-plan.json`, then `python3 "$OC_ROOT/hooks/skill-catalog.py" check` until it passes. Before each later phase, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase <N>` and apply every listed skill.
+
 ---
 
 ## Phase 2: FRONTEND + BACKEND + MOBILE (Parallel)
 > "⚡ Phase 2/8 — Generating Frontend + Backend + Mobile..."
+
+Generate the shared API types first — frontend and backend import this one file, handlers return
+`body satisfies <Name>Response`, the UI reads only the fields the contract names (never several candidate names):
+```bash
+python3 "$OC_ROOT/hooks/api-contract.py" types --spec .onecommand-spec.json
+```
 
 First, check build targets:
 ```bash
@@ -204,24 +236,34 @@ volumes:
 ---
 
 ## Phase 4: TESTS + SELF-HEALING
-> "🧪 Phase 4/8 — Running tests, self-healing errors..."
+> "🧪 Phase 4/8 — Quality gate + acceptance tests, self-healing errors..."
 
+Never decide pass/fail with `cmd | tee log; echo $?` — that prints the exit code of `tee`. The gate script reports real exit codes and writes `.onecommand/gate/result.json`, the only verdict.
+
+**Stage A — static** (install, audit, prisma, API contract, typecheck, lint, build, unit tests):
 ```bash
-npm install 2>&1 | tee /tmp/onecommand-install.log
+OC_ROOT="$HOME/.codex/skills/onecommand"
+bash "$OC_ROOT/hooks/quality-gate.sh" --stage static; echo "GATE_EXIT=$?"
 ```
 
+**Stage B — acceptance** (web builds, after Stage A is green): follow the `acceptance-tester` skill to generate one Playwright test per criterion (title starts with the AC id), then:
 ```bash
-npx tsc --noEmit 2>&1 | tee /tmp/onecommand-typecheck.log
+bash "$OC_ROOT/hooks/quality-gate.sh" --stage e2e; echo "GATE_EXIT=$?"
 ```
 
+**Stage C — UI tour** (web builds, after Stage B is green): demo seed, production server with fresh secrets,
+every page as every `demo.accounts` login, desktop + mobile screenshots:
 ```bash
-npm run build 2>&1 | tee /tmp/onecommand-build.log
-echo "BUILD_EXIT: $?"
+bash "$OC_ROOT/hooks/quality-gate.sh" --stage tour; echo "GATE_EXIT=$?"
 ```
+Then open every screenshot listed in `.onecommand/tour/review.md`, tick it, write findings as `  - ✗ …`
+lines (numbers that differ between pages, labels without their period, empty views for a demo login,
+broken layout), fix them, re-run the tour. Done when
+`python3 "$OC_ROOT/hooks/ui-tour.py" review-status` exits 0.
 
-**If errors found**, use the `onecommand-self-healer` skill with the error output. Repeat up to 5 times until all exit 0.
+**If GATE_EXIT is not 0**, read `.onecommand/gate/errors.txt` and use the `self-healer` skill with it. Re-run the same stage. Max 5 healing rounds per stage. Fix the application, never weaken tests or edit `acceptance_criteria`. Finish with `--stage all` after any change in Stage B.
 
-After each fix attempt, re-run the full check sequence. Do not proceed to Phase 5 until build succeeds or 5 iterations are exhausted.
+If the gate still fails after the budget, continue but the delivery report must mark the build **NOT VERIFIED** and list the failing steps / AC ids.
 
 ---
 
@@ -300,64 +342,15 @@ print(f"Memory updated: {len(data['patterns'])} patterns stored")
 EOF
 ```
 
-**Cross-agent skill evolution** — checks if any learning has 3+ confirmations and auto-patches skill files. Then syncs to Claude Code so it benefits too:
+**Cross-agent skill evolution** — promotes learnings confirmed 3+ times (by Codex and Claude Code together) into `~/.onecommand/memory/evolved_rules.md`, which both agents' self-healer loads before every healing round:
 
 ```bash
-python3 << 'EOF'
-import json, os, datetime, shutil
-
-memory_path = os.path.expanduser("~/.onecommand/memory/cross_learnings.json")
-plugin_root = None
-for c in ["/Users/g.urban/OneComand", os.path.expanduser("~/OneComand")]:
-    if os.path.isdir(os.path.join(c, "skills")):
-        plugin_root = c
-        break
-
-if os.path.exists(memory_path) and plugin_root:
-    try:
-        data = json.load(open(memory_path))
-    except:
-        data = {"version": "1.0", "learnings": []}
-
-    learnings = data.get("learnings", [])
-    ready = [l for l in learnings if l.get("confirmations", 0) >= 3 and not l.get("applied_to_skill")]
-
-    if ready:
-        healer_path = os.path.join(plugin_root, "skills", "self-healer", "self-healer.md")
-        if os.path.exists(healer_path):
-            with open(healer_path) as f:
-                healer = f.read()
-            section = f"\n\n## Auto-Evolved Rules — Cross-Agent Learnings\n\n"
-            section += f"*Auto-updated: {datetime.date.today().isoformat()} · {len(ready)} confirmed patterns*\n\n"
-            for l in ready:
-                section += f"### {l.get('description', l.get('error_pattern','?'))}\n"
-                section += f"- **Pattern**: `{l.get('error_pattern','')}`\n"
-                section += f"- **Fix**: `{l.get('fix','')}`\n"
-                section += f"- **Confirmed by**: {', '.join(l.get('confirmed_by',[]))} ({l.get('confirmations')}x)\n\n"
-            marker = "## Auto-Evolved Rules"
-            healer = healer[:healer.index(marker)] + section.lstrip("\n") if marker in healer else healer + section
-            with open(healer_path, "w") as f:
-                f.write(healer)
-            for l in ready:
-                l["applied_to_skill"] = True
-                l["applied_date"] = datetime.date.today().isoformat()
-            json.dump(data, open(memory_path, "w"), indent=2)
-            print(f"[codex→claude] {len(ready)} learnings evolved into skill files")
-
-    # Sync skill to Claude Code plugin dir (bidirectional)
-    codex_skill = os.path.join(plugin_root, ".codex-plugin", "skills", "onecommand", "SKILL.md")
-    claude_skill_dir = os.path.expanduser("~/.codex/skills/onecommand/")
-    os.makedirs(claude_skill_dir, exist_ok=True)
-    if os.path.exists(codex_skill):
-        shutil.copy2(codex_skill, os.path.join(claude_skill_dir, "SKILL.md"))
-    print("[cross-agent] Claude Code + Codex memory synchronized")
-
-    total = len(learnings)
-    print(f"[cross-agent] {total} total learnings shared between both agents")
-else:
-    print("[cross-agent] Memory not initialized yet")
-EOF
+OC_ROOT="$HOME/.codex/skills/onecommand"
+python3 "$OC_ROOT/hooks/learnings.py" evolve
+python3 "$OC_ROOT/hooks/learnings.py" stats
 ```
+
+Every fix the gate confirmed in Phase 4 is recorded with `python3 "$OC_ROOT/hooks/learnings.py" record … --agent codex` (see `self-healer` → Cross-Agent Learning).
 
 ---
 

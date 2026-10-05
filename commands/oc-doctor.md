@@ -28,9 +28,28 @@ def check(label, ok, detail="", fix="", optional=False):
     return ok
 
 # ── 1. Repo location ──────────────────────────────────────────────────────────
+# Source of truth is the installPath that install.sh wrote into the registry;
+# the other locations are fallbacks for manual or partial installs.
+def registry_install_path():
+    try:
+        reg = json.loads((HOME / ".claude" / "plugins" / "installed_plugins.json").read_text())
+        entry = reg.get("plugins", {}).get("onecommand@local", [])
+        if entry and entry[0].get("installPath"):
+            return Path(entry[0]["installPath"]).expanduser()
+    except Exception:
+        pass
+    return None
+
+candidates = [
+    Path(os.environ["CLAUDE_PLUGIN_ROOT"]) if os.environ.get("CLAUDE_PLUGIN_ROOT") else None,
+    registry_install_path(),
+    HOME / "OneCommand",
+    HOME / "OneComand",
+    HOME / ".claude" / "plugins" / "onecommand",
+]
 repo = None
-for candidate in [Path("/Users/g.urban/OneComand"), HOME / "OneComand", HOME / "OneCommand"]:
-    if candidate.exists() and (candidate / ".claude-plugin" / "plugin.json").exists():
+for candidate in [c for c in candidates if c is not None]:
+    if (candidate / ".claude-plugin" / "plugin.json").exists():
         repo = candidate
         break
 check("Repo found", repo is not None,
@@ -54,12 +73,33 @@ check("plugin.json version", "version" in plugin_meta,
       "Repo missing .claude-plugin/plugin.json — git pull")
 
 # ── 3. Commands present in repo ───────────────────────────────────────────────
-required_cmds = ["onecommand.md", "oc-resume.md", "oc-save.md", "onecommand-status.md"]
+required_cmds = ["onecommand.md", "oc-resume.md", "oc-save.md", "onecommand-status.md", "oc-doctor.md", "oc-update.md"]
 cmds_dir = repo / "commands"
 missing_cmds = [c for c in required_cmds if not (cmds_dir / c).exists()]
-check("All 4 commands in repo", not missing_cmds,
+check("All commands in repo", not missing_cmds,
       f"{len(required_cmds)-len(missing_cmds)}/{len(required_cmds)} present",
       f"Missing: {missing_cmds} — git pull or re-run install.sh")
+
+# ── 3b. Quality gate scripts ──────────────────────────────────────────────────
+gate_files = ["hooks/quality-gate.sh", "hooks/acceptance-report.py", "hooks/learnings.py",
+              "hooks/skill-catalog.py", "hooks/update.py", "hooks/hooks.json", "hooks/checkpoint.py",
+              "hooks/playwright-pin.py", "hooks/blueprint.py", "hooks/api-contract.py", "hooks/ui-tour.py",
+              "hooks/ml-gate.py", "hooks/video.py", "hooks/dataset.py",
+              "hooks/call-sim.py"]
+missing_gate = [g for g in gate_files if not (repo / g).exists()]
+check("Build scripts (gate, ML gate, acceptance, contract, UI tour, video, learnings, skills, update, checkpoint)", not missing_gate,
+      f"{len(gate_files)}/{len(gate_files)} present" if not missing_gate else "",
+      f"Missing: {missing_gate} — git pull (v1.4.0+) and re-run install.sh")
+
+# ── 3c. Auto-update (informational) ───────────────────────────────────────────
+try:
+    up = subprocess.run([sys.executable, str(repo / "hooks" / "update.py"), "status"],
+                        capture_output=True, text=True, timeout=10)
+    lines = (up.stdout or up.stderr).strip().splitlines()
+    check("Auto-update", up.returncode == 0, " · ".join(lines)[:160],
+          "Re-run install.sh", optional=True)
+except Exception as e:
+    check("Auto-update", False, str(e), "Re-run install.sh", optional=True)
 
 # ── 4. Claude Code: enabledPlugins ────────────────────────────────────────────
 settings_path = HOME / ".claude" / "settings.json"
@@ -138,6 +178,7 @@ if codex_installed:
 # ── Print report ──────────────────────────────────────────────────────────────
 print("\n┌──────────────────────────────────────────────────────────────┐")
 print("│  OneCommand — Doctor Report                                  │")
+print("│  USC Software UG · usc-software-ug.de                        │")
 print("└──────────────────────────────────────────────────────────────┘\n")
 
 for status, label, detail, fix in results:
@@ -174,9 +215,11 @@ EOF
 
 | # | Check | Why it matters |
 |---|---|---|
-| 1 | Repo found at `installPath` | Plugin can't load if installPath is wrong |
+| 1 | Repo found (`$CLAUDE_PLUGIN_ROOT` → registry `installPath` → `~/OneCommand` → `~/.claude/plugins/onecommand`) | Plugin can't load if installPath is wrong |
 | 2 | `plugin.json` readable + has version | Claude Code reads metadata from here |
-| 3 | All 4 commands in `commands/` | `/onecommand`, `/oc-resume`, `/oc-save`, `/onecommand-status` available |
+| 3 | All 6 commands in `commands/` | `/onecommand`, `/oc-resume`, `/oc-save`, `/onecommand-status`, `/oc-doctor`, `/oc-update` available |
+| 3c | Auto-update configuration and last check | Shows whether updates install automatically |
+| 3b | `hooks/` build scripts present (gate, acceptance, learnings, skill catalog, update + hooks.json) | Phase 4 verdict and acceptance matrix come from these |
 | 4 | `enabledPlugins[onecommand@local] === true` | Plugin must be enabled in settings.json |
 | 5 | `installed_plugins.json` version matches | Mismatch causes silent load failure |
 | 6 | Brain files initialized | Needed for build state, learning |

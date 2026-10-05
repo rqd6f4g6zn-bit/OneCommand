@@ -1,7 +1,7 @@
 ---
 name: game-engine-selector
 description: Selects the optimal game engine based on game type, dimension (2D/3D), platform, and genre. Writes decision to spec.
-model: claude-opus-4-7
+model: opus
 ---
 
 # Game Engine Selector

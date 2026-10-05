@@ -1,7 +1,7 @@
 ---
 name: threejs-builder
 description: Generates a complete Three.js + React Three Fiber web 3D game/experience. Full Next.js integration, 3D world scene, character controller, Rapier physics, post-processing, and responsive canvas.
-model: claude-sonnet-4-6
+model: sonnet
 ---
 
 # Three.js Game Builder

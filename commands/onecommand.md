@@ -91,7 +91,7 @@ Do NOT re-read this pre-flight section — just continue from Phase N.
 ```
 +==============================================================+
 |              OneCommand — Build Starting                     |
-|   8 phases · Claude + Codex · Self-healing · Auto-exceed    |
+|   8 phases · Claude + Codex · Self-healing · Verified        |
 +==============================================================+
 
 Project prompt: "<$ARGUMENTS>"
@@ -121,17 +121,65 @@ cd "$PROJECT_DIR"
 ```bash
 codex --version 2>/dev/null || echo "CODEX_UNAVAILABLE"
 ```
-If Codex is unavailable, note it and plan to use Claude for backend generation instead (still excellent, just not delegated to Codex).
+If Codex is unavailable, note it and plan to use Claude for backend generation instead (still excellent, just not delegated to Codex). Mention once, in one line, that `codex-setup` (bundled skill) installs Codex for dual-agent builds — do not run it now; it is interactive and not part of a build.
 
-4. **Model strategy** — always follow this split:
+4. **Resolve the plugin root** (`OC_ROOT`) — every subagent needs it to find `hooks/` and `skills/`:
+```bash
+python3 << 'EOF'
+import json, os
+from pathlib import Path
+cands = [os.environ.get("CLAUDE_PLUGIN_ROOT", ""), "${CLAUDE_PLUGIN_ROOT}"]
+try:
+    reg = json.loads((Path.home() / ".claude/plugins/installed_plugins.json").read_text())
+    cands.append(reg["plugins"]["onecommand@local"][0]["installPath"])
+except Exception:
+    pass
+cands += [str(Path.home() / ".claude/plugins/onecommand"), str(Path.home() / "OneCommand")]
+root = next((c for c in cands if c and "${" not in c and (Path(c) / "hooks/quality-gate.sh").exists()), "")
+print(f"OC_ROOT={root}" if root else "OC_ROOT=NOT_FOUND — run install.sh, then /oc-doctor")
+EOF
+```
+Remember the printed `OC_ROOT` for the whole build and store it in working memory as `plugin_root`. If it is `NOT_FOUND`, stop and tell the user to run `/oc-doctor`.
+
+5. **Update status** — OneCommand installs updates automatically at session start (SessionStart hook). Check whether one arrived since this session began:
+```bash
+python3 "$OC_ROOT/hooks/update.py" check --quiet 2>/dev/null || true
+```
+If it prints "update available", say in one line that it installs at the next session start (or now with `/oc-update`), then continue the build with the current version — never update in the middle of a build.
+
+6. **Model strategy** — always follow this split:
 
 | Role | Model | Why |
 |---|---|---|
-| Spec analysis, Stack detection, Self-improvement, Cross-agent sync | `claude-opus-4-7` | Deep reasoning → better requirements extraction |
-| Security audit, Store readiness | `claude-opus-4-6` | Thorough review → catches what Sonnet misses |
-| Frontend, Backend, Mobile, Tests, Marketing | `claude-sonnet-4-6` | Fast + high-quality code generation → saves tokens |
+| Spec analysis, Stack detection, Self-improvement, Cross-agent sync | `opus` | Deep reasoning → better requirements extraction |
+| Security audit, Store readiness | `opus` | Thorough review → catches what Sonnet misses |
+| Frontend, Backend, Mobile, Tests, Marketing | `sonnet` | Fast + high-quality code generation → saves tokens |
+
+Agents and skills declare the aliases `opus` / `sonnet` in their frontmatter, so they always run on the newest model of that family — no pinned IDs that go stale.
 
 Opus analyses WHAT to build. Sonnet builds it. The combination gives better results than using one model for everything.
+
+---
+
+## Execution Model — one prompt, no manual steps
+
+The build runs from start to finish without asking the user to type anything. **Never stop to ask for `/clear` or `/onecommand --resume`.**
+
+Context stays small because heavy work happens in subagents, not in this conversation:
+
+- **Every phase's work runs in a subagent** (Agent tool). A subagent starts with a fresh context, does the work, and returns only a short summary. Generated code never flows through the orchestrator's context.
+- Named agents (`frontend-agent`, `backend-agent`, `test-agent`, …) are dispatched directly. Plugin agents are namespaced: use `subagent_type: "onecommand:test-agent"` (fall back to the short name only if the namespaced one is rejected). Skill-only phases are dispatched to a `general-purpose` subagent with this prompt template:
+  > `You are a OneCommand phase runner. OC_ROOT=<path>. PROJECT_DIR=<path>. Read $OC_ROOT/skills/<skill>/SKILL.md and execute it completely inside PROJECT_DIR. Read .onecommand-spec.json for requirements. Do not ask questions — decide and document. Return at most 5 lines, ending with: PHASE_RESULT {"phase": N, "status": "ok|warn|fail", "summary": "<one line>"}`
+- Always pass `OC_ROOT` and `PROJECT_DIR` in every subagent prompt — subagents do not inherit them.
+- **Always pass the phase's skills.** Before dispatching phase N, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase N` and paste its output into every subagent prompt of that phase, with: "Read each listed SKILL.md and apply it where it fits your task." This is how bundled and user-installed skills reach the agents that do the work.
+- Independent subagents of one phase are dispatched **in the same message** so they run in parallel.
+- Subagents cannot dispatch further subagents: a phase runner does its skill's work itself.
+- Never paste file contents or full logs into this conversation. Read summaries and `PHASE_RESULT` lines only.
+
+- **Dispatch every agent in the foreground: `run_in_background: false`.** The next phase needs this phase's result. Agents of the same phase still run in parallel when they are dispatched in ONE message. (Background agents are cut off in headless runs — a real `claude -p` build was terminated mid-Phase 4 this way.)
+  Claude Code may still start same-phase agents in the background. Then wait for every agent's completion notification before the checkpoint — never checkpoint or start the next phase while an agent of this phase is still running. Headless runs (`claude -p`) should set `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` so the CLI waits for them (the benchmark does).
+
+**After every phase, run its checkpoint command — never skip it.** `hooks/checkpoint.py` writes `working_memory.json`, `resume_brief.md` and the file manifest in one step, so a crash, a closed terminal, a cut-off headless run or a manual `/clear` is recoverable with `/oc-resume`. It prints one line and the build continues.
 
 ---
 
@@ -140,25 +188,71 @@ Opus analyses WHAT to build. Sonnet builds it. The combination gives better resu
 
 **First — boot the brain and collaboration layer:**
 
-Invoke `brain-agent` (runs: agent detection, memory READ, RECALL similar projects, set collab plan).
+Set `PROJECT_DIR` (the current directory, or the subdirectory chosen in pre-flight) and open the build record:
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" --oc-root "$OC_ROOT" start
+```
+
+Dispatch `onecommand:brain-agent` (foreground) — agent detection, memory READ, RECALL similar projects, collab plan. Pass `OC_ROOT` and `PROJECT_DIR`.
 
 This loads all past learnings, finds similar past projects, detects if Codex is available, and sets the collaboration plan — before a single line of code is generated.
 
-Then invoke the `spec-analyzer` skill with: $ARGUMENTS
+Then invoke the `spec-analyzer` skill with: $ARGUMENTS (pass `OC_ROOT` so it can run the validator).
+The spec MUST contain `acceptance_criteria` — the definition of done that Phase 4 verifies with real browser tests.
+For known system types (CRM, shop, booking, helpdesk, project management, invoicing) spec-analyzer starts from a **domain blueprint** (`domain-blueprints` skill): a short prompt gets the complete professional feature set of its tier (mvp / pro / enterprise — "höchstes Niveau" selects enterprise).
 
 Then invoke the `stack-detector` skill.
+
+**Skill plan — every available skill is considered.** OneCommand's bundled skills are mapped to phases automatically; skills the user has installed elsewhere (personal `~/.claude/skills`, project `.claude/skills`, other enabled plugins such as superpowers or marketing-skills) must each get an explicit decision:
+```bash
+python3 "$OC_ROOT/hooks/skill-catalog.py" scan --oc-root "$OC_ROOT"
+```
+For every external skill the scan lists, decide: which phases (1–8) benefit from it and what for — or why it does not apply to this project. Prefer using a skill over not using it when it fits the spec. Write all decisions to `.onecommand/skill-plan.json`:
+```json
+{"decisions": [
+  {"skill": "superpowers:frontend-design", "phases": [2, 6], "use": "distinctive visual design for all pages"},
+  {"skill": "pdf", "phases": [], "reason": "the spec has no PDF import/export"}
+]}
+```
+Then verify — exit 1 lists every skill still undecided:
+```bash
+python3 "$OC_ROOT/hooks/skill-catalog.py" check
+```
+Do not continue until the check passes. The plan is in `.onecommand/skill-plan.md`.
+
+Gate the spec — the build does not start with untestable requirements:
+```bash
+python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
+```
+Exit 1 → fix the reported criteria in `.onecommand-spec.json` and validate again (max 3 rounds). Do not continue to Phase 2 with an invalid spec.
+
+If the spec has a `blueprint`, it must still cover it — no module or blueprint criterion silently dropped:
+```bash
+python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json
+```
+Report the tier and module count to the user in the Phase 1 summary (e.g. "CRM · enterprise · 22 Module · 47 Kriterien").
+
+Gate the API contract, the metric definitions and the demo logins — frontend and backend are built in
+parallel and may only meet through the contract; the UI tour in Phase 4 logs in with every demo account:
+```bash
+python3 "$OC_ROOT/hooks/api-contract.py" validate --spec .onecommand-spec.json
+python3 "$OC_ROOT/hooks/ui-tour.py" validate --spec .onecommand-spec.json
+```
+Exit 1 → complete `api_contract`, `metrics`, `pages` and `demo` in the spec (see spec-analyzer) and validate again.
 
 Verify `.onecommand-spec.json` was created:
 ```bash
 cat .onecommand-spec.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Spec ready: {d[\"project_name\"]} ({d[\"app_type\"]})')"
 ```
 
-**Checkpoint Phase 1:**
-Invoke `context-manager` in CHECKPOINT mode.
-Update working_memory with phase summary: `"1": "Spec: [project_name] ([app_type]), [N] features, [stack]"`
+**Checkpoint Phase 1 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 1 --summary "Spec: <project_name> (<app_type>), <N> features, <M> criteria, <stack>" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 
 Report to user (compact — max 3 lines):
-> "✓ Spec: [project_name] — [N] features, [stack], [deploy_target]"
+> "✓ Spec: [project_name] — [N] features, [M] acceptance criteria ([K] must), [stack], [deploy_target]"
 > "🧠 Brain: [N] past builds in memory. [Similar project note if found]"
 > "🤝 Mode: [dual-agent / claude-only]"
 
@@ -166,6 +260,15 @@ Report to user (compact — max 3 lines):
 
 ## Phase 2: BUILD (Parallel — type-aware)
 > "⚡ **Phase 2/8 — Generating in parallel...**"
+
+Generate the shared API types before any agent starts — both sides import this one file:
+```bash
+python3 "$OC_ROOT/hooks/api-contract.py" types --spec .onecommand-spec.json --project-dir "$PROJECT_DIR"
+```
+
+Every Phase 2 agent prompt includes `OC_ROOT`, `PROJECT_DIR` and this instruction:
+> "The `acceptance_criteria` in .onecommand-spec.json are the contract. Use the exact UI texts (headings, button labels, error messages) and routes they name. Every criterion must be satisfiable by what you build.
+> API shapes come only from `api_contract` via the generated types file (`api_contract.types_file`): route handlers return `body satisfies <Name>Response`, the UI types every fetch with `<Name>Response` and reads exactly the fields it names — never try several field names. To change an endpoint, edit `api_contract` in the spec and re-run `api-contract.py types`; never edit the generated file. Every metric in `spec.metrics` is computed by one server function and shown with its `label` (exported as `METRICS`). The demo seed (`SEED_MODE=demo`) gives every account in `demo.accounts` data on every page it can open."
 
 First, determine build targets from the spec:
 ```bash
@@ -177,6 +280,8 @@ print('web:', 'web' in targets)
 print('mobile:', 'mobile' in targets)
 print('game:', 'game' in targets or app_type == 'game')
 print('os:', 'os' in targets or app_type == 'os')
+print('ml:', 'ml' in targets or app_type == 'ml')
+print('videos:', bool((s.get('media') or {}).get('videos')))
 "
 ```
 
@@ -190,6 +295,18 @@ print('os:', 'os' in targets or app_type == 'os')
 - Exports for: Windows, macOS, Linux, Web, iOS, Android
 
 Skip frontend-agent, backend-agent for pure game projects.
+
+### If `ml` in build_targets OR app_type == "ml":
+
+**ML Agent** (`onecommand:ml-agent`) — builds the AI/ML training project from `spec.ml` (`ml-builder` skill):
+data pipeline with a committed sample, baseline, training with smoke + full configs, evaluation,
+`MODEL_CARD.md`, FastAPI inference service, Dockerfile. It verifies with `quality-gate.sh`, which hands
+ML specs to `hooks/ml-gate.py`: install → lint → tests → smoke training → metric ≥ `ml.metric.smoke_min`
+→ model card → `POST /predict`.
+
+Skip frontend-agent and backend-agent unless `web` is also in build_targets (a dashboard or app around
+the model — then they build it against the inference API after the ML agent, with the API in `api_contract`).
+Phase 4 runs the same gate; the acceptance and tour stages apply only to the web part.
 
 ### If `os` in build_targets OR app_type == "os":
 
@@ -215,7 +332,7 @@ Skip frontend-agent, backend-agent for pure OS projects.
 
 **Backend Agent** (`backend-agent`):
 - Generates all API routes, DB schema, auth, seed data
-- Delegates code generation to Codex via `codex:codex-cli-runtime`
+- Delegates code generation to Codex via `codex:codex-cli-runtime`, splitting work as the `collab-protocol` skill defines (handoff files, merge, claude-only fallback when Codex is unavailable)
 
 **If `mobile` in build_targets — also dispatch in parallel:**
 
@@ -230,16 +347,24 @@ Skip frontend-agent, backend-agent for pure OS projects.
   pricing, dashboard screens; reimplements in Tamagui/Flutter (not auto-installed
   since 21st.dev components are web-React)
 
-Wait for ALL dispatched agents to complete before proceeding.
+**If the spec has a `voice` section (phone assistant):** the backend agent follows the `voice-agent` skill
+(telephony webhooks, media-stream gateway, dialogue engine, `POST /api/voice/simulate`, actions, handover) and
+writes `voice/scenarios/*.json` — one test call per intent plus the handover; `hooks/call-sim.py validate` must
+pass before Phase 4. The gate plays every call in its `tour` stage.
 
-**Checkpoint Phase 2:**
-Invoke `context-manager` in CHECKPOINT mode.
-Update working_memory phase summary.
+**If `videos` is true (spec.media.videos — premium websites):** also dispatch a phase runner with the
+`video-producer` skill in the same message. It cuts the user's footage from `media.raw_dir` (or builds
+Ken-Burns shots from images, or a Remotion motion-graphics video when there is no footage), renders
+`public/videos/*.mp4|webm|jpg` with `hooks/video.py render` and must pass `hooks/video.py check`. The
+frontend agent embeds them as the skill describes (poster, muted loop, reduced-motion fallback, captions).
 
-**→ AUTO-CLEAR after Phase 2:**
-Invoke `auto-clear` skill in SAVE mode.
-This saves the full resume brief and file manifest to disk, then prints the /clear instruction box.
-**STOP here and wait for the user to /clear and /onecommand --resume.**
+Dispatch all agents of this phase in ONE message so they run in parallel. Wait for ALL of them to complete before proceeding.
+
+**Checkpoint Phase 2 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 2 --summary "<N> pages, <N> API routes, build green" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 
 Report (compact — max 2 lines):
 > "Game: [engine], [N] scenes/scripts, [N] assets." OR
@@ -251,17 +376,22 @@ Report (compact — max 2 lines):
 ## Phase 3: INTEGRATION + MARKETING
 > "🔗 **Phase 3/8 — Integrating systems + generating docs...**"
 
-### 3a: Live Integrations (dispatch in parallel with 3b)
+Dispatch 3a, 3b and 3c as three subagents in ONE message (parallel).
 
-Invoke the `live-integrations` skill. It reads `production_dependencies` from the spec and generates:
+### 3a: Live Integrations (phase runner subagent → `live-integrations` skill)
+
+The `live-integrations` skill reads `production_dependencies` from the spec and generates:
 - Real email sending (Resend SDK): verification email, password reset email, full API routes
 - Social Login: NextAuth Google/GitHub/Apple providers, social login buttons component, OAuth PrismaAdapter schema
 - Firebase Admin SDK: push notification service, `/api/notifications/register` route, Flutter PushNotificationService
 - Flutter Social Login: google_sign_in + sign_in_with_apple, social login API routes
 
 Only generates what is listed in `production_dependencies` — no unused integrations.
+Every integration also implements the `ONECOMMAND_E2E=1` test mode (e-mail → local outbox, payments → test mode, credentials login next to OAuth), so Phase 4 can verify these flows end-to-end.
 
-### 3b: Integration (you handle this directly)
+### 3b: Integration (`general-purpose` subagent)
+
+Dispatch a subagent with `OC_ROOT`, `PROJECT_DIR` and the following steps as its task. It returns a `PHASE_RESULT` line listing how many mismatches it fixed.
 
 1. Read the frontend API client:
 ```bash
@@ -343,8 +473,11 @@ Add `output: 'standalone'` to `next.config.js` if not present.
 
 Dispatch `marketing-agent` to run in parallel with integration work.
 
-**Checkpoint Phase 3:**
-Invoke `context-manager` in CHECKPOINT mode.
+**Checkpoint Phase 3 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 3 --summary "API verified, Docker, README" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 Report (1 line): "✓ Integration: API verified, Docker ready. Marketing: README + landing page."
 
 ---
@@ -352,38 +485,51 @@ Report (1 line): "✓ Integration: API verified, Docker ready. Marketing: README
 ## Phase 4: TESTS + SELF-HEALING
 > "🧪 **Phase 4/8 — Running tests and self-healing...**"
 
-Invoke `context-manager` in BUDGET mode. ← print compact status, not full history
-
 Run the post-generate hook:
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/hooks/post-generate.sh"
+bash "$OC_ROOT/hooks/post-generate.sh"
 ```
 
-Then dispatch `test-agent`. The test-agent runs all checks and invokes `self-healer` automatically for up to 5 iterations.
+Then dispatch `test-agent` with `OC_ROOT`, `PROJECT_DIR` and `MODE=full`. It:
+1. runs `hooks/quality-gate.sh --stage static` (install, prisma, typecheck, lint, build, unit tests — real exit codes),
+2. generates the Playwright acceptance suite from `acceptance_criteria` (`acceptance-tester` skill),
+3. runs `hooks/quality-gate.sh --stage e2e` against the production build with a real database,
+4. runs `hooks/quality-gate.sh --stage tour`: demo seed, production server with fresh secrets, every page as every demo login, desktop + mobile screenshots,
+5. reviews the screenshots listed in `.onecommand/tour/review.md` (opens each one, ticks it, writes findings), fixes every finding and re-runs the tour until `hooks/ui-tour.py review-status` passes,
+6. heals with `self-healer` until everything is green (max 5 rounds per stage).
 
 Do not display interim healer details to the user — just show:
-> "Running checks... [iteration N if healing needed]"
+> "Running checks... [round N if healing needed]"
+
+**The verdict comes from the gate, not from the agent's wording:**
+```bash
+python3 -c "import json; r=json.load(open('.onecommand/gate/result.json')); a=r.get('acceptance') or {}; print('GATE', 'PASSED' if r['passed'] else 'FAILED', '| must', a.get('blocking_passed','-'), '/', a.get('blocking','-'))"
+python3 "$OC_ROOT/hooks/ui-tour.py" review-status --project-dir "$PROJECT_DIR"
+```
+A gate that passed with an incomplete screenshot review is not done.
 
 When test-agent completes:
-- All errors fixed → invoke `brain-agent` WRITE to save error patterns to brain
-- Invoke `context-manager` in CHECKPOINT mode
-
-**→ AUTO-CLEAR after Phase 4:**
-Invoke `auto-clear` skill in SAVE mode.
-**STOP here and wait for the user to /clear and /onecommand --resume.**
+- The fixes it made are already recorded by the self-healer (`hooks/learnings.py record`).
+- Checkpoint — use `--status warn` if the gate failed:
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 4 --summary "Gate <PASSED|FAILED>, <X>/<Y> must-criteria" --status ok
+```
 
 Report (1 line):
-> "✅ All checks passed." or "⚠️ [N] issues remain — documented in ONECOMMAND-DELIVERY.md."
+> "✅ Gate passed — [X]/[X] acceptance criteria verified in the browser." or "⚠️ Gate failed — [N] issues, documented in ONECOMMAND-DELIVERY.md."
 
 ---
 
 ## Phase 5: AUTOMATIONS
 > "⚙️ **Phase 5/8 — Installing automations...**"
 
-Invoke `context-manager` in BUDGET mode.
-Invoke the `automation-installer` skill.
+Dispatch a phase runner subagent for the `automation-installer` skill. The CI workflow it writes must run the same checks as the gate, including `npx playwright test` for the acceptance suite.
 
-**Checkpoint Phase 5:** Invoke `context-manager` in CHECKPOINT mode.
+**Checkpoint Phase 5 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 5 --summary "CI, git hooks, Makefile" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 Report (1 line): "✓ Git hooks, GitHub Actions CI, Makefile installed."
 
 ---
@@ -391,47 +537,52 @@ Report (1 line): "✓ Git hooks, GitHub Actions CI, Makefile installed."
 ## Phase 6: EXCEED EXPECTATIONS + CLEANUP + STORE READINESS
 > "✨ **Phase 6/8 — Quality pass: exceed, clean, secure, store-ready...**"
 
-Invoke `context-manager` in BUDGET mode.
 
-Run all four in parallel:
+Dispatch all four as subagents in ONE message (parallel):
 
-**exceed-expectations skill** — dark mode, PWA, a11y, error boundaries
+**exceed-expectations** (phase runner) — dark mode, PWA, a11y, error boundaries
 
 **security-agent** — OWASP audit + fixes
 
-**demo-cleaner skill** — removes all placeholder/demo content, fixes spelling
+**demo-cleaner** (phase runner) — removes all placeholder/demo content, fixes spelling
 
-**store-readiness-checker skill** (if mobile in build_targets):
+**store-readiness-checker** (phase runner, if mobile in build_targets):
 - Validates all iOS App Store requirements
 - Validates all Google Play requirements
 - Fixes: bundle ID com.example, targetSdk, permissions, icon sizes
 - Blocks delivery if critical items unresolved
 
-**Checkpoint Phase 6:**
-Invoke `context-manager` in CHECKPOINT mode.
+### 6b: Final regression gate
 
-**→ AUTO-CLEAR after Phase 6:**
-Invoke `auto-clear` skill in SAVE mode.
-**STOP here and wait for the user to /clear and /onecommand --resume.**
+Phase 6 changed code after Phase 4 verified it. Re-verify before delivery: dispatch `test-agent` with `OC_ROOT`, `PROJECT_DIR` and `MODE=regression`. It runs `quality-gate.sh --stage all` (static → e2e → tour), reviews the fresh screenshots (`review.md` until `ui-tour.py review-status` passes) and heals any regression the quality pass introduced. The delivery report reads this final `result.json` and shows the tour screenshots.
+
+**Checkpoint Phase 6 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 6 --summary "Quality pass done, regression gate <PASSED|FAILED> <X>/<Y>" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 
 Report (1 line):
-> "✓ Quality: [N exceeded]. Security: clean. Store: iOS ✓ / Android ✓."
+> "✓ Quality: [N exceeded]. Security: clean. Store: iOS ✓ / Android ✓. Regression gate: ✅ [X]/[X]."
 
 ---
 
 ## Phase 7: SELF-IMPROVEMENT + BRAIN REFLECTION
 > "🧠 **Phase 7/8 — Updating memory...**"
 
-Invoke `context-manager` in BUDGET mode.
 
-Dispatch `self-improve-agent` (cross-agent sync, skill evolution).
+Dispatch `onecommand:self-improve-agent` (foreground; cross-agent sync, skill evolution).
 
-Then invoke `brain-agent` post-build reflection:
+Then dispatch `onecommand:brain-agent` (foreground) for the post-build reflection:
 - REFLECT mode → save complete episode to episodic memory
 - PREFER mode → update user preferences from this build's decisions
 - Brain growth report → print how many builds/patterns/facts now in memory
 
-**Checkpoint Phase 7:** Invoke `context-manager` in CHECKPOINT mode.
+**Checkpoint Phase 7 (mandatory — one command):**
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" phase 7 --summary "Memory updated" --status ok
+```
+Use `--status warn` / `fail` when the phase did not fully succeed. Then continue immediately.
 Report (1 line): "🧠 Brain updated: [N] builds in memory, [N] patterns learned."
 
 ---
@@ -439,8 +590,12 @@ Report (1 line): "🧠 Brain updated: [N] builds in memory, [N] patterns learned
 ## Phase 8: DELIVERY
 > "📦 **Phase 8/8 — Preparing delivery...**"
 
-Invoke `context-manager` in BUDGET mode.
-Invoke the `delivery-reporter` skill.
+Invoke the `delivery-reporter` skill. Its status badges come from `.onecommand/gate/result.json` and the acceptance matrix from `.onecommand/gate/acceptance.md` — a build whose gate failed is reported as NOT VERIFIED, never as complete.
+
+Close the build record:
+```bash
+python3 "$OC_ROOT/hooks/checkpoint.py" --project-dir "$PROJECT_DIR" finish --summary "ONECOMMAND-DELIVERY.md written"
+```
 
 ---
 

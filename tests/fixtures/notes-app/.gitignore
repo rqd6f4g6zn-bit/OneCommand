@@ -1,0 +1,6 @@
+node_modules/
+dist/
+prisma/dev.db*
+test-results/
+playwright-report/
+.onecommand/

@@ -1,0 +1,24 @@
+{
+  "name": "onecommand-gate-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal Prisma + SQLite + Playwright app used to test hooks/quality-gate.sh end to end",
+  "scripts": {
+    "build": "tsc -p .",
+    "lint": "node scripts/lint.js",
+    "test": "node --test",
+    "start": "node dist/server.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "22.19.1",
+    "prisma": "6.19.3",
+    "typescript": "5.9.3"
+  }
+}

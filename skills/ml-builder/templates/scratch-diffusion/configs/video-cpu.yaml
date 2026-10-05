@@ -1,0 +1,11 @@
+# Video CPU run: 8 frames of 32×32 (3D U-Net), ~20 min on 4 cores — the smallest run that gives usable clips.
+run: video-cpu
+kind: video
+data_dir: data/processed
+seed: 42
+size: 32
+frames: 8
+fps: 8
+model: {base: 24, mults: [1, 2], attention: false, dropout: 0.0}
+diffusion: {timesteps: 1000, sample_steps: 50}
+train: {steps: 2400, batch_size: 8, lr: 0.001, warmup: 100, ema: 0.995, samples: 4}

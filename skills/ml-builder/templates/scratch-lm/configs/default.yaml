@@ -1,0 +1,7 @@
+# Full run: ~20M parameters. GPU recommended (≈ 30–60 min on one 24 GB GPU for 5k steps).
+run: default
+data_dir: data/processed
+seed: 42
+vocab_size: 16000
+model: {n_layer: 6, n_head: 6, n_embd: 384, block_size: 256, dropout: 0.1}
+train: {steps: 5000, batch_size: 64, lr: 0.0006, warmup: 200, eval_every: 250, eval_batches: 50, weight_decay: 0.1}
