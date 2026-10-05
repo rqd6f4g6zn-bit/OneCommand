@@ -32,11 +32,13 @@
        {"title": "Greeting names the company and says it is an AI assistant", "verification": "api", "steps": ["POST /api/voice/simulate with empty text (call start)"], "expected": ["Reply contains the company name", "Reply contains 'KI' or 'digitaler Assistent'"]}
      ]},
     {"id": "dialogue-kb", "name": "Dialog & Wissensbasis", "tier": "mvp",
-     "features": ["Antworten aus der eigenen Wissensbasis (Retrieval über veröffentlichte Artikel)", "Kurz und sprechbar: höchstens zwei Sätze, Zahlen ausgeschrieben wo nötig", "Small Talk (\"Hallo?\", \"Moment bitte\", \"Sind Sie noch da?\") freundlich beantworten — nie \"nicht verstanden\", nie deswegen übergeben", "Keine erfundenen Antworten: ohne Quelle Übergabe anbieten", "Rückfrage bei Unklarheit"],
+     "features": ["Antworten aus der eigenen Wissensbasis (Retrieval über veröffentlichte Artikel)", "Kurz und sprechbar: höchstens zwei Sätze, Zahlen ausgeschrieben wo nötig", "Small Talk (\"Hallo?\", \"Moment bitte\", \"Sind Sie noch da?\") freundlich beantworten — nie \"nicht verstanden\", nie deswegen übergeben", "Gesprächsgedächtnis: letztes Thema und genannte Angaben (Bestellnummer, Telefonnummer, Produkt) bleiben im Gespräch; Folgefragen (\"Wann kommt es denn?\", \"Kostet das was?\") beziehen sich darauf, nichts wird doppelt erfragt", "Beschwerden erkennen: Verständnis zeigen, Ticket anlegen oder an einen Menschen übergeben", "Genau die gestellte Frage beantworten: deckt der Artikel sie nicht ab (anderes Land, Produkt), das offen sagen", "Keine erfundenen Antworten: ohne Quelle Übergabe anbieten", "Rückfrage bei Unklarheit"],
      "criteria": [
        {"title": "Question answered from the knowledge base", "verification": "api", "steps": ["Publish article 'Öffnungszeiten: Mo–Fr 8 bis 18 Uhr'", "Simulate the caller asking 'Wann haben Sie geöffnet?'"], "expected": ["Reply contains '8' and '18'", "Intent is 'opening_hours'", "Reply has at most 300 characters"]},
        {"title": "Question outside the knowledge base gets no invented answer", "verification": "api", "steps": ["Simulate 'Wie hoch ist der Aktienkurs Ihrer Firma?'"], "expected": ["Reply says the assistant cannot answer that reliably", "Reply offers a human or a callback"]},
-       {"title": "Small talk is answered, not treated as not understood", "verification": "api", "steps": ["Start a call (empty text)", "Simulate 'Hallo?' and then 'Ja, hallo'"], "expected": ["Neither reply says the assistant did not understand", "handover and end_call are false", "Intent is 'smalltalk'"]}
+       {"title": "Small talk is answered, not treated as not understood", "verification": "api", "steps": ["Start a call (empty text)", "Simulate 'Hallo?' and then 'Ja, hallo'"], "expected": ["Neither reply says the assistant did not understand", "handover and end_call are false", "Intent is 'smalltalk'"]},
+       {"title": "A follow-up question keeps the conversation context", "verification": "api", "steps": ["Simulate 'Wo ist meine Bestellung 4711?'", "In the same call simulate 'Wann kommt es denn genau?'"], "expected": ["The second reply does not ask for the order number again", "Neither reply says the assistant did not understand"]},
+       {"title": "A complaint is recognised", "verification": "api", "steps": ["Simulate 'Das ist ja unglaublich, schon wieder falsch geliefert!'"], "expected": ["Intent is 'complaint', or a ticket is created, or the call is handed over", "The reply apologises and does not say it did not understand"]}
      ]},
     {"id": "handover", "name": "Übergabe an Menschen", "tier": "mvp",
      "features": ["Übergabe auf Wunsch, bei Frust oder nach zwei erfolglosen Versuchen", "Warme Übergabe mit Zusammenfassung an den Mitarbeiter", "Taste 0 jederzeit: Mensch", "Außerhalb der Zeiten: Rückruf statt Warteschleife"],
@@ -124,7 +126,9 @@
     "max_reply_chars": 300,
     "tts_endpoint": "/api/voice/tts",
     "smalltalk": ["Hallo?", "Ja, hallo", "Moment bitte"],
-    "intents": {"mvp": ["opening_hours", "smalltalk", "knowledge_question", "handover", "goodbye"], "pro": ["order_status", "create_ticket", "callback"]}
+    "complaint": ["Das ist ja unglaublich, schon wieder falsch geliefert!"],
+    "followup": {"after_intent": "order_status", "then": ["Wann kommt es denn genau?"]},
+    "intents": {"mvp": ["opening_hours", "smalltalk", "complaint", "knowledge_question", "handover", "goodbye"], "pro": ["order_status", "create_ticket", "callback"]}
   },
   "production_dependencies": {"mvp": ["telephony", "speech"], "pro": ["telephony", "speech", "email"], "enterprise": ["telephony", "speech", "email"]},
   "pages": {"mvp": ["/login", "/calls", "/calls/[id]", "/knowledge", "/settings/telephony"], "pro": ["/dashboard", "/callbacks", "/intents", "/settings/voice"], "enterprise": ["/quality"]}

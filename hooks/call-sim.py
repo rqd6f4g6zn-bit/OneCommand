@@ -31,6 +31,11 @@ Built-in checks besides the scenarios:
   small talk   a separate call says voice.smalltalk ("Hallo?", "Ja, hallo", "Moment bitte"); the reply must
                not be a "not understood" fallback, hand over or end the call — the first seconds decide
                whether callers trust the assistant
+  complaint    voice.complaint ("Das ist ja unglaublich, schon wieder falsch geliefert!") must be recognised:
+               intent "complaint", a ticket action or a handover — never "not understood"
+  follow-up    the first scenario turn with intent voice.followup.after_intent (default order_status) and a
+               number is replayed, then voice.followup.then ("Wann kommt es denn genau?"): the assistant must
+               remember the conversation — no "not understood", no asking for the number again
   voice code   validate fails on TwiML <Say> (Twilio's built-in voice: a second, robotic voice next to the
                configured one) and on robotic engines (eSpeak, Festival, Flite, Pico) in the source
   listening    with voice.tts_endpoint (POST {"text"} → audio) every greeting and reply is synthesised with
@@ -66,6 +71,9 @@ from typing import Any
 EXPECT_KEYS = {"intent", "reply_contains", "reply_contains_any", "reply_not_contains", "action", "handover",
                "end_call", "max_ms", "max_chars"}
 DEFAULT_SMALLTALK = ["Hallo?", "Ja, hallo", "Moment bitte"]
+DEFAULT_COMPLAINT = ["Das ist ja unglaublich, schon wieder falsch geliefert!"]
+DEFAULT_FOLLOWUP = {"after_intent": "order_status", "then": ["Wann kommt es denn genau?"]}
+REASK = re.compile(r"(wie lautet|nennen sie|sagen sie mir|geben sie|welche)\b.{0,40}nummer|nummer[^.!]{0,30}\?", re.I)
 NOT_UNDERSTOOD = ["nicht verstanden", "wie bitte", "nicht ganz verstanden", "nicht richtig verstanden",
                   "didn't understand", "did not understand", "sorry, what"]
 ROBOTIC_ENGINES = ("espeak", "festival", "flite", "pico", "sam", "mbrola")
@@ -248,33 +256,89 @@ def not_understood(reply: str, v: dict[str, Any]) -> bool:
     return any(w in low for w in NOT_UNDERSTOOD) or bool(fallback and low.startswith(fallback[:40]))
 
 
-def smalltalk_probe(base: str, v: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
+def probe_call(base: str, v: dict[str, Any], defaults: dict[str, Any], name: str, key: str,
+               turns: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Play one built-in call; each turn is (say, check) with check(resp) → list of failures, or None (setup turn)."""
     url = base.rstrip("/") + v["endpoint"]
-    session = f"sim-smalltalk-{uuid.uuid4().hex[:8]}"
-    record: dict[str, Any] = {"name": "Small talk (built-in)", "file": "smalltalk", "session": session, "turns": [], "failures": []}
-    status, resp, ms = post(url, {"session_id": session, "text": "", "caller": "+4930000001"}, defaults["timeout"])
+    session = f"sim-{key}-{uuid.uuid4().hex[:8]}"
+    caller = "+4930000001"
+    record: dict[str, Any] = {"name": f"{name} (built-in)", "file": key, "session": session, "turns": [], "failures": []}
+    status, resp, ms = post(url, {"session_id": session, "text": "", "caller": caller}, defaults["timeout"])
     record["greeting"] = {"reply": resp.get("reply", "") if isinstance(resp, dict) else "", "ms": round(ms)}
     if status != 200:
         record["failures"].append(f"call start: HTTP {status}")
         return record
-    for i, say in enumerate(v.get("smalltalk") or DEFAULT_SMALLTALK, 1):
-        status, resp, ms = post(url, {"session_id": session, "text": say, "caller": "+4930000001"}, defaults["timeout"])
+    for i, (say, check) in enumerate(turns, 1):
+        status, resp, ms = post(url, {"session_id": session, "text": say, "caller": caller}, defaults["timeout"])
         fails = []
         if status != 200 or not isinstance(resp, dict):
             fails.append(f"HTTP {status}")
         else:
-            reply = str(resp.get("reply", ""))
-            if not_understood(reply, v):
-                fails.append(f"answers small talk with 'not understood': '{reply[:120]}' — greet back and ask how to help")
-            if resp.get("handover") or resp.get("end_call"):
-                fails.append("small talk must not hand over or end the call")
+            if check:
+                fails += check(resp)
             if ms > defaults["max_ms"]:
                 fails.append(f"answered in {ms:.0f} ms, budget {defaults['max_ms']} ms")
         record["turns"].append({"say": say, "reply": resp.get("reply") if isinstance(resp, dict) else None,
                                 "intent": resp.get("intent") if isinstance(resp, dict) else None,
                                 "ms": round(ms), "failures": fails})
-        record["failures"] += [f"turn {i} ('{say}'): {f}" for f in fails]
+        record["failures"] += [f"turn {i} ('{say[:40]}'): {f}" for f in fails]
+        if status != 200:
+            break
     return record
+
+
+def smalltalk_probe(base: str, v: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
+    def check(resp: dict[str, Any]) -> list[str]:
+        fails, reply = [], str(resp.get("reply", ""))
+        if not_understood(reply, v):
+            fails.append(f"answers small talk with 'not understood': '{reply[:120]}' — greet back and ask how to help")
+        if resp.get("handover") or resp.get("end_call"):
+            fails.append("small talk must not hand over or end the call")
+        return fails
+    return probe_call(base, v, defaults, "Small talk", "smalltalk",
+                      [(say, check) for say in v.get("smalltalk") or DEFAULT_SMALLTALK])
+
+
+def complaint_probe(base: str, v: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
+    def check(resp: dict[str, Any]) -> list[str]:
+        fails, reply = [], str(resp.get("reply", ""))
+        action = resp.get("action")
+        action = action.get("type") if isinstance(action, dict) else action
+        if not_understood(reply, v):
+            fails.append(f"answers a complaint with 'not understood': '{reply[:120]}' — acknowledge, apologise, "
+                         f"open a ticket or hand over")
+        elif resp.get("intent") != "complaint" and not resp.get("handover") and action not in ("create_ticket", "ticket"):
+            fails.append(f"complaint not recognised (intent '{resp.get('intent')}', no ticket, no handover): '{reply[:120]}'")
+        if resp.get("end_call"):
+            fails.append("a complaint must not end the call")
+        return fails
+    return probe_call(base, v, defaults, "Complaint", "complaint",
+                      [(say, check) for say in v.get("complaint") or DEFAULT_COMPLAINT])
+
+
+def followup_probe(base: str, v: dict[str, Any], scenarios: list[dict[str, Any]],
+                   defaults: dict[str, Any]) -> dict[str, Any] | str:
+    """Replay a turn that names a number, then ask a follow-up — the assistant must keep the context."""
+    cfg = {**DEFAULT_FOLLOWUP, **(v.get("followup") or {})}
+    source = next((t["say"] for s in scenarios for t in s["turns"]
+                   if t.get("expect", {}).get("intent") == cfg["after_intent"] and re.search(r"\d{3,}", t["say"])), None)
+    if not source:
+        return (f"no follow-up probe: no scenario turn with intent '{cfg['after_intent']}' names a number — add one or "
+                f"set voice.followup {{after_intent, then}}")
+    number = re.search(r"\d{3,}", source).group(0)
+
+    def check(resp: dict[str, Any]) -> list[str]:
+        fails, reply = [], str(resp.get("reply", ""))
+        if not_understood(reply, v):
+            fails.append(f"follow-up not understood: '{reply[:120]}' — resolve it against the last topic")
+        elif REASK.search(reply) and number not in reply:
+            fails.append(f"asks again for the number the caller already gave ({number}): '{reply[:120]}' — keep the "
+                         f"conversation state (last intent, order number, phone)")
+        if resp.get("handover") or resp.get("end_call"):
+            fails.append("a follow-up question must not hand over or end the call")
+        return fails
+    return probe_call(base, v, defaults, "Follow-up question", "followup",
+                      [(source, None)] + [(say, check) for say in cfg["then"]])
 
 
 def audio_seconds(path: Path) -> float | None:
@@ -407,9 +471,18 @@ def cmd_run(args: argparse.Namespace) -> int:
                 return 1
             base = server.base_url
         results = []
-        probes = [lambda: smalltalk_probe(base, v, defaults)] if v.get("smalltalk", DEFAULT_SMALLTALK) else []
+        probes = []
+        if v.get("smalltalk", DEFAULT_SMALLTALK):
+            probes.append(lambda: smalltalk_probe(base, v, defaults))
+        if v.get("complaint", DEFAULT_COMPLAINT):
+            probes.append(lambda: complaint_probe(base, v, defaults))
+        if v.get("followup", DEFAULT_FOLLOWUP):
+            probes.append(lambda: followup_probe(base, v, scenarios, defaults))
         for job in [lambda sc=sc: play(base, v, sc, defaults) for sc in scenarios] + probes:
             rec = job()
+            if isinstance(rec, str):
+                print(f"  ⚠ {rec}")
+                continue
             results.append(rec)
             mark = "✓" if not rec["failures"] else "✗"
             slowest = max([t["ms"] for t in rec["turns"]] + [rec["greeting"]["ms"]])

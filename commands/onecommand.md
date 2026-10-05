@@ -352,8 +352,9 @@ Skip frontend-agent, backend-agent for pure OS projects.
 writes `voice/scenarios/*.json` — one test call per intent plus the handover, every turn checking content;
 `hooks/call-sim.py validate` must pass before Phase 4 (it also rejects TwiML `<Say>` and robotic speech engines).
 Every spoken sentence uses the one configured neural voice, and `POST /api/voice/tts` serves it. Small talk gets
-its own intent. With module `brand-voice`, the build writes the recording kit (`voice/recording/script.md`,
-`GUIDE.md`). The gate plays every call plus a small-talk probe in its `tour` stage. With voice credentials, it
+its own intent, and so do complaints. The dialogue keeps the conversation state, so follow-up questions work.
+With module `brand-voice`, the build writes the recording kit (`voice/recording/script.md`, `GUIDE.md`). The gate
+plays every call plus three built-in probes (small talk, complaint, follow-up) in its `tour` stage. With voice credentials, it
 also saves voice samples to `.onecommand/calls/audio/` for listening.
 
 **If `videos` is true (spec.media.videos — premium websites):** also dispatch a phase runner with the

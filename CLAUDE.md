@@ -54,7 +54,7 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
   split dataset with manifest + datasheet. With `ml.from_scratch` the ML gate also checks the dataset,
   rejects pretrained weights in `src/`, requires a falling training loss and the weights file.
 - `hooks/call-sim.py validate|run`: scripted test calls for phone assistants (spec `voice`) — AI disclosure,
-  intents, facts, actions, handover, reply length, latency, a built-in small-talk probe, no TwiML `<Say>` or
+  intents, facts, actions, handover, reply length, latency, built-in small-talk, complaint and follow-up probes, no TwiML `<Say>` or
   robotic speech engine, voice samples via `voice.tts_endpoint`; run by the gate's `tour` stage.
   `dataset.py --task speech` checks voice recordings (own brand voice) and reports the hours per voice path.
 - `hooks/video.py probe|scenes|render|check`: website videos (ffmpeg) — cut, Ken Burns, MP4 + WebM + poster

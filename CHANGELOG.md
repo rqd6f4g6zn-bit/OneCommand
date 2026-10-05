@@ -52,10 +52,31 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
     `.onecommand/calls/audio/` and lists them in report.md.
     - Fails on a missing audio reply, on a robotic engine, and on speech faster than 25 or slower than 8 letters/s.
     - Skips with a warning in test mode without credentials.
+- **Conversation memory and complaints** (`voice-agent` §4):
+  - The session keeps the last intent, the last topic and every entity the caller gave.
+  - Follow-up questions are resolved against the last topic, and a number given after the assistant asked for
+    one fills that slot.
+  - The `complaint` intent acknowledges, apologises and opens a ticket or hands over.
+  - Answers cover exactly the question asked. When the article does not cover the country or product asked
+    about, the assistant says so.
+  - `call-sim` adds two more built-in calls to every run:
+    - a complaint, which must be recognised as `complaint`, become a ticket or be handed over;
+    - a follow-up, where the first scenario turn naming an order number is replayed and then "Wann kommt es
+      denn genau?" is asked. The assistant must not ask for the number again.
+  - Both are configurable with `voice.complaint` and `voice.followup`.
 - Blueprint `phone-assistant` v2: `smalltalk` intent (mvp), voice requirements and criteria for the TTS endpoint
   and TwiML without `<Say>`, `tts_endpoint`, and the `brand-voice` module.
 - The delivery report has a phone-assistant section: test calls, the small-talk probe, voice samples to listen
   to, and the recording kit.
+
+### Fixed (found by probing the same build with 15 realistic caller turns: 8 good, 7 weak)
+- After "Wo ist meine Bestellung 4711?" the question "Wann kommt es denn genau?" was answered with "Wie lautet
+  Ihre Bestellnummer?". After the return policy, "Kostet das was?" got the shipping costs. Cause: no
+  conversation memory.
+- "Das ist ja unglaublich, schon wieder falsch geliefert!" was answered with "nicht verstanden". A phone number
+  given after a callback request was not understood either.
+- "Versand nach Österreich?" was answered with the delivery times for Germany, and "Frage zu meiner Rechnung"
+  with the payment methods.
 
 ### Fixed (found by a real build: "Telefon-KI-Assistent für Nordlicht Tee", v1.10.0, 61 criteria, 60/60 automated acceptance tests and 11/11 test calls green)
 - "Hallo?" after the greeting was answered with "nicht verstanden". After "Ja, hallo" and "Moment bitte" the

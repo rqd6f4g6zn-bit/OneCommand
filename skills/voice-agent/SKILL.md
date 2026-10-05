@@ -113,17 +113,31 @@ with their written consent, and never to impersonate a person.
 2. **Small talk** (`smalltalk` intent): "Hallo?", "Ja, hallo", "Moment bitte", "Sind Sie noch da?", "Danke" are
    normal on the phone — greet back / wait / confirm and ask how to help. Never "nicht verstanden", never a
    handover because of them (call-sim plays these in every run).
-3. **Understand**: own intent model first (§5) — above the confidence threshold route directly; below it,
-   ask back once or let the LLM route with the intent list as tools.
-4. **Answer** from the knowledge base: retrieve published articles (embeddings or BM25), answer only
-   from retrieved text; no source → "Das kann ich Ihnen nicht sicher sagen" + offer a human/callback.
+3. **Remember the conversation.** The session keeps the last intent, the last topic (article) and every entity
+   the caller gave: order number, phone number, product, date. Callers talk in follow-ups — "Wann kommt es
+   denn?", "Kostet das was?", "Und am Sonntag?" — so before routing, resolve short or pronoun-only turns
+   against the last topic: a delivery question after an order lookup reuses that order number, a cost
+   question after a return explanation asks about return costs. A number the caller says after the assistant
+   asked for one fills that slot ("Meine Nummer ist 0171 …" after a callback request) — never "nicht
+   verstanden". Never ask again for something the caller already said (call-sim plays a follow-up in every run).
+4. **Complaints** (`complaint` intent): anger, "schon wieder", "falsch geliefert", "kaputt", "unverschämt",
+   "Beschwerde" — acknowledge and apologise once ("Das tut mir leid, das ist ärgerlich."), create a ticket
+   with a summary or hand over warmly; never "nicht verstanden", never a cheerful standard answer. The intent
+   model and the LLM routing both know this class (call-sim plays a complaint in every run).
+5. **Understand**: own intent model first (§5) — above the confidence threshold route directly; below it,
+   ask back once or let the LLM route with the intent list and the conversation state as tools.
+6. **Answer the question that was asked** from the knowledge base: retrieve published articles (embeddings or
+   BM25), answer only from retrieved text. When the article does not cover the specific thing asked — another
+   country, a product, Sunday — say exactly that ("Für Österreich habe ich leider keine Angabe") instead of
+   answering a neighbouring question; no source → "Das kann ich Ihnen nicht sicher sagen" + offer a
+   human/callback. A topic word alone ("Rechnung") gets a clarifying question, not the nearest article.
    Never invent prices, dates, legal statements.
-5. **Act** through tools: `lookup_order(number|phone)`, `create_ticket(summary)`, `book_callback(phone, window)`
+7. **Act** through tools: `lookup_order(number|phone)`, `create_ticket(summary)`, `book_callback(phone, window)`
    — confirm before writing actions, read back numbers.
-6. **Hand over** on request, on frustration (repeated "Mensch", swearing, two failed attempts), on DTMF 0:
+8. **Hand over** on request, on frustration (repeated "Mensch", swearing, two failed attempts), on DTMF 0:
    warm transfer with a two-sentence summary to the agent; outside opening hours a callback instead.
-7. **Close**: summary of what happens next, `end_call: true`.
-8. **Log** every turn (masked with the same patterns as `hooks/dataset.py`: e-mail, IBAN, phone, card numbers).
+9. **Close**: summary of what happens next, `end_call: true`.
+10. **Log** every turn (masked with the same patterns as `hooks/dataset.py`: e-mail, IBAN, phone, card numbers).
 
 Latency budget per turn (target ≤ 1.5 s from caller stop to first audio): endpointing 300 ms · STT final
 200 ms · dialogue 600 ms (stream the LLM, start TTS on the first sentence) · TTS first chunk 300 ms.
@@ -138,7 +152,7 @@ python3 "$OC_ROOT/hooks/dataset.py" build --input data/raw --out data/processed 
 ```
 
 train a small text classifier from scratch (own tokenizer, random init) with `ml.from_scratch` (include small talk
-as its own class), verify with the
+and complaint as their own classes), verify with the
 ML gate (macro_f1 ≥ target on the test split), export it for the dialogue engine (ONNX or a small FastAPI
 service). Retrain from approved transcripts monthly. Without call data yet: start with LLM routing and log
 everything — the log becomes the training set.
@@ -163,7 +177,8 @@ python3 "$OC_ROOT/hooks/call-sim.py" run             # starts the production ser
 
 The quality gate runs them in its `tour` stage (spec `voice`): greeting without AI disclosure, wrong intent,
 missing facts, invented answers (`reply_not_contains`), replies over 300 characters or over the latency
-budget, small talk answered with "not understood" or a handover, TwiML `<Say>` or a robotic engine in the code,
+budget, small talk answered with "not understood" or a handover, a complaint not recognised, a follow-up that
+forgets the conversation, TwiML `<Say>` or a robotic engine in the code,
 and (with credentials) voice samples that are missing or rushed fail the build. `.onecommand/calls/report.md` is the transcript of every test call — it goes into
 the delivery report.
 
