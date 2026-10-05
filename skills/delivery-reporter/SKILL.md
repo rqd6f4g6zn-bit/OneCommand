@@ -150,6 +150,11 @@ poster — plus where it is used, and a link to assets/CREDITS.md with the sourc
 
 ## Phone assistant (spec with a voice section)
 
+<first, in plain words for the owner: "So verbinden Sie Ihre Telefonnummer" — the link to Einstellungen →
+Rufnummer verbinden, the three ways (keep the existing number with call forwarding — recommended; new number;
+own PBX/SIP), what to have ready (provider account, address proof for German numbers, the public HTTPS address
+after deploy), and the current status from GET /api/voice/setup/status (connected? problems?)>
+
 <only when .onecommand/calls/report.json exists: "<passed>/<N> test calls passed, p95 <ms> ms" and the transcripts
 of three calls (greeting, one action, the handover) from .onecommand/calls/report.md; the small-talk probe result;
 voice: provider and a table of the audio samples (copy .onecommand/calls/audio/ to docs/voice-samples/ and link each

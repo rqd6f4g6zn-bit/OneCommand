@@ -351,7 +351,10 @@ Skip frontend-agent, backend-agent for pure OS projects.
 (telephony webhooks, media-stream gateway, dialogue engine, `POST /api/voice/simulate`, actions, handover) and
 writes `voice/scenarios/*.json` — one test call per intent plus the handover, every turn checking content;
 `hooks/call-sim.py validate` must pass before Phase 4 (it also rejects TwiML `<Say>` and robotic speech engines).
-Every spoken sentence uses the one configured neural voice, and `POST /api/voice/tts` serves it. Small talk gets
+Every spoken sentence uses the one configured neural voice, and `POST /api/voice/tts` serves it. The admin area
+gets the setup wizard "Rufnummer verbinden" (voice-agent §2a). It covers call forwarding of the existing number,
+a new number or SIP, credentials in the UI, a connection test, automatic webhook setup and a test call, and
+`GET /api/voice/setup/status` reports the result. Small talk gets
 its own intent, and so do complaints. The dialogue keeps the conversation state, so follow-up questions work.
 With module `brand-voice`, the build writes the recording kit (`voice/recording/script.md`, `GUIDE.md`). The gate
 plays every call plus four built-in probes (small talk, complaint, follow-up, caller identity) in its `tour` stage. With voice credentials, it

@@ -22,10 +22,13 @@
   ],
   "modules": [
     {"id": "telephony", "name": "Telefonie", "tier": "mvp",
-     "features": ["Eingehende Rufnummer (Twilio, SIP-Trunk oder Telefonanlage)", "Webhook für eingehende Anrufe mit Signaturprüfung", "Audio-Streaming in Echtzeit (Media Streams / WebSocket)", "Test-Endpunkt POST /api/voice/simulate für Textgespräche (Tests, Simulator)"],
+     "features": ["Eingehende Rufnummer (Twilio, SIP-Trunk oder Telefonanlage)", "Einrichtungs-Assistent \"Rufnummer verbinden\": bestehende Firmennummer per Rufumleitung (immer, bei besetzt, nach N Sekunden, außerhalb der Öffnungszeiten) mit Anleitung für Handy, FRITZ!Box, Telekom/Vodafone und Cloud-Telefonanlage — oder neue Nummer beim Anbieter — oder SIP", "Zugangsdaten im Admin-Bereich eingeben (verschlüsselt gespeichert), \"Verbindung testen\", Webhook automatisch beim Anbieter eintragen und prüfen", "Testanruf mit Live-Anzeige und Verbindungsstatus auf Dashboard und Einstellungen", "Nie localhost oder http als Webhook anbieten: ohne öffentliche HTTPS-Adresse klarer Hinweis mit Deploy-Schritt", "Webhook für eingehende Anrufe mit Signaturprüfung", "Audio-Streaming in Echtzeit (Media Streams / WebSocket)", "Test-Endpunkt POST /api/voice/simulate für Textgespräche (Tests, Simulator)"],
      "criteria": [
        {"title": "Incoming call webhook answers with a media stream connection", "verification": "api", "steps": ["POST /api/voice/incoming with a valid provider signature"], "expected": ["Status 200", "Response connects the call to the assistant's media stream"]},
-       {"title": "Webhook without a valid signature is rejected", "verification": "api", "steps": ["POST /api/voice/incoming without a signature"], "expected": ["Status 403", "No call is created"]}
+       {"title": "Webhook without a valid signature is rejected", "verification": "api", "steps": ["POST /api/voice/incoming without a signature"], "expected": ["Status 403", "No call is created"]},
+       {"title": "Setup status endpoint reports the connection", "verification": "api", "steps": ["GET /api/voice/setup/status as admin (test mode, no credentials)"], "expected": ["Keys connected, provider, number, mode, webhook_url, webhook_ok, last_call_at, problems", "connected is false and problems explains what is missing"]},
+       {"title": "A local webhook URL is never offered as working", "verification": "api", "steps": ["Run the app on localhost without PUBLIC_BASE_URL", "GET /api/voice/setup/status"], "expected": ["webhook_ok is false", "problems says the assistant is not publicly reachable yet"]},
+       {"title": "Forwarding instructions for an existing number", "verification": "e2e", "start": "/settings/telephony", "steps": ["Log in as admin", "Open Einstellungen → Rufnummer verbinden", "Choose 'Bestehende Nummer behalten'"], "expected": ["The page shows the assistant's target number and the forwarding steps for mobile (GSM codes), FRITZ!Box and cloud PBX"]}
      ]},
     {"id": "greeting-disclosure", "name": "Begrüßung & KI-Hinweis", "tier": "mvp",
      "features": ["Begrüßung mit Firmenname", "Hinweis, dass ein KI-Assistent spricht (EU AI Act Art. 50)", "Hinweis auf Aufzeichnung nur wenn aktiv, mit Widerspruchsmöglichkeit", "Öffnungszeiten: außerhalb Rückruf anbieten"],
@@ -127,6 +130,7 @@
     "disclosure": ["KI", "künstliche Intelligenz", "digitaler Assistent", "digitale Assistentin"],
     "max_ms": 2000,
     "max_reply_chars": 300,
+    "setup_endpoint": "/api/voice/setup/status",
     "tts_endpoint": "/api/voice/tts",
     "stt_endpoint": "/api/voice/stt",
     "lexicon": [],

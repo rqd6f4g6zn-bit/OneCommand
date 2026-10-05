@@ -64,6 +64,19 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
     - a follow-up, where the first scenario turn naming an order number is replayed and then "Wann kommt es
       denn genau?" is asked. The assistant must not ask for the number again.
   - Both are configurable with `voice.complaint` and `voice.followup`.
+- **Connecting the phone number** (`voice-agent` §2a, telephony module):
+  - The admin area gets the setup wizard "Rufnummer verbinden". It offers three ways:
+    - keep the existing company number with call forwarding (always, when busy, after N seconds, or outside
+      opening hours), with the steps for mobile GSM codes, FRITZ!Box, Telekom/Vodafone and cloud PBX;
+    - a new number from the provider account;
+    - SIP.
+  - Credentials are entered in the UI and stored encrypted. The wizard has a connection test, sets the
+    webhook automatically through the provider API, and offers a test call with live display.
+  - The connection status is shown on the dashboard.
+  - `call-sim` checks `GET /api/voice/setup/status`. A missing status, or a localhost / http webhook offered
+    as usable, fails the build.
+  - The Nordlicht build only showed `http://127.0.0.1:3210/api/voice/incoming` to copy, with credentials only
+    as server environment variables. Its status endpoint is missing, and the check reports that.
 - **Pronunciation test**, an automatic round trip in `call-sim`. With `voice.stt_endpoint`
   (`POST /api/voice/stt`, the assistant's own speech recogniser), every reply plus a German test set is spoken
   by the voice and transcribed back. The test set covers umlauts and ß, numbers, dates, prices, order digits,

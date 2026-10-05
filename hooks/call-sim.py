@@ -46,6 +46,10 @@ Built-in checks besides the scenarios:
                the configured voice and saved to .onecommand/calls/audio/ for listening; checked: audio
                returned, speaking rate 8–25 letters/s, no robotic engine (X-Voice-Provider header).
                503 or provider "fake" (test mode without credentials) → skipped with a warning
+  number setup   GET voice.setup_endpoint (/api/voice/setup/status) must report {connected, provider, number, mode,
+               webhook_url, webhook_ok, last_call_at, problems}; a localhost or plain-http webhook URL without a
+               problem saying the assistant is not publicly reachable fails — the owner would paste it into the
+               provider console and no call would ever arrive
   pronunciation  with voice.stt_endpoint as well (POST audio → {"text"}), every sample plus a German test set
                (umlauts, ß, numbers, dates, the company name, voice.lexicon words, voice.pronunciation
                sentences) is synthesised and transcribed back by the speech recogniser: a sentence whose
@@ -553,6 +557,43 @@ def listen(base: str, v: dict[str, Any], results: list[dict[str, Any]], out: Pat
                               "max_wer": max_wer, "skipped": stt_skipped}}
 
 
+SETUP_KEYS = ("connected", "provider", "number", "mode", "webhook_url", "webhook_ok", "last_call_at", "problems")
+
+
+def setup_check(base: str, v: dict[str, Any], timeout: int) -> dict[str, Any]:
+    """Can the owner see how to connect the phone number — and is the offered webhook reachable?"""
+    from urllib.parse import urlparse
+    url = base.rstrip("/") + v["setup_endpoint"]
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 — local or given URL
+            status, raw = resp.status, resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        status, raw = exc.code, ""
+    except (urllib.error.URLError, OSError) as exc:
+        return {"failures": [f"{v['setup_endpoint']}: {exc}"], "warnings": []}
+    if status == 404:
+        return {"failures": [f"{v['setup_endpoint']} missing — the owner cannot see whether the phone number is "
+                             f"connected (voice-agent §2a: setup wizard + status)"], "warnings": []}
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return {"failures": [f"{v['setup_endpoint']}: HTTP {status}, not JSON"], "warnings": []}
+    failures, warnings = [], []
+    missing = [k for k in SETUP_KEYS if k not in data]
+    if missing:
+        failures.append(f"{v['setup_endpoint']} lacks {', '.join(missing)}")
+    hook = str(data.get("webhook_url") or "")
+    parsed = urlparse(hook)
+    local = parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1") or (parsed.hostname or "").startswith("127.")
+    if hook and (local or parsed.scheme != "https"):
+        if data.get("webhook_ok") or not data.get("problems"):
+            failures.append(f"offers the webhook {hook} as usable — a provider cannot reach a local or plain-http "
+                            f"address; report it in problems (PUBLIC_BASE_URL / deploy) and set webhook_ok false")
+    if data.get("connected") and data.get("webhook_ok") is False:
+        warnings.append("number connected but its webhook points elsewhere — the wizard must offer to fix it")
+    return {"failures": failures, "warnings": warnings, "status": data}
+
+
 def ui_tour_module():
     spec = importlib.util.spec_from_file_location("oc_ui_tour", Path(__file__).with_name("ui-tour.py"))
     mod = importlib.util.module_from_spec(spec)
@@ -595,6 +636,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     server = None
     audio = None
+    setup = None
     base = args.base_url
     try:
         if not base:
@@ -628,6 +670,15 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"  {mark} {rec['name']} — {len(rec['turns'])} turn(s), slowest {slowest} ms")
             for f in rec["failures"]:
                 print(f"      ✗ {f}")
+        setup = setup_check(base, v, args.timeout) if v.get("setup_endpoint") else None
+        if setup:
+            st = setup.get("status") or {}
+            print(f"  {'✗' if setup['failures'] else '✓'} number setup: connected={st.get('connected')}, "
+                  f"mode={st.get('mode')}, problems={len(st.get('problems') or [])}")
+            for f in setup["failures"]:
+                print(f"      ✗ {f}")
+            for w in setup["warnings"]:
+                print(f"  ⚠ {w}")
         audio = listen(base, v, results, out, args.timeout) if v.get("tts_endpoint") else None
         if audio:
             if audio["status"] == "skipped":
@@ -647,11 +698,11 @@ def cmd_run(args: argparse.Namespace) -> int:
             server.stop()
 
     failed = [r for r in results if r["failures"]]
-    audio_failed = bool(audio and audio["status"] == "failed")
+    audio_failed = bool(audio and audio["status"] == "failed") or bool(setup and setup["failures"])
     latencies = sorted(t["ms"] for r in results for t in r["turns"])
     p95 = latencies[min(len(latencies) - 1, int(len(latencies) * 0.95))] if latencies else None
     report = {"version": 1, "passed": not failed and not audio_failed, "scenarios": len(results), "failed": len(failed),
-              "turns": len(latencies), "latency_ms_p95": p95, "results": results, "audio": audio}
+              "turns": len(latencies), "latency_ms_p95": p95, "results": results, "audio": audio, "setup": setup}
     (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     md = [f"# Test calls — {spec.get('project_name', 'assistant')}", "",
           f"{len(results) - len(failed)}/{len(results)} calls passed · {len(latencies)} turns · p95 latency {p95} ms", ""]

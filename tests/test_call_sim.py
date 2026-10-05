@@ -53,6 +53,26 @@ class Assistant(BaseHTTPRequestHandler):
     sessions: dict = {}
     tts = "elevenlabs"          # X-Voice-Provider; "503" = no provider configured
     stt = "exact"               # exact | garble | name | 503
+    setup_mode = "honest"       # honest | hides_localhost | missing | incomplete
+
+    def do_GET(self):
+        if self.path != "/api/voice/setup/status" or self.setup_mode == "missing":
+            self.send_response(404)
+            self.end_headers()
+            return
+        data = {"connected": False, "provider": "twilio", "number": None, "mode": None,
+                "webhook_url": f"http://127.0.0.1:{self.server.server_address[1]}/api/voice/incoming",
+                "webhook_ok": False, "last_call_at": None,
+                "problems": ["Keine Twilio-Zugangsdaten", "Nicht öffentlich erreichbar: PUBLIC_BASE_URL fehlt"]}
+        if self.setup_mode == "hides_localhost":
+            data.update(webhook_ok=True, problems=[])
+        if self.setup_mode == "incomplete":
+            data = {"connected": False}
+        body = json.dumps(data).encode()
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
     letters_per_s = 13.0
 
     def log_message(self, *args):
@@ -135,7 +155,7 @@ def server():
     Assistant.greeting, Assistant.slow_ms, Assistant.long_reply = GREETING, 0, False
     Assistant.smalltalk_fallback, Assistant.tts, Assistant.letters_per_s = False, "elevenlabs", 13.0
     Assistant.complaint_fallback, Assistant.memory, Assistant.sessions, Assistant.verify = False, True, {}, True
-    Assistant.stt = "exact"
+    Assistant.stt, Assistant.setup_mode = "exact", "honest"
 
 
 SCENARIOS = {
@@ -379,3 +399,22 @@ def test_number_words_and_wer():
     assert cs.wer(["a", "b", "c", "d"], ["a", "x", "c"]) == 0.5
     assert cs.heard("Nordlicht Tee", cs.normalise("willkommen bei nord licht tee"))
     assert not cs.heard("Servicehafen", cs.normalise("willkommen bei serviz hofen"))
+
+
+SETUP = {"setup_endpoint": "/api/voice/setup/status"}
+
+
+def test_number_setup_status_passes_when_honest(tmp_path, server):
+    r = sim("run", "--project-dir", str(project(tmp_path, **SETUP)), "--base-url", server)
+    assert r.returncode == 0 and "✓ number setup: connected=False" in r.stdout and "problems=2" in r.stdout
+
+
+@pytest.mark.parametrize("mode,message", [
+    ("hides_localhost", "offers the webhook http://127.0.0.1"),
+    ("missing", "the owner cannot see whether the phone number is connected"),
+    ("incomplete", "lacks provider, number, mode, webhook_url, webhook_ok, last_call_at, problems"),
+])
+def test_number_setup_problems_fail(tmp_path, server, mode, message):
+    Assistant.setup_mode = mode
+    r = sim("run", "--project-dir", str(project(tmp_path, **SETUP)), "--base-url", server)
+    assert r.returncode == 1 and message in r.stdout

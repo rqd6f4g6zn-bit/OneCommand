@@ -37,6 +37,39 @@ Caller ──PSTN──▶ Twilio / SIP trunk ──webhook──▶ POST /api/v
 Credentials are production dependencies (`telephony`, `speech`) — the delivery report lists the account
 steps. Test mode (`ONECOMMAND_E2E=1`) uses the simulate endpoint and fake providers.
 
+## 2a. Connecting the phone number (setup wizard — the customer must be able to do this alone)
+
+A phone assistant nobody can call is not delivered. The admin area gets **Einstellungen → Rufnummer verbinden**, a
+wizard that a non-technical owner completes in ten minutes; the delivery report links to it.
+
+1. **Choose the way** (most companies keep their number):
+   - **Keep the existing number — call forwarding** (recommended): the assistant gets its own provider number, the
+     company number forwards to it — always, when busy, when nobody answers after N seconds, or only outside
+     opening hours (overflow mode: staff first, AI as backup). The wizard shows the steps for the customer's line:
+     mobile GSM codes (`**21*<Nummer>#` immer, `**67*<Nummer>#` bei besetzt, `**61*<Nummer>*11*20#` nach 20 s,
+     `**62*<Nummer>#` nicht erreichbar, `##002#` alles aus), FRITZ!Box (Telefonie → Rufbehandlung → Rufumleitung),
+     Telekom/Vodafone customer centre, cloud PBX (sipgate, Placetel, 3CX: target = the assistant's number or SIP URI).
+   - **New number** at the provider: list the numbers of the connected account (Twilio `IncomingPhoneNumbers`),
+     pick one; German local numbers need an address proof (regulatory bundle) — the wizard says so.
+   - **Own PBX / SIP trunk**: show the SIP URI and the codecs (PCMU/PCMA).
+2. **Enter the provider credentials in the UI** (admin only; Account SID + Auth Token / API key), stored encrypted
+   (AES-256-GCM, key from `ENCRYPTION_KEY`), never shown again, environment variables still win. Button
+   **"Verbindung testen"** calls the provider API and shows account name and numbers — or the exact error.
+3. **Public address**: webhooks need the public HTTPS URL (`PUBLIC_BASE_URL`). Never offer `localhost` /
+   `127.0.0.1` / `http://` as the webhook to enter — show "Der Assistent ist noch nicht öffentlich erreichbar" with
+   the deploy step instead.
+4. **"Webhook automatisch einrichten"**: set the number's voice URL (`/api/voice/incoming`, POST) and status
+   callback through the provider API, read it back and compare; manual copy only as fallback.
+5. **Test**: "Rufen Sie jetzt <Nummer> an" — the page waits for the call and shows it live (greeting heard,
+   transcript) — or "Testanruf an mein Handy" (outbound call through the API).
+6. **Status everywhere**: a card on the dashboard and the settings page — connected / not connected / webhook
+   points elsewhere / no call for 7 days — with the one action that fixes it.
+
+`GET /api/voice/setup/status` (admin; open in test mode) returns
+`{connected, provider, number, mode: "forwarding"|"number"|"sip"|null, webhook_url, webhook_ok, last_call_at, problems: []}`;
+the wizard and the dashboard card read it, and call-sim checks it: a local or plain-http webhook URL without a
+problem telling the owner it is not reachable fails the build.
+
 ## 3. Voice — it must sound like a person
 
 Callers judge the voice before the content. A robotic voice makes them press 0 or hang up.

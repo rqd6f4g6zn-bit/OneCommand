@@ -143,7 +143,9 @@ That includes the handover and DTMF replies, so callers never hear Twilio's buil
 "Hallo?" is answered instead of "nicht verstanden". The assistant remembers the conversation, so "Wann kommt es
 denn?" after an order number works. Complaints are recognised and become a ticket or a handover. Callers are recognised by their number. Address, payment or
 cancellation changes still need a second factor (postcode, customer number or code), because a number can be faked. Before go-live, the gate saves every reply as an audio
-sample for listening. A pronunciation test lets the speech recogniser write back what the voice
+sample for listening. Owners connect their number themselves in the setup wizard. They can keep the existing number with call
+forwarding, take a new number or connect a SIP line. The wizard has a connection test, sets the webhook
+automatically and offers a test call. A pronunciation test lets the speech recogniser write back what the voice
 said. Company names, numbers and umlauts must be recognised, or the build fails.
 
 For an **own brand voice**, the build delivers a recording script and guide. `dataset.py --task speech` checks

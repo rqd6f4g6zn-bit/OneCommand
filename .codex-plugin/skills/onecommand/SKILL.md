@@ -177,7 +177,9 @@ print('BUILD_MOBILE:', 'mobile' in targets)
 - conversation memory (last intent, topic, order and phone numbers),
 - `smalltalk` and `complaint` intents,
 - caller recognition with a second factor before any change,
-- one neural voice for every sentence (`POST /api/voice/tts`, never TwiML `<Say>`), and `POST /api/voice/stt`.
+- one neural voice for every sentence (`POST /api/voice/tts`, never TwiML `<Say>`), and `POST /api/voice/stt`,
+- the setup wizard "Rufnummer verbinden" (call forwarding of the existing number, new number or SIP, credentials in
+  the UI, connection test, automatic webhook, test call) with `GET /api/voice/setup/status`.
 
 **Frontend** — Generate all pages and components using the `onecommand-spec-analyzer` skill output:
 - Read spec pages list, generate each as a complete Next.js page
