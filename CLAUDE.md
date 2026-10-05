@@ -126,5 +126,9 @@ Releasing: bump `version` in `.claude-plugin/plugin.json`, `.codex-plugin/plugin
 `install.sh` (the installer warns about unlisted skill directories). Test the installer against a
 throwaway home: `HOME=$(mktemp -d) ./install.sh --verbose`.
 
+Attribution: commits are authored by `USC Software UG <info@usc-software.de>`. Commit messages, PR
+descriptions and comments carry no AI attribution — no "Generated with …" line, no `Co-Authored-By`
+trailer, no session link. PR descriptions end with `*USC Software UG · usc-software-ug.de*`.
+
 Design specs live in `docs/superpowers/specs/`.
 Implementation plans live in `docs/superpowers/plans/`.
