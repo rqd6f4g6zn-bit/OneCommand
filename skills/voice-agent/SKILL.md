@@ -142,6 +142,24 @@ with their written consent, and never to impersonate a person.
 Latency budget per turn (target ≤ 1.5 s from caller stop to first audio): endpointing 300 ms · STT final
 200 ms · dialogue 600 ms (stream the LLM, start TTS on the first sentence) · TTS first chunk 300 ms.
 
+### Recognising the caller
+
+- **By phone number (caller ID):** look the number up in the customer / order data at call start (normalised
+  E.164). Found → use it for convenience: "Guten Tag, spreche ich mit Frau Neumann?" and offer the latest order
+  ("Geht es um Ihre Bestellung vier sieben eins eins?"); remember earlier calls from the call log ("Sie hatten
+  letzte Woche wegen … angerufen"). Several customers on one number → ask which one. Suppressed or unknown
+  number → ask for the order or customer number.
+- **A phone number is not proof of identity** — it can be spoofed and is shared in families and offices. Status
+  information (order status, delivery day) may follow a number match plus the confirmed name. **Anything that
+  changes data or reveals more** — address, payment, cancellation, refund, invoice copies, personal data — needs a
+  second factor first: postcode of the delivery address, customer number, date of birth, or a one-time code sent
+  by SMS / e-mail to the registered contact; otherwise hand over. call-sim plays such a request from a known
+  number in every run (`identity` probe): changing it straight away fails the build.
+- **By voice (voice biometrics)** only as an opt-in enterprise extra: it is biometric data (GDPR Art. 9) — explicit
+  written consent, an alternative for those who decline, never the only factor (cloned voices exist).
+- Log who was identified and how (`identifiedBy: phone|order_number|second_factor|voice`), never the second factor
+  itself.
+
 ## 5. Own intent model (from own call data)
 
 The company's model, trained from zero (ml-builder §0): export transcripts of handled calls (or the support

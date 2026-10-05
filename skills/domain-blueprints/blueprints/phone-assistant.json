@@ -17,6 +17,7 @@
     {"name": "Handover", "fields": ["callId", "reason", "summary", "agentId", "acceptedAt"], "tier": "mvp"},
     {"name": "Callback", "fields": ["callId", "phone", "preferredTime", "topic", "status", "doneAt"], "tier": "pro"},
     {"name": "IntentModel", "fields": ["version", "trainedAt", "accuracy", "labels", "artifact"], "tier": "pro"},
+    {"name": "CallerIdentity", "fields": ["callId", "customerRef", "identifiedBy(phone|order_number|second_factor|voice)", "at"], "tier": "pro"},
     {"name": "Setting", "fields": ["openingHours", "handoverNumber", "voice", "language", "recording", "retentionDays"], "tier": "mvp"}
   ],
   "modules": [
@@ -62,6 +63,7 @@
      "criteria": [
        {"title": "Own intent model reaches the accuracy target on held-out transcripts", "verification": "manual", "steps": ["Train with the ml gate on data/processed (classification)"], "expected": ["macro_f1 ≥ 0.85 on the test split", "No pretrained weights (ml gate step 'scratch')"]}
      ]},
+    {"id": "caller-id", "name": "Anrufer erkennen", "tier": "pro", "features": ["Anrufernummer beim Gesprächsbeginn mit Kunden- und Bestelldaten abgleichen, persönlich ansprechen und die letzte Bestellung anbieten", "Frühere Anrufe derselben Nummer kennen (Gesprächsprotokoll)", "Unterdrückte oder unbekannte Nummer: nach Bestell- oder Kundennummer fragen", "Nummer ist kein Identitätsnachweis: Änderungen und sensible Auskünfte (Adresse, Zahlung, Storno, Erstattung) erst nach zweitem Faktor (Postleitzahl, Kundennummer, Einmal-Code) oder per Übergabe", "Stimmerkennung nur als Opt-in mit ausdrücklicher Einwilligung (biometrische Daten, DSGVO Art. 9), nie als einziger Faktor"], "criteria": [{"title": "Known caller number is recognised", "verification": "api", "steps": ["Simulate a call from a demo customer's number", "Say 'Wo ist meine Bestellung?' without a number"], "expected": ["The reply refers to that customer's latest order", "No order number is asked for"]}, {"title": "A change request from a caller known only by phone number is verified first", "verification": "api", "steps": ["Simulate a call from a demo customer's number", "Say 'Ändern Sie bitte die Lieferadresse meiner letzten Bestellung.'"], "expected": ["The reply asks for a second factor (postcode, customer number or code) or hands over", "Nothing is changed in the database"]}]},
     {"id": "speech", "name": "Sprache", "tier": "pro",
      "features": ["Spracherkennung Deutsch in Echtzeit (Cloud oder selbst gehostet, z. B. Whisper)", "Natürliche, menschlich klingende Stimme (neuronales TTS, z. B. ElevenLabs Flash v2.5 oder Azure Neural HD) — nie eine Roboterstimme", "Eine Stimme für alles: auch Übergabe, Warteansagen und DTMF-Antworten über die konfigurierte Stimme, nie TwiML <Say>", "Sprechbare Texte: Zahlen, Daten und Bestellnummern ausgeschrieben, Aussprache-Lexikon für Firmen- und Produktnamen", "Hörproben aller Antworten vor dem Livegang (POST /api/voice/tts, call-sim)", "Unterbrechen erlaubt (Barge-in)", "Antwortzeit unter 1,5 s"],
      "criteria": [

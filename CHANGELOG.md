@@ -64,6 +64,17 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
     - a follow-up, where the first scenario turn naming an order number is replayed and then "Wann kommt es
       denn genau?" is asked. The assistant must not ask for the number again.
   - Both are configurable with `voice.complaint` and `voice.followup`.
+- **Caller recognition** (`voice-agent` §3, new pro module `caller-id`):
+  - The caller's number is matched against customer and order data, so the assistant greets the customer by
+    name, offers the latest order and knows earlier calls. Several customers on one number get a question
+    which one; a suppressed number gets a question for the order number.
+  - A phone number is not treated as proof of identity. Changes and sensitive information need a second
+    factor (postcode, customer number, one-time code) or a handover.
+  - Voice biometrics are offered only as opt-in with explicit consent, because they are biometric data under
+    GDPR Art. 9.
+  - `call-sim` adds a built-in `identity` probe: a known number asks to change the delivery address, and
+    changing it straight away fails the build.
+  - In the Nordlicht build the request was answered with the order status, without any verification.
 - Blueprint `phone-assistant` v2: `smalltalk` intent (mvp), voice requirements and criteria for the TTS endpoint
   and TwiML without `<Say>`, `tts_endpoint`, and the `brand-voice` module.
 - The delivery report has a phone-assistant section: test calls, the small-talk probe, voice samples to listen

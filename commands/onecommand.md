@@ -354,7 +354,7 @@ writes `voice/scenarios/*.json` — one test call per intent plus the handover, 
 Every spoken sentence uses the one configured neural voice, and `POST /api/voice/tts` serves it. Small talk gets
 its own intent, and so do complaints. The dialogue keeps the conversation state, so follow-up questions work.
 With module `brand-voice`, the build writes the recording kit (`voice/recording/script.md`, `GUIDE.md`). The gate
-plays every call plus three built-in probes (small talk, complaint, follow-up) in its `tour` stage. With voice credentials, it
+plays every call plus four built-in probes (small talk, complaint, follow-up, caller identity) in its `tour` stage. With voice credentials, it
 also saves voice samples to `.onecommand/calls/audio/` for listening.
 
 **If `videos` is true (spec.media.videos — premium websites):** also dispatch a phase runner with the

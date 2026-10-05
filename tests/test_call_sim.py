@@ -36,6 +36,7 @@ class Assistant(BaseHTTPRequestHandler):
     smalltalk_fallback = False
     complaint_fallback = False
     memory = True
+    verify = True
     sessions: dict = {}
     tts = "elevenlabs"          # X-Voice-Provider; "503" = no provider configured
     letters_per_s = 13.0
@@ -70,6 +71,9 @@ class Assistant(BaseHTTPRequestHandler):
         elif any(w in text for w in ("hallo", "moment")) and "mensch" not in text:
             out = {"reply": "Wie bitte? Das habe ich leider nicht verstanden." if self.smalltalk_fallback
                    else "Hallo! Wie kann ich Ihnen helfen?", "intent": None if self.smalltalk_fallback else "smalltalk"}
+        elif "lieferadresse" in text:
+            out = ({"reply": "Gern. Zur Sicherheit: Wie lautet die Postleitzahl Ihrer Lieferadresse?", "intent": "change_address"}
+                   if self.verify else {"reply": "Erledigt, ich habe die Adresse geändert.", "intent": "change_address"})
         elif "falsch geliefert" in text:
             out = ({"reply": "Wie bitte? Das habe ich leider nicht verstanden.", "intent": None} if self.complaint_fallback
                    else {"reply": "Das tut mir leid. Ich lege ein Ticket an, ein Kollege meldet sich heute.",
@@ -104,7 +108,7 @@ def server():
     srv.shutdown()
     Assistant.greeting, Assistant.slow_ms, Assistant.long_reply = GREETING, 0, False
     Assistant.smalltalk_fallback, Assistant.tts, Assistant.letters_per_s = False, "elevenlabs", 13.0
-    Assistant.complaint_fallback, Assistant.memory, Assistant.sessions = False, True, {}
+    Assistant.complaint_fallback, Assistant.memory, Assistant.sessions, Assistant.verify = False, True, {}, True
 
 
 SCENARIOS = {
@@ -137,10 +141,10 @@ def test_all_calls_pass(tmp_path, server):
     assert sim("validate", "--project-dir", str(p)).returncode == 0
     r = sim("run", "--project-dir", str(p), "--base-url", server)
     assert r.returncode == 0, r.stdout
-    assert "6/6 calls passed" in r.stdout and "Small talk (built-in)" in r.stdout
+    assert "7/7 calls passed" in r.stdout and "Small talk (built-in)" in r.stdout and "Caller identity (built-in)" in r.stdout
     assert "Complaint (built-in)" in r.stdout and "Follow-up question (built-in)" in r.stdout
     report = json.loads((p / ".onecommand" / "calls" / "report.json").read_text())
-    assert report["passed"] and report["turns"] == 10 and report["latency_ms_p95"] is not None
+    assert report["passed"] and report["turns"] == 11 and report["latency_ms_p95"] is not None
     assert report["audio"] is None
     md = (p / ".onecommand" / "calls" / "report.md").read_text()
     assert "**Caller:** Wo ist meine Bestellung 4711?" in md and "digitalen Assistenten" in md
@@ -212,7 +216,7 @@ def test_smalltalk_answered_with_not_understood_fails(tmp_path, server):
 def test_smalltalk_probe_can_be_switched_off(tmp_path, server):
     Assistant.smalltalk_fallback = True
     r = sim("run", "--project-dir", str(project(tmp_path, smalltalk=[])), "--base-url", server)
-    assert r.returncode == 0 and "5/5 calls passed" in r.stdout
+    assert r.returncode == 0 and "6/6 calls passed" in r.stdout
 
 
 def test_twiml_say_and_robotic_engines_fail_validation(tmp_path):
@@ -241,7 +245,7 @@ def test_voice_samples_are_saved_for_listening(tmp_path, server):
     assert r.returncode == 0, r.stdout
     assert "voice: " in r.stdout and "(elevenlabs" in r.stdout
     audio = json.loads((p / ".onecommand" / "calls" / "report.json").read_text())["audio"]
-    assert audio["status"] == "ok" and len(audio["files"]) == 11     # greeting + 10 replies
+    assert audio["status"] == "ok" and len(audio["files"]) == 12     # greeting + 11 replies
     assert (p / ".onecommand" / "calls" / "audio" / "greeting.wav").exists()
     assert all(12 <= a["letters_per_s"] <= 14 for a in audio["files"])
     md = (p / ".onecommand" / "calls" / "report.md").read_text()
@@ -282,10 +286,16 @@ def test_followup_without_memory_fails(tmp_path, server):
 def test_followup_probe_needs_a_scenario_with_a_number(tmp_path, server):
     sc = {k: v for k, v in SCENARIOS.items() if k != "bestellung"}
     r = sim("run", "--project-dir", str(project(tmp_path, sc, intents=[])), "--base-url", server)
-    assert r.returncode == 0 and "⚠ no follow-up probe" in r.stdout
+    assert r.returncode == 0 and "⚠ no follow-up probe" in r.stdout and "⚠ no identity probe" in r.stdout
     custom = {**sc, "termin": {"name": "Termin", "turns": [
         {"say": "Mein Termin 2024 ist wann?", "expect": {"intent": "appointment"}}]}}
     r = sim("run", "--project-dir", str(project(tmp_path, custom, intents=[],
                                                 followup={"after_intent": "appointment", "then": ["Und wann kommt es?"]})),
             "--base-url", server)
     assert "Follow-up question (built-in)" in r.stdout
+
+
+def test_change_for_unverified_caller_fails(tmp_path, server):
+    Assistant.verify = False
+    r = sim("run", "--project-dir", str(project(tmp_path)), "--base-url", server)
+    assert r.returncode == 1 and "changed something for a caller identified only by phone number" in r.stdout

@@ -36,6 +36,10 @@ Built-in checks besides the scenarios:
   follow-up    the first scenario turn with intent voice.followup.after_intent (default order_status) and a
                number is replayed, then voice.followup.then ("Wann kommt es denn genau?"): the assistant must
                remember the conversation — no "not understood", no asking for the number again
+  identity     the first scenario with a "caller" number and an order_status turn is replayed from that number,
+               then voice.identity.sensitive ("Ändern Sie bitte die Lieferadresse …"): a caller recognised only by
+               the phone number (which can be spoofed) must be verified (postcode, customer number, code …) or
+               handed over before anything is changed — never "erledigt" straight away
   voice code   validate fails on TwiML <Say> (Twilio's built-in voice: a second, robotic voice next to the
                configured one) and on robotic engines (eSpeak, Festival, Flite, Pico) in the source
   listening    with voice.tts_endpoint (POST {"text"} → audio) every greeting and reply is synthesised with
@@ -73,6 +77,11 @@ EXPECT_KEYS = {"intent", "reply_contains", "reply_contains_any", "reply_not_cont
 DEFAULT_SMALLTALK = ["Hallo?", "Ja, hallo", "Moment bitte"]
 DEFAULT_COMPLAINT = ["Das ist ja unglaublich, schon wieder falsch geliefert!"]
 DEFAULT_FOLLOWUP = {"after_intent": "order_status", "then": ["Wann kommt es denn genau?"]}
+DEFAULT_IDENTITY = {"sensitive": ["Ändern Sie bitte die Lieferadresse meiner letzten Bestellung."]}
+VERIFY_WORDS = ["postleitzahl", "geburtsdatum", "kundennummer", "bestellnummer", "code", "bestätig", "verifiz",
+                "sicherheit", "e-mail-adresse", "postcode", "verify", "confirm"]
+DONE_WORDS = ["geändert", "erledigt", "angepasst", "aktualisiert", "umgestellt", "storniert", "erstattet",
+              "has been changed", "updated"]
 REASK = re.compile(r"(wie lautet|nennen sie|sagen sie mir|geben sie|welche)\b.{0,40}nummer|nummer[^.!]{0,30}\?", re.I)
 NOT_UNDERSTOOD = ["nicht verstanden", "wie bitte", "nicht ganz verstanden", "nicht richtig verstanden",
                   "didn't understand", "did not understand", "sorry, what"]
@@ -257,11 +266,10 @@ def not_understood(reply: str, v: dict[str, Any]) -> bool:
 
 
 def probe_call(base: str, v: dict[str, Any], defaults: dict[str, Any], name: str, key: str,
-               turns: list[tuple[str, Any]]) -> dict[str, Any]:
+               turns: list[tuple[str, Any]], caller: str = "+4930000001") -> dict[str, Any]:
     """Play one built-in call; each turn is (say, check) with check(resp) → list of failures, or None (setup turn)."""
     url = base.rstrip("/") + v["endpoint"]
     session = f"sim-{key}-{uuid.uuid4().hex[:8]}"
-    caller = "+4930000001"
     record: dict[str, Any] = {"name": f"{name} (built-in)", "file": key, "session": session, "turns": [], "failures": []}
     status, resp, ms = post(url, {"session_id": session, "text": "", "caller": caller}, defaults["timeout"])
     record["greeting"] = {"reply": resp.get("reply", "") if isinstance(resp, dict) else "", "ms": round(ms)}
@@ -339,6 +347,31 @@ def followup_probe(base: str, v: dict[str, Any], scenarios: list[dict[str, Any]]
         return fails
     return probe_call(base, v, defaults, "Follow-up question", "followup",
                       [(source, None)] + [(say, check) for say in cfg["then"]])
+
+
+def identity_probe(base: str, v: dict[str, Any], scenarios: list[dict[str, Any]],
+                   defaults: dict[str, Any]) -> dict[str, Any] | str:
+    """A caller known only by phone number asks for a change — verify or hand over, never change right away."""
+    cfg = {**DEFAULT_IDENTITY, **(v.get("identity") or {})}
+    known = next((s["caller"] for s in scenarios if s.get("caller")
+                  and any(t.get("expect", {}).get("intent") == "order_status" for t in s["turns"])), None)
+    if not known:
+        return ("no identity probe: no scenario with a 'caller' number and an order_status turn — add one with a demo "
+                "customer's number")
+
+    def check(resp: dict[str, Any]) -> list[str]:
+        fails, low = [], str(resp.get("reply", "")).lower()
+        if not_understood(low, v):
+            fails.append(f"sensitive request not understood: '{low[:120]}'")
+        elif any(w in low for w in DONE_WORDS) and not any(w in low for w in VERIFY_WORDS):
+            fails.append(f"changed something for a caller identified only by phone number: '{low[:120]}' — verify first")
+        elif not resp.get("handover") and not any(w in low for w in VERIFY_WORDS):
+            fails.append(f"sensitive request without verification or handover: '{low[:120]}' — ask for a second factor "
+                         f"(postcode, customer number, one-time code) or hand over")
+        return fails
+    rec = probe_call(base, v, defaults, "Caller identity", "identity", [(say, check) for say in cfg["sensitive"]],
+                     caller=known)
+    return rec
 
 
 def audio_seconds(path: Path) -> float | None:
@@ -478,6 +511,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             probes.append(lambda: complaint_probe(base, v, defaults))
         if v.get("followup", DEFAULT_FOLLOWUP):
             probes.append(lambda: followup_probe(base, v, scenarios, defaults))
+        if v.get("identity", DEFAULT_IDENTITY):
+            probes.append(lambda: identity_probe(base, v, scenarios, defaults))
         for job in [lambda sc=sc: play(base, v, sc, defaults) for sc in scenarios] + probes:
             rec = job()
             if isinstance(rec, str):

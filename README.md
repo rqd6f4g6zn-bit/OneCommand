@@ -141,7 +141,8 @@ budget.
 **A real voice, not a robot.** Every sentence is spoken by one neural voice (ElevenLabs or Azure Neural HD).
 That includes the handover and DTMF replies, so callers never hear Twilio's built-in voice. Small talk such as
 "Hallo?" is answered instead of "nicht verstanden". The assistant remembers the conversation, so "Wann kommt es
-denn?" after an order number works. Complaints are recognised and become a ticket or a handover. Before go-live, the gate saves every reply as an audio
+denn?" after an order number works. Complaints are recognised and become a ticket or a handover. Callers are recognised by their number. Address, payment or
+cancellation changes still need a second factor (postcode, customer number or code), because a number can be faked. Before go-live, the gate saves every reply as an audio
 sample for listening.
 
 For an **own brand voice**, the build delivers a recording script and guide. `dataset.py --task speech` checks
