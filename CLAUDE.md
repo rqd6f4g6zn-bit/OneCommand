@@ -55,7 +55,8 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
   rejects pretrained weights in `src/`, requires a falling training loss and the weights file.
 - `hooks/call-sim.py validate|run`: scripted test calls for phone assistants (spec `voice`) — AI disclosure,
   intents, facts, actions, handover, reply length, latency, built-in small-talk, complaint, follow-up and caller-identity probes, no TwiML `<Say>` or
-  robotic speech engine, voice samples via `voice.tts_endpoint`; run by the gate's `tour` stage.
+  robotic speech engine, voice samples via `voice.tts_endpoint`, a pronunciation round trip via
+  `voice.stt_endpoint`; run by the gate's `tour` stage.
   `dataset.py --task speech` checks voice recordings (own brand voice) and reports the hours per voice path.
 - `hooks/video.py probe|scenes|render|check`: website videos (ffmpeg) — cut, Ken Burns, MP4 + WebM + poster
   within `max_kb`; used by the `video-producer` skill when `spec.media.videos` is set.

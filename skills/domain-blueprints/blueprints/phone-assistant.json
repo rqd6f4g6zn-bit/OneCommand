@@ -65,11 +65,12 @@
      ]},
     {"id": "caller-id", "name": "Anrufer erkennen", "tier": "pro", "features": ["Anrufernummer beim Gesprächsbeginn mit Kunden- und Bestelldaten abgleichen, persönlich ansprechen und die letzte Bestellung anbieten", "Frühere Anrufe derselben Nummer kennen (Gesprächsprotokoll)", "Unterdrückte oder unbekannte Nummer: nach Bestell- oder Kundennummer fragen", "Nummer ist kein Identitätsnachweis: Änderungen und sensible Auskünfte (Adresse, Zahlung, Storno, Erstattung) erst nach zweitem Faktor (Postleitzahl, Kundennummer, Einmal-Code) oder per Übergabe", "Stimmerkennung nur als Opt-in mit ausdrücklicher Einwilligung (biometrische Daten, DSGVO Art. 9), nie als einziger Faktor"], "criteria": [{"title": "Known caller number is recognised", "verification": "api", "steps": ["Simulate a call from a demo customer's number", "Say 'Wo ist meine Bestellung?' without a number"], "expected": ["The reply refers to that customer's latest order", "No order number is asked for"]}, {"title": "A change request from a caller known only by phone number is verified first", "verification": "api", "steps": ["Simulate a call from a demo customer's number", "Say 'Ändern Sie bitte die Lieferadresse meiner letzten Bestellung.'"], "expected": ["The reply asks for a second factor (postcode, customer number or code) or hands over", "Nothing is changed in the database"]}]},
     {"id": "speech", "name": "Sprache", "tier": "pro",
-     "features": ["Spracherkennung Deutsch in Echtzeit (Cloud oder selbst gehostet, z. B. Whisper)", "Natürliche, menschlich klingende Stimme (neuronales TTS, z. B. ElevenLabs Flash v2.5 oder Azure Neural HD) — nie eine Roboterstimme", "Eine Stimme für alles: auch Übergabe, Warteansagen und DTMF-Antworten über die konfigurierte Stimme, nie TwiML <Say>", "Sprechbare Texte: Zahlen, Daten und Bestellnummern ausgeschrieben, Aussprache-Lexikon für Firmen- und Produktnamen", "Hörproben aller Antworten vor dem Livegang (POST /api/voice/tts, call-sim)", "Unterbrechen erlaubt (Barge-in)", "Antwortzeit unter 1,5 s"],
+     "features": ["Spracherkennung Deutsch in Echtzeit (Cloud oder selbst gehostet, z. B. Whisper)", "Natürliche, menschlich klingende Stimme (neuronales TTS, z. B. ElevenLabs Flash v2.5 oder Azure Neural HD) — nie eine Roboterstimme", "Eine Stimme für alles: auch Übergabe, Warteansagen und DTMF-Antworten über die konfigurierte Stimme, nie TwiML <Say>", "Sprechbare Texte: Zahlen, Daten und Bestellnummern ausgeschrieben, Aussprache-Lexikon für Firmen- und Produktnamen", "Hörproben aller Antworten vor dem Livegang (POST /api/voice/tts, call-sim)", "Aussprachetest: Stimme spricht, Spracherkennung schreibt zurück — Firmen- und Produktnamen, Zahlen, Daten und Umlaute müssen wiedererkannt werden (POST /api/voice/stt, call-sim)", "Unterbrechen erlaubt (Barge-in)", "Antwortzeit unter 1,5 s"],
      "criteria": [
        {"title": "DTMF 0 hands over to a human at any time", "verification": "api", "steps": ["POST the DTMF digit 0 during a call"], "expected": ["handover is true"]},
        {"title": "TTS endpoint returns audio from the configured neural voice", "verification": "api", "steps": ["POST /api/voice/tts with the greeting text (test mode)"], "expected": ["Status 200 with an audio content type, or 503 when no voice provider is configured", "Header X-Voice-Provider names the provider (fake in test mode without credentials)"]},
-       {"title": "DTMF and handover replies use the configured voice", "verification": "api", "steps": ["POST the DTMF digit 0 to the DTMF webhook"], "expected": ["The TwiML response plays synthesised audio or streams it — it contains no <Say> element"]}
+       {"title": "DTMF and handover replies use the configured voice", "verification": "api", "steps": ["POST the DTMF digit 0 to the DTMF webhook"], "expected": ["The TwiML response plays synthesised audio or streams it — it contains no <Say> element"]},
+       {"title": "Pronunciation round trip passes", "verification": "api", "steps": ["With voice credentials: run call-sim (voice.tts_endpoint + voice.stt_endpoint)"], "expected": ["Every sample's transcript has a word error rate ≤ voice.max_wer", "The company name and every voice.lexicon term are recognised"]}
      ]},
     {"id": "analytics", "name": "Auswertung", "tier": "pro",
      "features": ["Automatisierungsquote, Übergabequote, durchschnittliche Gesprächsdauer", "Häufigste Anliegen und unbeantwortete Fragen (Lücken der Wissensbasis)"],
@@ -127,6 +128,9 @@
     "max_ms": 2000,
     "max_reply_chars": 300,
     "tts_endpoint": "/api/voice/tts",
+    "stt_endpoint": "/api/voice/stt",
+    "lexicon": [],
+    "max_wer": 0.2,
     "smalltalk": ["Hallo?", "Ja, hallo", "Moment bitte"],
     "complaint": ["Das ist ja unglaublich, schon wieder falsch geliefert!"],
     "followup": {"after_intent": "order_status", "then": ["Wann kommt es denn genau?"]},

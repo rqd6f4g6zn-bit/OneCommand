@@ -59,6 +59,18 @@ Callers judge the voice before the content. A robotic voice makes them press 0 o
   `voice.tts_endpoint` in the spec: call-sim then synthesises every greeting and reply into
   `.onecommand/calls/audio/` — the owner listens to them before go-live (linked in the delivery report).
 
+### Pronunciation test (automatic, every build with voice credentials)
+
+The assistant also serves `POST /api/voice/stt` (raw audio → `{"text"}`, test mode and admins only, 503 without a
+recogniser) on its own speech-to-text provider. With `voice.stt_endpoint` set, call-sim runs a round trip:
+every reply plus a German test set — umlauts and ß, numbers, dates, prices, order digits, "Willkommen bei
+<Firma>", every `voice.lexicon` term and every `voice.pronunciation` sentence — is spoken by the voice and
+written back by the recogniser. A sentence whose transcript differs by more than `voice.max_wer` (word error
+rate, default 0.2) or a company / product name the recogniser cannot find fails the build. That catches
+mispronounced names, swallowed endings and wrong number readings. The fix is a lexicon entry (phonemes or alias), never a
+changed test. The table in `.onecommand/calls/report.md` shows what was said and what was heard. Whether the
+voice *sounds* human stays a listening decision. That is what the samples are for.
+
 ### Own voice (brand voice)
 
 | Way | Data needed | Result | Notes |

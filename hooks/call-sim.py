@@ -46,6 +46,11 @@ Built-in checks besides the scenarios:
                the configured voice and saved to .onecommand/calls/audio/ for listening; checked: audio
                returned, speaking rate 8–25 letters/s, no robotic engine (X-Voice-Provider header).
                503 or provider "fake" (test mode without credentials) → skipped with a warning
+  pronunciation  with voice.stt_endpoint as well (POST audio → {"text"}), every sample plus a German test set
+               (umlauts, ß, numbers, dates, the company name, voice.lexicon words, voice.pronunciation
+               sentences) is synthesised and transcribed back by the speech recogniser: a sentence whose
+               transcript differs by more than voice.max_wer (word error rate, default 0.2) or a lexicon word
+               that is not recognisable fails — the voice mispronounces it
 
 Subcommands
 -----------
@@ -399,6 +404,79 @@ def synthesise(url: str, text: str, timeout: int) -> tuple[int, bytes, dict[str,
     return status, body, headers, (time.monotonic() - start) * 1000
 
 
+PRONUNCIATION_SET = [
+    "Ihre Bestellnummer lautet vier sieben eins eins.",
+    "Wir haben Montag bis Freitag von acht bis achtzehn Uhr geöffnet.",
+    "Die Lieferung kommt voraussichtlich am Mittwoch, den siebten Oktober.",
+    "Für Rücksendungen innerhalb von dreißig Tagen zahlen Sie keine Gebühren.",
+    "Größere Bestellungen über neununddreißig Euro versenden wir kostenfrei.",
+    "Einen Moment bitte, ich verbinde Sie mit einer Kollegin aus dem Kundenservice.",
+]
+ONES = ["null", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf",
+        "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn"]
+TENS = ["", "", "zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig", "siebzig", "achtzig", "neunzig"]
+
+
+def number_words(n: int) -> str:
+    """German number words, 0 … 999 999 (written together, as speech recognisers spell them)."""
+    if n < 20:
+        return ONES[n]
+    if n < 100:
+        unit = "" if n % 10 == 0 else ("ein" if n % 10 == 1 else ONES[n % 10]) + "und"
+        return unit + TENS[n // 10]
+    if n < 1000:
+        rest = n % 100
+        return ("ein" if n // 100 == 1 else ONES[n // 100]) + "hundert" + (number_words(rest) if rest else "")
+    rest = n % 1000
+    return ("ein" if n // 1000 == 1 else number_words(n // 1000)) + "tausend" + (number_words(rest) if rest else "")
+
+
+def normalise(text: str) -> list[str]:
+    text = text.lower().replace("€", " euro ").replace("%", " prozent ").replace("&", " und ")
+    text = re.sub(r"(\d+),(\d+)", r"\1 komma \2", text)
+    words = re.findall(r"[^\W_]+", text)
+    out = []
+    for w in words:
+        out.append(number_words(int(w)) if w.isdigit() and int(w) < 1_000_000 else w)
+    return out
+
+
+def wer(ref: list[str], hyp: list[str]) -> float:
+    if not ref:
+        return 0.0
+    prev = list(range(len(hyp) + 1))
+    for i, r in enumerate(ref, 1):
+        cur = [i] + [0] * len(hyp)
+        for j, h in enumerate(hyp, 1):
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (r != h))
+        prev = cur
+    return prev[-1] / len(ref)
+
+
+def heard(term: str, transcript: list[str]) -> bool:
+    """Is a lexicon term (one or more words) recognisable in the transcript (fuzzy, ≥ 0.8)?"""
+    import difflib
+    target = " ".join(normalise(term))
+    n = len(target.split())
+    windows = [" ".join(transcript[i:i + k]) for k in (n, n + 1) for i in range(max(1, len(transcript) - k + 1))]
+    return any(difflib.SequenceMatcher(None, target, w).ratio() >= 0.8 for w in windows if w)
+
+
+def transcribe(url: str, audio: bytes, ctype: str, timeout: int) -> tuple[int, str]:
+    req = urllib.request.Request(url, data=audio, method="POST", headers={"content-type": ctype})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 — local or given URL
+            raw, status = resp.read().decode("utf-8", "replace"), resp.status
+    except urllib.error.HTTPError as exc:
+        return exc.code, ""
+    except (urllib.error.URLError, OSError):
+        return 0, ""
+    try:
+        return status, str(json.loads(raw).get("text", ""))
+    except (ValueError, AttributeError):
+        return status, raw
+
+
 EXT = {"audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/wave": ".wav",
        "audio/ogg": ".ogg", "audio/webm": ".webm", "audio/basic": ".ulaw", "audio/x-mulaw": ".ulaw"}
 
@@ -413,6 +491,13 @@ def listen(base: str, v: dict[str, Any], results: list[dict[str, Any]], out: Pat
         for i, t in enumerate(r["turns"], 1):
             if t.get("reply"):
                 texts.append((f"{Path(r['file']).stem}-{i}", t["reply"]))
+    terms = [t for t in [v.get("company_name")] + list(v.get("lexicon") or []) if t]
+    test_set = [*PRONUNCIATION_SET, *[f"Willkommen bei {t}." for t in terms], *(v.get("pronunciation") or [])]
+    if v.get("stt_endpoint"):
+        texts += [(f"pronunciation-{i:02d}", t) for i, t in enumerate(test_set, 1)]
+    stt_url = base.rstrip("/") + v["stt_endpoint"] if v.get("stt_endpoint") else None
+    max_wer = float(v.get("max_wer", 0.2))
+    stt_skipped = None
     status, body, headers, ms = synthesise(url, texts[0][1], timeout) if texts else (0, b"", {}, 0)
     provider = headers.get("x-voice-provider", "").lower()
     if status == 503 or provider == "fake":
@@ -443,10 +528,29 @@ def listen(base: str, v: dict[str, Any], results: list[dict[str, Any]], out: Pat
             entry["letters_per_s"] = round(rate, 1)
             if not 8 <= rate <= 25:
                 failures.append(f"{name}: {rate:.0f} letters/s — speech is {'too fast' if rate > 25 else 'too slow or padded'}")
+        if stt_url and not stt_skipped:
+            st, said = transcribe(stt_url, body, ctype, timeout)
+            if st == 503:
+                stt_skipped = "no speech recogniser configured — pronunciation test skipped"
+            elif st != 200:
+                failures.append(f"{name}: {v['stt_endpoint']} HTTP {st}")
+            else:
+                ref, hyp = normalise(text), normalise(said)
+                entry["heard"], entry["wer"] = said, round(wer(ref, hyp), 2)
+                if entry["wer"] > max_wer:
+                    failures.append(f"{name}: pronounced unclearly — said '{text[:70]}', recogniser heard '{said[:70]}' "
+                                    f"(word error rate {entry['wer']:.2f}, max {max_wer})")
+                for term in terms:
+                    if term.lower() in text.lower() and not heard(term, hyp):
+                        failures.append(f"{name}: '{term}' is not recognisable in the audio (heard '{said[:70]}') — add a "
+                                        f"pronunciation lexicon entry (phonemes / alias)")
         files.append(entry)
         first_ms.append(ms)
+    checked = [f["wer"] for f in files if "wer" in f]
     return {"status": "failed" if failures else "ok", "failures": failures, "files": files,
-            "provider": provider or "unknown", "tts_ms_max": round(max(first_ms)) if first_ms else None}
+            "provider": provider or "unknown", "tts_ms_max": round(max(first_ms)) if first_ms else None,
+            "pronunciation": {"checked": len(checked), "mean_wer": round(sum(checked) / len(checked), 3) if checked else None,
+                              "max_wer": max_wer, "skipped": stt_skipped}}
 
 
 def ui_tour_module():
@@ -529,8 +633,13 @@ def cmd_run(args: argparse.Namespace) -> int:
             if audio["status"] == "skipped":
                 print(f"  ⚠ {audio['warning']}")
             else:
+                pron = audio.get("pronunciation") or {}
+                extra = (f", pronunciation: {pron['checked']} checked, mean word error rate {pron['mean_wer']}"
+                         if pron.get("checked") else "")
                 print(f"  {'✓' if audio['status'] == 'ok' else '✗'} voice: {len(audio['files'])} audio sample(s) "
-                      f"({audio['provider']}, slowest {audio.get('tts_ms_max')} ms) — {out / 'audio'}")
+                      f"({audio['provider']}, slowest {audio.get('tts_ms_max')} ms{extra}) — {out / 'audio'}")
+                if pron.get("skipped"):
+                    print(f"  ⚠ {pron['skipped']}")
                 for f in audio["failures"]:
                     print(f"      ✗ {f}")
     finally:
@@ -554,9 +663,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         md += [f"- ✗ {f}" for f in r["failures"] if not f.startswith("turn ")] + [""]
     if audio and audio.get("files"):
         md += ["## 🔊 Voice samples", "", f"Provider: {audio['provider']} — listen to every file before go-live.", "",
-               "| Sample | Seconds | Letters/s | Text |", "|---|---|---|---|"]
-        md += [f"| [{a['name']}]({a['file']}) | {a['seconds'] or '?'} | {a.get('letters_per_s', '?')} | {a['text'][:80]} |"
-               for a in audio["files"]]
+               "| Sample | Seconds | Letters/s | Text | Heard by the recogniser | WER |", "|---|---|---|---|---|---|"]
+        md += [f"| [{a['name']}]({a['file']}) | {a['seconds'] or '?'} | {a.get('letters_per_s', '?')} | {a['text'][:80]} | "
+               f"{a.get('heard', '–')[:80]} | {a.get('wer', '–')} |" for a in audio["files"]]
         md += [f"- ✗ {f}" for f in audio["failures"]] + [""]
     elif audio:
         md += ["## 🔊 Voice samples", "", f"⚠ {audio.get('warning') or '; '.join(audio['failures'])}", ""]

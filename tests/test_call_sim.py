@@ -18,14 +18,27 @@ from conftest import py, write_json
 GREETING = "Willkommen bei Servicehafen. Sie sprechen mit unserem digitalen Assistenten, einer KI."
 
 
-def wav(seconds: float) -> bytes:
+def wav(seconds: float, text: str = "") -> bytes:
+    """Silent WAV of the given length that carries the spoken text in its first frames (read back by the fake STT)."""
+    payload = text.encode()
+    payload += b"\x00" * (len(payload) % 2)
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(16000)
-        w.writeframes(b"\x00\x00" * int(16000 * seconds))
+        w.writeframes(payload + b"\x00\x00" * max(0, int(16000 * seconds) - len(payload) // 2))
     return buf.getvalue()
+
+
+def heard_text(audio: bytes, mode: str) -> str:
+    with wave.open(io.BytesIO(audio)) as w:
+        text = w.readframes(w.getnframes()).rstrip(b"\x00").decode()
+    if mode == "garble":
+        return " ".join("äh" if i % 3 == 2 else word for i, word in enumerate(text.split()))
+    if mode == "name":
+        return text.replace("Servicehafen", "Serviz Hofen")
+    return text
 
 
 class Assistant(BaseHTTPRequestHandler):
@@ -39,6 +52,7 @@ class Assistant(BaseHTTPRequestHandler):
     verify = True
     sessions: dict = {}
     tts = "elevenlabs"          # X-Voice-Provider; "503" = no provider configured
+    stt = "exact"               # exact | garble | name | 503
     letters_per_s = 13.0
 
     def log_message(self, *args):
@@ -51,7 +65,7 @@ class Assistant(BaseHTTPRequestHandler):
             self.wfile.write(b'{"error":"no TTS provider configured"}')
             return
         letters = sum(ch.isalnum() for ch in text)
-        data = wav(letters / self.letters_per_s)
+        data = wav(letters / self.letters_per_s, text)
         self.send_response(200)
         self.send_header("content-type", "audio/wav")
         self.send_header("x-voice-provider", self.tts)
@@ -59,7 +73,19 @@ class Assistant(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        body = json.loads(self.rfile.read(int(self.headers["content-length"])))
+        raw = self.rfile.read(int(self.headers["content-length"]))
+        if self.path == "/api/voice/stt":
+            if self.stt == "503":
+                self.send_response(503)
+                self.end_headers()
+                return
+            data = json.dumps({"text": heard_text(raw, self.stt)}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        body = json.loads(raw)
         if self.path == "/api/voice/tts":
             return self.speak(body["text"])
         text = body["text"].lower()
@@ -109,6 +135,7 @@ def server():
     Assistant.greeting, Assistant.slow_ms, Assistant.long_reply = GREETING, 0, False
     Assistant.smalltalk_fallback, Assistant.tts, Assistant.letters_per_s = False, "elevenlabs", 13.0
     Assistant.complaint_fallback, Assistant.memory, Assistant.sessions, Assistant.verify = False, True, {}, True
+    Assistant.stt = "exact"
 
 
 SCENARIOS = {
@@ -299,3 +326,56 @@ def test_change_for_unverified_caller_fails(tmp_path, server):
     Assistant.verify = False
     r = sim("run", "--project-dir", str(project(tmp_path)), "--base-url", server)
     assert r.returncode == 1 and "changed something for a caller identified only by phone number" in r.stdout
+
+
+PRON = {"tts_endpoint": "/api/voice/tts", "stt_endpoint": "/api/voice/stt", "company_name": "Servicehafen"}
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_pronunciation_round_trip_passes(tmp_path, server):
+    p = project(tmp_path, **PRON, pronunciation=["Unser Darjeeling kommt aus Indien."])
+    r = sim("run", "--project-dir", str(p), "--base-url", server)
+    assert r.returncode == 0, r.stdout
+    audio = json.loads((p / ".onecommand" / "calls" / "report.json").read_text())["audio"]
+    pron = [a for a in audio["files"] if a["name"].startswith("pronunciation-")]
+    assert len(pron) == 8 and all(a["wer"] == 0 for a in pron)          # 6 standard + company + own sentence
+    assert audio["pronunciation"]["checked"] == len(audio["files"]) and "mean word error rate 0.0" in r.stdout
+    md = (p / ".onecommand" / "calls" / "report.md").read_text()
+    assert "Heard by the recogniser" in md and "Willkommen bei Servicehafen." in md
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_unclear_pronunciation_fails(tmp_path, server):
+    Assistant.stt = "garble"
+    r = sim("run", "--project-dir", str(project(tmp_path, **PRON)), "--base-url", server)
+    assert r.returncode == 1 and "pronounced unclearly" in r.stdout and "word error rate" in r.stdout
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_mispronounced_company_name_fails(tmp_path, server):
+    Assistant.stt = "name"
+    r = sim("run", "--project-dir", str(project(tmp_path, **PRON)), "--base-url", server)
+    assert r.returncode == 1
+    assert "'Servicehafen' is not recognisable in the audio" in r.stdout and "pronunciation lexicon" in r.stdout
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_pronunciation_skipped_without_recogniser(tmp_path, server):
+    Assistant.stt = "503"
+    r = sim("run", "--project-dir", str(project(tmp_path, **PRON)), "--base-url", server)
+    assert r.returncode == 0 and "⚠ no speech recogniser configured — pronunciation test skipped" in r.stdout
+
+
+def test_number_words_and_wer():
+    import importlib.util
+    from conftest import HOOKS
+    spec = importlib.util.spec_from_file_location("callsim", HOOKS / "call-sim.py")
+    cs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cs)
+    assert [cs.number_words(n) for n in (0, 18, 21, 39, 101, 4711)] == [
+        "null", "achtzehn", "einundzwanzig", "neununddreißig", "einhunderteins", "viertausendsiebenhundertelf"]
+    assert cs.normalise("Ab 39 € oder 4,90 Euro") == ["ab", "neununddreißig", "euro", "oder", "vier", "komma", "neunzig", "euro"]
+    assert cs.wer(cs.normalise("von acht bis achtzehn Uhr"), cs.normalise("von 8 bis 18 Uhr")) == 0
+    assert cs.wer(["a", "b", "c", "d"], ["a", "x", "c"]) == 0.5
+    assert cs.heard("Nordlicht Tee", cs.normalise("willkommen bei nord licht tee"))
+    assert not cs.heard("Servicehafen", cs.normalise("willkommen bei serviz hofen"))

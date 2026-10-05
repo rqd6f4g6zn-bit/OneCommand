@@ -64,6 +64,15 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
     - a follow-up, where the first scenario turn naming an order number is replayed and then "Wann kommt es
       denn genau?" is asked. The assistant must not ask for the number again.
   - Both are configurable with `voice.complaint` and `voice.followup`.
+- **Pronunciation test**, an automatic round trip in `call-sim`. With `voice.stt_endpoint`
+  (`POST /api/voice/stt`, the assistant's own speech recogniser), every reply plus a German test set is spoken
+  by the voice and transcribed back. The test set covers umlauts and ß, numbers, dates, prices, order digits,
+  the company name, `voice.lexicon` and `voice.pronunciation`.
+  - Numbers are normalised to German words on both sides, so "18" and "achtzehn" count as the same word.
+  - A sentence above `voice.max_wer` (word error rate, default 0.2) fails, and so does a company or product
+    name the recogniser cannot find. The remedy is a lexicon entry.
+  - `report.md` shows what was said, what was heard and the word error rate.
+  - Without a recogniser the test is skipped with a warning.
 - **Caller recognition** (`voice-agent` §3, new pro module `caller-id`):
   - The caller's number is matched against customer and order data, so the assistant greets the customer by
     name, offers the latest order and knows earlier calls. Several customers on one number get a question
