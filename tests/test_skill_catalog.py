@@ -132,3 +132,66 @@ def test_verify_bundled_detects_unmapped_skill(tmp_path):
     out = py("skill-catalog.py", "verify-bundled", "--oc-root", str(root))
     assert out.returncode == 1
     assert "unmapped: skills/brand-new-skill" in out.stdout
+
+
+def test_spec_sections_decide_conditional_skills(env):
+    home, project = env
+    scan(home, project)
+    status = {s["name"]: s["status"] for s in catalog(project)["skills"]}
+    assert status["voice-agent"] == "not_used" and status["video-producer"] == "not_used"
+    write_json(project / ".onecommand-spec.json", {"app_type": "web-app", "build_targets": ["web"],
+                                                   "voice": {"provider": "twilio"}, "media": {"videos": [{"id": "hero"}]}})
+    scan(home, project)
+    status = {s["name"]: s["status"] for s in catalog(project)["skills"]}
+    assert status["voice-agent"] == "assigned" and status["video-producer"] == "assigned"
+
+
+def test_read_records_and_check_read_enforces_loading(env):
+    home, project = env
+    scan(home, project)
+    decide(project, GOOD)
+    assert cat(project, "check").returncode == 0
+    phase2 = cat(project, "for-phase", "2").stdout
+    assert "read oc-frontend-design --phase 2" in phase2  # the prompt carries the load command
+    missing = cat(project, "check-read", "2")
+    assert missing.returncode == 1 and "oc-frontend-design: assigned to phase 2 but never loaded" in missing.stdout
+
+    out = cat(project, "read", "oc-frontend-design", "--phase", "2")
+    assert out.returncode == 0 and "Visual quality bar" in out.stdout  # the agent gets the full SKILL.md
+    reads = json.loads((project / ".onecommand" / "skills-read.json").read_text())["reads"]
+    assert reads[0]["skill"] == "oc-frontend-design" and len(reads[0]["sha256"]) == 64
+    for name in ("oc-ui-ux", "21st-components", "collab-protocol", "superpowers:frontend-design"):
+        assert cat(project, "read", name, "--phase", "2").returncode == 0
+    assert cat(project, "check-read", "2").returncode == 0
+    assert cat(project, "read", "oc-ui-ux", "--phase", "3").returncode == 0  # phase-specific: does not count for 2
+    assert cat(project, "read", "nope", "--phase", "2").returncode == 2
+
+
+def test_check_read_detects_a_skill_loaded_in_an_older_version(env, tmp_path):
+    home, project = env
+    scan(home, project)
+    decide(project, GOOD)
+    cat(project, "check")
+    sp_skill = tmp_path / "superpowers" / "skills" / "frontend-design" / "SKILL.md"
+    for name in ("oc-frontend-design", "oc-ui-ux", "21st-components", "collab-protocol", "superpowers:frontend-design"):
+        cat(project, "read", name, "--phase", "2")
+    sp_skill.write_text(sp_skill.read_text() + "new rule\n")
+    out = cat(project, "check-read", "2")
+    assert out.returncode == 1 and "superpowers:frontend-design: loaded in an older version" in out.stdout
+
+
+def test_every_agent_loads_its_skills_and_names_only_existing_ones():
+    import re
+    for agent in sorted((REPO / "agents").glob("*.md")):
+        text = agent.read_text()
+        front = text.split("\n---", 1)[0]
+        listed = re.findall(r"^  - (\S+)$", front.split("skills:", 1)[1], re.M) if "skills:" in front else []
+        for name in listed:
+            bare = name.removeprefix("onecommand:")
+            if ":" not in bare:
+                assert (REPO / "skills" / bare / "SKILL.md").exists(), f"{agent.name}: skill {name} does not exist"
+                assert f"onecommand:{bare}" in listed and bare in listed, f"{agent.name}: list {bare} bare and namespaced"
+        assert "## Step 0 — Load your skills" in text, f"{agent.name}: no skill-loading step"
+        assert "check-read" in text
+    frontend = (REPO / "agents" / "frontend-agent.md").read_text()
+    assert "Invoke frontend-design" not in frontend and "Use the `ui-ux-pro-max` skill" not in frontend

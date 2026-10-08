@@ -17,6 +17,11 @@ check      Merge the orchestrator's decisions (.onecommand/skill-plan.json) into
 for-phase  Print the skills a phase must use (name, how to load it, why) — pasted
            into every phase subagent prompt.
 show       Print the catalog grouped by status.
+read       Print a skill's SKILL.md for the agent that applies it AND record the read
+           (.onecommand/skills-read.json: phase, SHA-256 of the file, time). Agents load
+           their skills with this command instead of a plain file read.
+check-read Fail when a skill assigned to a phase was not read during that phase, or was
+           read in an older version. Run by the orchestrator after every phase.
 
 Decisions file (.onecommand/skill-plan.json), written by the orchestrator:
   {"decisions": [
@@ -70,9 +75,9 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "asset-generator":         {"phases": [2], "when": "game", "use": "sprites, models, audio"},
     "os-builder":              {"phases": [2], "when": "os", "use": "custom Linux OS build"},
     "ml-builder":              {"phases": [2, 4], "when": "ml", "use": "AI/ML training project: data, training, evaluation, model card, inference API (via ml-agent)"},
-    "voice-agent":             {"phases": [2, 3, 4], "when": "web", "use": "phone/voice assistant: telephony, speech, dialogue, handover, test calls (when spec.voice is set)"},
-    "video-producer":          {"phases": [2, 3], "when": "web", "use": "cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set"},
-    "live-integrations":       {"phases": [3], "when": "web", "use": "real e-mail, OAuth, push for production_dependencies"},
+    "voice-agent":             {"phases": [2, 3, 4], "when": "web", "requires": "voice", "use": "phone/voice assistant: telephony, speech, dialogue, handover, test calls (when spec.voice is set)"},
+    "video-producer":          {"phases": [2, 3], "when": "web", "requires": "media.videos", "use": "cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set"},
+    "live-integrations":       {"phases": [3], "when": "web", "requires": "production_dependencies", "use": "real e-mail, OAuth, push for production_dependencies"},
     "oc-marketing":            {"phases": [3], "when": "always", "use": "README, landing page, docs (via marketing-agent)"},
     "acceptance-tester":       {"phases": [4, 6], "when": "web", "use": "Playwright suite from acceptance_criteria"},
     "self-healer":             {"phases": [4, 6], "when": "always", "use": "fix gate failures, record learnings"},
@@ -220,7 +225,16 @@ def spec_targets(spec: dict[str, Any]) -> set[str]:
     return targets
 
 
-def resolve_bundled(entry: dict[str, Any], targets: set[str]) -> None:
+def spec_has(spec: dict[str, Any], dotted: str) -> bool:
+    node: Any = spec
+    for key in dotted.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return False
+        node = node[key]
+    return bool(node)
+
+
+def resolve_bundled(entry: dict[str, Any], targets: set[str], spec: dict[str, Any] | None = None) -> None:
     rule = BUNDLED.get(entry["name"])
     if rule is None:
         entry.update(status="unmapped", phases=[], use="",
@@ -232,6 +246,9 @@ def resolve_bundled(entry: dict[str, Any], targets: set[str]) -> None:
     elif when == "support":
         entry.update(status="not_used", phases=[], use=rule["use"],
                      reason="infrastructure skill used by /oc-resume and /oc-save, not by phase agents")
+    elif (when == "always" or when in targets) and rule.get("requires") and not spec_has(spec or {}, rule["requires"]):
+        entry.update(status="not_used", phases=[], use=rule["use"],
+                     reason=f"spec has no '{rule['requires']}' section")
     elif when == "always" or when in targets:
         entry.update(status="assigned", phases=rule["phases"], use=rule["use"])
     else:
@@ -258,7 +275,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
     entries = discover(oc_root, project, Path(args.home).expanduser(), [Path(d).expanduser() for d in args.plugin_dir])
     for e in entries:
         if e["source"] == "bundled":
-            resolve_bundled(e, targets)
+            resolve_bundled(e, targets, spec)
         else:
             e.update(status="undecided", phases=[], use="")
     missing = sorted(set(BUNDLED) - {e["name"] for e in entries if e["source"] == "bundled"})
@@ -381,11 +398,77 @@ def cmd_for_phase(args: argparse.Namespace) -> int:
     if not catalog.get("complete"):
         print("[skills] ⚠ skill plan not complete — run 'check' and resolve all decisions", file=sys.stderr)
     rows = [e for e in catalog["skills"] if e["status"] == "assigned" and args.phase in e["phases"]]
-    print(f"SKILLS FOR PHASE {args.phase} ({PHASE_NAMES[args.phase]}) — read each SKILL.md and apply it:")
+    script = Path(__file__).resolve()
+    print(f"SKILLS FOR PHASE {args.phase} ({PHASE_NAMES[args.phase]}) — load each one with the command shown "
+          f"(it prints the SKILL.md and records the read; 'check-read {args.phase}' fails for skills not loaded), "
+          "then apply it:")
     if not rows:
         print("  (none)")
     for e in rows:
-        print(f"  - {e['name']} [{e['source']}] — {e['use']}\n      {e['path']}")
+        print(f"  - {e['name']} [{e['source']}] — {e['use']}\n"
+              f"      python3 \"{script}\" --project-dir \"{Path(args.project_dir).resolve()}\" read {e['name']} --phase {args.phase}")
+    return 0
+
+
+def skill_path(name: str, catalog: dict[str, Any] | None) -> Path | None:
+    for e in (catalog or {}).get("skills", []):
+        if e["name"] == name and e.get("path"):
+            return Path(e["path"])
+    bundled = Path(__file__).resolve().parent.parent / "skills" / name.split(":")[-1] / "SKILL.md"
+    return bundled if bundled.exists() and (":" not in name or name.split(":")[0] == "onecommand") else None
+
+
+def sha256(path: Path) -> str:
+    import hashlib
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def cmd_read(args: argparse.Namespace) -> int:
+    project, catalog_path, _ = paths(args)
+    catalog = read_json(catalog_path)
+    path = skill_path(args.skill, catalog)
+    if path is None or not path.exists():
+        print(f"[skills] unknown skill '{args.skill}' — run 'scan', or check the name in 'for-phase'", file=sys.stderr)
+        return 2
+    log_path = project / ".onecommand" / "skills-read.json"
+    log = read_json(log_path, {"reads": []}) or {"reads": []}
+    log.setdefault("reads", []).append({
+        "skill": args.skill, "phase": args.phase, "sha256": sha256(path), "path": str(path),
+        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    write_atomic(log_path, json.dumps(log, indent=2, ensure_ascii=False) + "\n")
+    print(f"<skill name=\"{args.skill}\" phase=\"{args.phase}\">")
+    print(path.read_text(encoding="utf-8", errors="replace").rstrip())
+    print("</skill>")
+    print(f"[skills] loaded {args.skill} for phase {args.phase} — apply it to your task now.", file=sys.stderr)
+    return 0
+
+
+def cmd_check_read(args: argparse.Namespace) -> int:
+    project, catalog_path, _ = paths(args)
+    catalog = read_json(catalog_path)
+    if catalog is None:
+        print(f"[skills] no catalog at {catalog_path} — run 'scan' and 'check' first", file=sys.stderr)
+        return 2
+    reads = (read_json(project / ".onecommand" / "skills-read.json", {}) or {}).get("reads", [])
+    problems: list[str] = []
+    rows = [e for e in catalog["skills"] if e["status"] == "assigned" and args.phase in e["phases"]]
+    for e in rows:
+        path = Path(e["path"])
+        mine = [r for r in reads if r.get("skill") == e["name"] and r.get("phase") == args.phase]
+        if not mine:
+            problems.append(f"{e['name']}: assigned to phase {args.phase} but never loaded — "
+                            f"its rules were not applied")
+        elif path.exists() and all(r.get("sha256") != sha256(path) for r in mine):
+            problems.append(f"{e['name']}: loaded in an older version — load it again")
+    for p in problems:
+        print(f"  ✗ {p}")
+    if problems:
+        print(f"[skills] phase {args.phase}: {len(problems)} skill(s) not applied — re-dispatch the phase agent "
+              f"with the 'for-phase {args.phase}' list and have it load them, then re-check")
+        return 1
+    print(f"[skills] phase {args.phase}: all {len(rows)} assigned skill(s) loaded")
     return 0
 
 
@@ -437,6 +520,15 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("for-phase", help="print the skills a phase must use")
     p.add_argument("phase", type=int, choices=list(PHASES))
     p.set_defaults(func=cmd_for_phase)
+
+    p = sub.add_parser("read", help="print a skill's SKILL.md and record that it was loaded")
+    p.add_argument("skill")
+    p.add_argument("--phase", type=int, required=True, choices=list(PHASES))
+    p.set_defaults(func=cmd_read)
+
+    p = sub.add_parser("check-read", help="fail when a skill of the phase was not loaded")
+    p.add_argument("phase", type=int, choices=list(PHASES))
+    p.set_defaults(func=cmd_check_read)
 
     p = sub.add_parser("show", help="print the plan")
     p.set_defaults(func=cmd_show)

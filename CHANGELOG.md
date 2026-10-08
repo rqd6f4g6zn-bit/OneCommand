@@ -5,6 +5,18 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 ## [1.11.0] — 2026-10-05
 
 ### Added
+- **Skills are loaded provably.** A real build ignored the design skill: it was named in the prompt, but
+  nothing checked it.
+  - `skill-catalog.py read <skill> --phase N` prints the SKILL.md for the agent and records the load with
+    the file's SHA-256.
+  - `check-read N` fails for every assigned skill that was not loaded, or was loaded in an older version.
+  - `checkpoint.py phase N` refuses to save while that check fails. A skipped skill needs
+    `--skills-skipped "<reason>"`, and the reason is recorded.
+  - Every agent starts with "Step 0 — Load your skills" and lists its skills both bare and as
+    `onecommand:<name>`.
+  - The frontend agent now names the bundled `oc-frontend-design` and `oc-ui-ux` skills.
+  - `voice-agent`, `video-producer` and `live-integrations` are assigned only when the spec has their
+    section.
 - **Design audit in the UI tour.** Every visited page is measured in the browser. The audit reports:
   - text in a system font stack, or in a font the app does not load;
   - code values shown in monospace (`callback`, `order_status`);

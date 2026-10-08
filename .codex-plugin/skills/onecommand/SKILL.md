@@ -149,7 +149,7 @@ print('ML:', 'ml' in s.get('build_targets', []), '· VOICE:', 'voice' in s, '· 
 ```bash
 python3 "$OC_ROOT/hooks/skill-catalog.py" scan --oc-root "$OC_ROOT" --home "$HOME"
 ```
-For every external skill listed, write a decision (phases + use, or reason) to `.onecommand/skill-plan.json`, then `python3 "$OC_ROOT/hooks/skill-catalog.py" check` until it passes. Before each later phase, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase <N>` and apply every listed skill.
+For every external skill listed, write a decision (phases + use, or reason) to `.onecommand/skill-plan.json`, then `python3 "$OC_ROOT/hooks/skill-catalog.py" check` until it passes. Before each later phase, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase <N>` and load every listed skill with the `read` command it prints — that prints the SKILL.md and records the load; a plain file read is not recorded. Apply what you loaded. The phase checkpoint (`checkpoint.py phase N`) is refused while `skill-catalog.py check-read N` fails.
 
 ---
 

@@ -78,7 +78,10 @@ blueprints: add a JSON file — `tests/test_blueprint.py` validates schema and e
 (mapped to phases via `BUNDLED` in the script) and external ones (`~/.claude/skills`, project
 `.claude/skills`, enabled plugins); the orchestrator decides each external skill in
 `.onecommand/skill-plan.json`; `check` fails while one is undecided; `for-phase N` output goes into
-every subagent prompt. **A new bundled skill must be added to `BUNDLED`** — `install.sh` fails the
+every subagent prompt. Agents load skills with `skill-catalog.py read <skill> --phase N` (prints the
+SKILL.md, records it in `.onecommand/skills-read.json`); `check-read N` fails for an assigned skill nobody
+loaded, and `checkpoint.py phase N` refuses to save until it passes. Every agent has a "Step 0 — Load your
+skills" and lists its bundled skills bare and as `onecommand:<name>`. **A new bundled skill must be added to `BUNDLED`** — `install.sh` fails the
 verification step otherwise.
 
 ## Auto-Update
