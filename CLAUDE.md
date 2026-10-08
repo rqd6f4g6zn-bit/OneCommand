@@ -136,5 +136,9 @@ Attribution: commits are authored by `USC Software UG <info@usc-software.de>`. C
 descriptions and comments carry no AI attribution — no "Generated with …" line, no `Co-Authored-By`
 trailer, no session link. PR descriptions end with `*USC Software UG · usc-software-ug.de*`.
 
+Findings from a built project are fixed in the plugin (skills, agents, hooks), never in the built project.
+To test a skill rule, use a throwaway copy, and never present it as the plugin's output. Showcase images come
+unedited from real builds.
+
 Design specs live in `docs/superpowers/specs/`.
 Implementation plans live in `docs/superpowers/plans/`.

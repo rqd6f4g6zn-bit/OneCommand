@@ -4,8 +4,9 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
 ## [1.12.0] — 2026-10-08
 
-Looks designed, uses every skill. A redesign done only from the skill rules took the Nordlicht phone
-assistant from a stock admin template to a branded product (see `docs/showcase/telefon-assistent/`).
+Looks designed, uses every skill. Every rule below comes from what the Nordlicht phone-assistant build got
+wrong, and from a test run of the design skill on a throwaway copy of it. The rules went into the skills; the
+build itself was not touched.
 
 ### Added
 - **Skill library** (`/oc-skills [topic]`, `skill-catalog.py library [--search]`): every skill OneCommand

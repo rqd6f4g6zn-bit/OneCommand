@@ -57,59 +57,24 @@ Testanrufe sind das genau die Fälle, die ein echter Test mit Anrufersätzen gez
 Ab v1.11.0 lässt jeder dieser Fehler den Build durchfallen oder wird beim Durchsehen der Screenshots gemeldet. Die
 Regeln dafür stehen im Skill `voice-agent`.
 
-## Design-Prüfung: vorher und nachher
+## Was die Design-Prüfung von v1.12.0 an diesem Build findet
 
-Die Oberfläche funktionierte, sah aber nach Vorlage aus. Die Design-Prüfung der UI-Tour (ab v1.12.0) misst jede Seite
-und meldet an diesem Build 22 Befunde:
+Die Oberfläche funktioniert, sieht aber nach Vorlage aus. Die Design-Prüfung der UI-Tour misst jede Seite und meldet
+an diesem Build 22 Befunde. Jede Ursache ist jetzt eine Regel im Skill `oc-frontend-design`, nicht eine Korrektur
+an dieser App:
 
-| Befund | Ursache im Code |
-|---|---|
-| Schrift ist die Systemschrift (DejaVu unter Linux, Segoe unter Windows) | CSS nennt nur `ui-sans-serif` / `ui-serif` |
-| `callback`, `order_status` in Monospace als Beschriftung | Labels vorhanden (`INTENT_LABELS`), aber nicht benutzt |
-| Zeilenlinien fehlen in der letzten Spalte jeder Tabelle | `last:border-b-0` an der Zelle statt an der letzten Zeile |
-| Sidebar-Hintergrund endet nach 900 px | Hintergrund am `sticky h-screen`-Element statt an der Spalte |
+| Befund | Ursache im gebauten Code | Regel im Skill |
+|---|---|---|
+| Schrift ist die Systemschrift (DejaVu unter Linux, Segoe unter Windows) | CSS nennt nur `ui-sans-serif` und `ui-serif` | Schriften selbst ausliefern |
+| `callback` und `order_status` als Beschriftung | `INTENT_LABELS` existiert, wird aber nicht benutzt | jeder Code-Wert läuft über eine Label-Map |
+| Zeilenlinien fehlen in der letzten Spalte jeder Tabelle | `last:border-b-0` an der Zelle | Linie an der Zeile ziehen |
+| Sidebar-Hintergrund endet nach 900 px | Hintergrund am `sticky h-screen`-Element | Hintergrund an die Spalte |
 
-Mit den Regeln aus `oc-frontend-design` → „Visual quality bar“ angewendet (selbst gehostete Schriften Fraunces und
-Manrope, Labels, Linien an der Zeile, Hintergrund an der Spalte) meldet derselbe Rundgang **0 Befunde**:
+Der eigentliche Grund für das Vorlagen-Aussehen: Die Agenten haben den Design-Skill nie geladen. Ab v1.12.0 wird
+das Laden geprüft, und der Build hält an, wenn ein Skill fehlt.
 
-![Dashboard nach den Design-Regeln](07-dashboard-neu.png)
-
-![Wissensbasis nach den Design-Regeln](08-wissensbasis-neu.png)
-
-Neue Builds schreiben vor der ersten Komponente einen Design-Brief (`.onecommand/design.md`: Charakter, Schriften,
-Markenpalette, Wiedererkennungsmerkmal). Die Tour hält den Build daran fest.
-
-## Gestaltet nach dem Design-Skill (v1.12.0)
-
-Die Korrekturen oben beheben Handwerksfehler, machen aber noch keine Marke. Im zweiten Schritt hat ein Agent die
-App **nur nach den Regeln aus `oc-frontend-design`** neu gestaltet, so wie es der Frontend-Agent in einem Build tut.
-
-Zuerst schrieb er einen Design-Brief:
-- **Charakter:** ruhig, handwerklich, aufmerksam.
-- **Schriften:** Fraunces und Manrope, selbst gehostet.
-- **Farben:** Neutraltöne mit Teegrün-Stich, dazu Polarviolett und Schwarztee-Amber.
-- **Wiedererkennungsmerkmal:** ein Polarlicht-Schleier, der nur „den Assistenten“ markiert, an genau drei Stellen.
-
-Danach hat er umgesetzt:
-- eine Automatisierungsquote als Hauptkachel;
-- Kennzahlen mit Vergleich zur Vorwoche;
-- ein Diagramm „Anrufe pro Tag“;
-- Anliegen mit Symbolen;
-- deutsche Zeitangaben und eine Datumsauswahl;
-- mobil zwei Kacheln pro Zeile.
-
-Der Rundgang meldet **0 Befunde**, und der Build ist grün.
-
-![Dashboard nach dem Design-Skill](09-dashboard-design.png)
-
-![Login](10-login-design.png)
-
-![Gesprächsprotokoll](12-protokoll-design.png)
-
-<img src="11-mobil-design.png" width="320" alt="Dashboard mobil">
-
-Was der Agent dabei an Lücken im Skill gefunden hat, steht jetzt im Skill. Dazu gehören Tooltips, verschachtelte
-Formulare, Trenddaten aus dem Backend und Tests, die Labels statt Codes prüfen.
+Die Bilder in diesem Ordner stammen unverändert aus dem Build. Bilder eines Builds mit v1.12.0 kommen hinzu, sobald
+ein kompletter Build damit gelaufen ist.
 
 ---
 Gebaut mit OneCommand · USC Software UG
