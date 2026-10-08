@@ -631,7 +631,8 @@ async function tour(acct, vp, pages) {
   }
 }
 
-const browser = await chromium.launch();
+// --lang: native controls (date fields, number formats) follow the browser process locale, not the context's.
+const browser = await chromium.launch({ args: [`--lang=${cfg.locale}`] });
 try {
   if (cfg.anonymous.static.length || cfg.anonymous.dynamic.length) {
     await tour(null, cfg.desktop, cfg.anonymous);

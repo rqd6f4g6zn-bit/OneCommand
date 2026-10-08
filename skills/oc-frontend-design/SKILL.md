@@ -84,6 +84,24 @@ defaults with a changed primary colour are not a design.
 - Spacing: 4 px grid, page padding 24–32 px desktop / 16 px mobile, cards 20–24 px, section gap 24–32 px;
   align card edges to one grid.
 - Dark mode is designed, not inverted: own surface steps, softer borders, the same brand accent.
+- **Mobile is designed, not stacked**: KPI tiles 2 per row (`grid-cols-2`, compact padding, number
+  24–28 px), page actions in one row or a "⋯" menu — not six full-width tiles and full-width buttons of
+  different widths. A mobile dashboard shows the key numbers within the first screen.
+- **No half-empty pages**: a settings page with two narrow cards on a 1440 px screen gets a two-column
+  layout (explanation left, form right) or a status summary — not 60 % white space.
+- **No redundant columns**: a column that repeats another ("Absicht: Versand" next to "Versand – geklärt")
+  is removed or turned into something the user needs (outcome, next step).
+- **Dates**: show German formats (`05.10.2026, 21:21`, relative "vor 2 Std." in lists) and use a date-range
+  picker component for filters; the native `<input type=date>` shows the browser's format and looks
+  different on every system.
+
+### 5. The identity check (before the tour)
+
+Open the dashboard screenshot next to the brief and answer in `.onecommand/design.md`:
+1. Without the logo, would someone recognise the brand? (palette, typeface, signature element visible)
+2. Where does the eye go first — is that the most important thing on the page?
+3. Which element would a Stripe/Linear designer delete or merge?
+Fix what the answers reveal. "Clean but generic" is a finding, not a pass.
 
 ## Stack (from spec)
 - **Framework**: Next.js 14 App Router
