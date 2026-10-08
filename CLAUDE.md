@@ -6,7 +6,7 @@ OneCommand is a Claude Code plugin that builds complete, production-ready softwa
 
 ```
 .claude-plugin/plugin.json   # Plugin manifest
-commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update)
+commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update, /oc-skills)
 skills/                      # Reusable skills invoked by agents and commands
 agents/                      # Specialized agents for each build phase
 hooks/                       # hooks.json (SessionStart auto-update) + build scripts (see below)
@@ -20,6 +20,7 @@ docs/superpowers/            # Design specs and implementation plans
 - `/oc-save` — Save build state so `/clear` is safe
 - `/oc-resume` — Resume an interrupted build from the last completed phase
 - `/oc-doctor` — Diagnose the installation (registry, commands, brain, Codex)
+- `/oc-skills [topic]` — The skill library: every bundled and installed skill, searchable
 - `/oc-update` — Install the latest release now (`check`, `status`, `off`, `on`)
 
 ## Workflow Overview
@@ -81,7 +82,9 @@ blueprints: add a JSON file — `tests/test_blueprint.py` validates schema and e
 every subagent prompt. Agents load skills with `skill-catalog.py read <skill> --phase N` (prints the
 SKILL.md, records it in `.onecommand/skills-read.json`); `check-read N` fails for an assigned skill nobody
 loaded, and `checkpoint.py phase N` refuses to save until it passes. Every agent has a "Step 0 — Load your
-skills" and lists its bundled skills bare and as `onecommand:<name>`. **A new bundled skill must be added to `BUNDLED`** — `install.sh` fails the
+skills" and lists its bundled skills bare and as `onecommand:<name>`.
+The library (`skill-catalog.py library [--search]`, `/oc-skills`) lists every bundled and installed skill;
+`skills/LIBRARY.md` is generated from `BUNDLED` (`library --markdown`) and a test keeps it in sync. **A new bundled skill must be added to `BUNDLED`** — `install.sh` fails the
 verification step otherwise.
 
 ## Auto-Update

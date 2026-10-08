@@ -5,6 +5,11 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 ## [1.11.0] — 2026-10-05
 
 ### Added
+- **Skill library** (`/oc-skills [topic]`, `skill-catalog.py library [--search]`): every skill OneCommand
+  can use in one place — its 31 bundled skills plus all personal, project and plugin skills installed on the
+  machine — with what each does and in which phase it is used. Recommended plugins that are missing are listed
+  with their install command. Agents search the library when their task needs something their list does not
+  cover, and `read` loads any library skill. `skills/LIBRARY.md` documents the bundled skills.
 - **Skills are loaded provably.** A real build ignored the design skill: it was named in the prompt, but
   nothing checked it.
   - `skill-catalog.py read <skill> --phase N` prints the SKILL.md for the agent and records the load with

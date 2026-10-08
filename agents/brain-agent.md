@@ -23,6 +23,9 @@ assigned skill that was not loaded.
   your part of the work. Your own skills are mandatory: `brain-core`, `context-manager`, `cross-agent-sync`.
 - No list in your prompt: run `python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir "$PROJECT_DIR" for-phase 1`
   and load from its output. No catalog yet: `… read <skill> --phase 1` still works for bundled skills.
+- Something in your task is not covered by the list (PDF export, charts, payments, a domain you do not
+  know)? Search the skill library first: `python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir
+  "$PROJECT_DIR" library --search "<topic>"`, and load a match with `read <skill> --phase N`.
 - Apply what you loaded. Where your output departs from a skill rule, write why into
   `.onecommand/decisions.md`.
 

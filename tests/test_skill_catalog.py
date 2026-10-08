@@ -195,3 +195,39 @@ def test_every_agent_loads_its_skills_and_names_only_existing_ones():
         assert "check-read" in text
     frontend = (REPO / "agents" / "frontend-agent.md").read_text()
     assert "Invoke frontend-design" not in frontend and "Use the `ui-ux-pro-max` skill" not in frontend
+
+
+def test_library_lists_bundled_and_installed_skills_and_searches(env):
+    home, project = env
+    out = cat(project, "library", "--home", str(home))
+    assert out.returncode == 0
+    for needle in ("bundled with OneCommand", "oc-frontend-design · phase 2", "superpowers:frontend-design",
+                   "pdf-tool", "house-style", "recommended, not installed", "marketing-skills"):
+        assert needle in out.stdout, needle
+    assert "hidden" not in out.stdout  # disabled plugin
+    lib = json.loads((home / ".onecommand" / "skills-library.json").read_text())
+    assert "superpowers" not in lib["recommended_missing"]
+    hits = cat(project, "library", "--home", str(home), "--search", "PDF files").stdout
+    assert hits.splitlines()[1].startswith("  - pdf-tool")
+    landing = cat(project, "library", "--home", str(home), "--search", "landing page").stdout
+    assert "oc-marketing" in landing
+
+
+def test_read_loads_any_library_skill_without_a_build_catalog(env):
+    home, project = env
+    out = py("skill-catalog.py", "--project-dir", str(project), "read", "oc-ui-ux", "--phase", "2",
+             env={"HOME": str(home)})
+    assert out.returncode == 0 and "<skill name=\"oc-ui-ux\"" in out.stdout
+    out = py("skill-catalog.py", "--project-dir", str(project), "read", "pdf-tool", "--phase", "4",
+             env={"HOME": str(home)})
+    assert out.returncode == 0 and "body" in out.stdout
+
+
+def test_library_markdown_is_in_sync():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("sc", REPO / "hooks" / "skill-catalog.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    expected = mod.library_markdown(mod.library_entries(REPO, Path("/nonexistent-home")))
+    assert (REPO / "skills" / "LIBRARY.md").read_text() == expected, \
+        "skills/LIBRARY.md is stale — run: python3 hooks/skill-catalog.py library --markdown"

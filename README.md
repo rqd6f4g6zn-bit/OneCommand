@@ -244,6 +244,7 @@ and without it the CLI stops waiting after 600 s. `bench/run.py` sets it.
 | `/oc-save` | Save build state so `/clear` is safe at any moment |
 | `/oc-resume` | Continue an interrupted build from the last phase |
 | `/oc-doctor` | Diagnose the installation and print exact fixes |
+| `/oc-skills [topic]` | Skill library: every bundled and installed skill, searchable by topic |
 | `/oc-update` | Install the latest OneCommand now (also happens automatically) |
 
 Builds are written to `~/Desktop/<ProjectName>` — never into the plugin folder. If the current
