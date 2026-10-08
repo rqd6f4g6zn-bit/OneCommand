@@ -59,7 +59,7 @@ Regeln dafür stehen im Skill `voice-agent`.
 
 ## Design-Prüfung: vorher und nachher
 
-Die Oberfläche funktionierte, sah aber nach Vorlage aus. Die Design-Prüfung der UI-Tour (ab v1.11.0) misst jede Seite
+Die Oberfläche funktionierte, sah aber nach Vorlage aus. Die Design-Prüfung der UI-Tour (ab v1.12.0) misst jede Seite
 und meldet an diesem Build 22 Befunde:
 
 | Befund | Ursache im Code |
@@ -78,6 +78,38 @@ Manrope, Labels, Linien an der Zeile, Hintergrund an der Spalte) meldet derselbe
 
 Neue Builds schreiben vor der ersten Komponente einen Design-Brief (`.onecommand/design.md`: Charakter, Schriften,
 Markenpalette, Wiedererkennungsmerkmal). Die Tour hält den Build daran fest.
+
+## Gestaltet nach dem Design-Skill (v1.12.0)
+
+Die Korrekturen oben beheben Handwerksfehler, machen aber noch keine Marke. Im zweiten Schritt hat ein Agent die
+App **nur nach den Regeln aus `oc-frontend-design`** neu gestaltet, so wie es der Frontend-Agent in einem Build tut.
+
+Zuerst schrieb er einen Design-Brief:
+- **Charakter:** ruhig, handwerklich, aufmerksam.
+- **Schriften:** Fraunces und Manrope, selbst gehostet.
+- **Farben:** Neutraltöne mit Teegrün-Stich, dazu Polarviolett und Schwarztee-Amber.
+- **Wiedererkennungsmerkmal:** ein Polarlicht-Schleier, der nur „den Assistenten“ markiert, an genau drei Stellen.
+
+Danach hat er umgesetzt:
+- eine Automatisierungsquote als Hauptkachel;
+- Kennzahlen mit Vergleich zur Vorwoche;
+- ein Diagramm „Anrufe pro Tag“;
+- Anliegen mit Symbolen;
+- deutsche Zeitangaben und eine Datumsauswahl;
+- mobil zwei Kacheln pro Zeile.
+
+Der Rundgang meldet **0 Befunde**, und der Build ist grün.
+
+![Dashboard nach dem Design-Skill](09-dashboard-design.png)
+
+![Login](10-login-design.png)
+
+![Gesprächsprotokoll](12-protokoll-design.png)
+
+<img src="11-mobil-design.png" width="320" alt="Dashboard mobil">
+
+Was der Agent dabei an Lücken im Skill gefunden hat, steht jetzt im Skill. Dazu gehören Tooltips, verschachtelte
+Formulare, Trenddaten aus dem Backend und Tests, die Labels statt Codes prüfen.
 
 ---
 Gebaut mit OneCommand · USC Software UG

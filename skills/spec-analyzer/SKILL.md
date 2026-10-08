@@ -207,11 +207,13 @@ The acceptance criteria are the contract of the whole build. Phase 4 turns every
 1. **Every feature gets at least one `must` criterion.** Core features (auth, the main CRUD flow, payments) get 2–4: happy path, validation error, permission check.
 2. **Observable, not vague.** "Dashboard works" is invalid. "After login, /dashboard shows heading 'Dashboard' and 3 stat cards" is valid. Words like *works, properly, correctly, nice, fast, intuitive, seamless* are flagged by the validator.
 3. **Name the UI text** the user sees (button labels, headings, error messages). The frontend agent must use exactly these strings — they are part of the contract.
-4. **Persistence counts.** For create/update flows add an expected line like "After reload the row is still there".
-5. **Security is a feature.** Every protected API resource gets an `api` criterion for the unauthenticated case (401) and, where ownership exists, for another user's data (403/404).
-6. **External services are verified in test mode** (e-mail outbox, Stripe test mode, credentials login next to OAuth) — never mark a flow `manual` just because it sends an e-mail.
-7. `manual` is only for what a browser cannot judge (print layout, real push delivery on a device, App Store review). For web builds at least 90 % of criteria must be automated.
-8. Typical count: 8–15 criteria for a small app, 15–40 for a SaaS. Fewer than one per page is a sign that something is missing.
+4. **Labels, not code values.** `expected` names what the user reads ("Anliegen 'Versand'"), never an enum value
+   (`shipping`) — the UI must not show code values, so such a line forces a defect.
+5. **Persistence counts.** For create/update flows add an expected line like "After reload the row is still there".
+6. **Security is a feature.** Every protected API resource gets an `api` criterion for the unauthenticated case (401) and, where ownership exists, for another user's data (403/404).
+7. **External services are verified in test mode** (e-mail outbox, Stripe test mode, credentials login next to OAuth) — never mark a flow `manual` just because it sends an e-mail.
+8. `manual` is only for what a browser cannot judge (print layout, real push delivery on a device, App Store review). For web builds at least 90 % of criteria must be automated.
+9. Typical count: 8–15 criteria for a small app, 15–40 for a SaaS. Fewer than one per page is a sign that something is missing.
 
 Game and OS specs also carry `acceptance_criteria` (feature = an entry of `game_features` / `os_features`). Use `verification: "manual"` where no automated harness exists; the os-agent and game-agent report them in the delivery matrix.
 

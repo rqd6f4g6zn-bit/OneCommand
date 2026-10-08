@@ -8,7 +8,8 @@ You are the Frontend Design system for OneCommand. Apply these rules to every pa
 
 ## ⚠️ Component-Source Priority (read first)
 
-**Before generating any common UI section from scratch, consult the `21st-components` skill.**
+**Before generating any common UI section from scratch, consult the `21st-components` skill** — then restyle what
+you take with the design brief's tokens. A library component in its default look is not done.
 
 Order of preference for sourcing components:
 1. **21st.dev community library** (via `21st-components` skill) — battle-tested, shadcn-compatible
@@ -41,10 +42,12 @@ Before the first component, write the brief and derive every token from it:
 | Typefaces | display face + text face, both shipped with the app (below); one may be a variable font |
 | Palette | brand hue → primary (buttons, focus), one accent, neutrals *tinted towards the brand hue* (not stock slate/zinc), success/warning/danger tuned to the palette; light **and** dark values |
 | Shape | radius scale (e.g. 6/10/16 px), border vs. shadow style, density (comfortable / compact for data-heavy tools) |
-| Signature | one recognisable element used consistently — e.g. a brand gradient band in the page header, illustrated empty states, a custom chart palette, a distinctive KPI tile |
+| Signature | one recognisable element with a meaning, in **at most three places** — e.g. an aurora veil that marks "the assistant" (sidebar brand, login panel, the automation KPI), a custom chart palette. Never on every card header: then it is decoration |
 | References | 2–3 products whose quality level is the bar (Linear, Stripe Dashboard, Vercel, Notion, Shopify Polaris …) |
 
-Write the tokens into `globals.css` (CSS variables) and `tailwind.config` from the brief. Stock shadcn
+Write the tokens into `globals.css` from the brief — CSS variables plus `@theme` with Tailwind v4 (no
+`tailwind.config`), or `tailwind.config` with Tailwind v3. Restyle the shared components (`components/ui/*`)
+to the brief; they are the project's own code, not a vendor folder. Stock shadcn
 defaults with a changed primary colour are not a design.
 
 ### 2. Typography — ship the fonts
@@ -101,10 +104,28 @@ Open the dashboard screenshot next to the brief and answer in `.onecommand/desig
 1. Without the logo, would someone recognise the brand? (palette, typeface, signature element visible)
 2. Where does the eye go first — is that the most important thing on the page?
 3. Which element would a Stripe/Linear designer delete or merge?
-Fix what the answers reveal. "Clean but generic" is a finding, not a pass.
+Ask the three questions for every screenshot in the review list, not only the dashboard. Fix what the
+answers reveal. "Clean but generic" is a finding, not a pass. List pages with few rows may stay short —
+"no half-empty pages" targets settings, detail and form pages.
+
+### 6. Pitfalls a redesign hit (each cost a round)
+
+- **Tooltips / popovers**: hide them with `invisible` (plus opacity for the fade), not `opacity-0` alone —
+  the contrast audit multiplies opacity and screen readers still reach them. Inside `overflow-x-auto` table
+  wrappers they get clipped at the first and last row: place them left/right or portal them.
+- **Never nest forms**: a popover with its own `<form>` inside a filter `<form>` makes its submit button do
+  nothing — use a `<div>` with a button handler inside forms.
+- **Grid / flex children need `min-w-0`**: a table inside a card in a grid otherwise pushes the page wider
+  than a phone screen.
+- **Text over imagery** (signature, hero, gradients): the audit cannot measure it — put a solid or gradient
+  scrim behind the text and check the screenshot by eye.
+- **KPI trends need data**: a tile with "+3 ggü. Vorwoche" needs the previous period from the API. The
+  backend returns current and previous value (and a daily series for charts) for every spec metric — do not
+  page through list endpoints in the browser to compute them.
+- **Do not show the same value twice in a row** (full date in two lines, intent in two columns).
 
 ## Stack (from spec)
-- **Framework**: Next.js 14 App Router
+- **Framework**: Next.js App Router (the version the stack detector chose — currently 15/16)
 - **Styling**: Tailwind CSS + shadcn/ui
 - **State**: React hooks + server components where possible
 - **Icons**: lucide-react
@@ -123,7 +144,7 @@ app/
 ├── page.tsx                ← landing page
 └── globals.css
 components/
-├── ui/                     ← shadcn components (never edit)
+├── ui/                     ← shared primitives (shadcn or own), styled from the design brief
 ├── layout/
 │   ├── navbar.tsx
 │   ├── sidebar.tsx
@@ -197,7 +218,7 @@ import { useState } from "react"
 // Only mark "use client" when you need: hooks, events, browser APIs
 ```
 
-### Forms — always use react-hook-form + zod
+### Forms — react-hook-form + zod when the project uses them (otherwise keep the project's pattern)
 ```tsx
 "use client"
 import { useForm } from "react-hook-form"

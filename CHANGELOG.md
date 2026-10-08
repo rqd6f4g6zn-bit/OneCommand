@@ -2,7 +2,10 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
-## [1.11.0] — 2026-10-05
+## [1.12.0] — 2026-10-08
+
+Looks designed, uses every skill. A redesign done only from the skill rules took the Nordlicht phone
+assistant from a stock admin template to a branded product (see `docs/showcase/telefon-assistent/`).
 
 ### Added
 - **Skill library** (`/oc-skills [topic]`, `skill-catalog.py library [--search]`): every skill OneCommand
@@ -40,6 +43,24 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
   The frontend agent, the orchestrator, the test agent and the Codex skill follow it. The screenshot review
   gains a "looks designed, not generated" check.
+- **Design rules from a real redesign**:
+  - mobile layouts are designed, not stacked;
+  - no half-empty pages and no redundant columns;
+  - German dates with a date-range picker;
+  - an identity check on every reviewed screen;
+  - a signature element in at most three places, with a meaning;
+  - pitfalls: tooltips hidden with `invisible`, no nested forms, `min-w-0` in grids, scrims behind text on imagery.
+
+### Changed
+- The backend returns each metric with its previous-period value and a daily series, so dashboards can show trends.
+- Acceptance criteria and Playwright tests assert labels, never code values.
+- `oc-frontend-design` no longer pins Next.js 14 or `tailwind.config` (Tailwind v4 uses `@theme`). Shared UI
+  components are restyled from the brief. `react-hook-form` is used only where the project already uses it.
+- The UI tour's browser runs in the spec's locale, so date fields look as they do for real users.
+
+## [1.11.0] — 2026-10-05
+
+### Added
 - **Human-sounding voice for phone assistants.** The skill `voice-agent` has a new section "Voice — it must sound
   like a person":
   - One neural voice for every sentence: ElevenLabs Flash v2.5 or Multilingual v2, or Azure Neural HD.

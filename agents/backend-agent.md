@@ -46,7 +46,7 @@ Use the `codex:gpt-5-4-prompting` skill to turn the spec into a precise Codex ta
 4. **Auth implementation**: full NextAuth config with providers, session strategy, JWT settings
 5. **Environment variables**: complete list with descriptions
 6. **Seed data**: realistic example data for every model — see the demo seed rules below
-7. **Metrics**: every entry of `spec.metrics` is computed in exactly one server function (e.g. `lib/metrics.ts`) that every endpoint listing it in `metrics` calls; definition and period exactly as in the spec
+7. **Metrics**: every entry of `spec.metrics` is computed in exactly one server function (e.g. `lib/metrics.ts`) that every endpoint listing it in `metrics` calls; definition and period exactly as in the spec. Return the **previous period's value** next to each one (`{ value, previous }`), and for counts over time a daily series for the last 14–30 days — the dashboard shows trends and a chart, and must not compute them from list endpoints
 
 Example Codex prompt structure:
 ```

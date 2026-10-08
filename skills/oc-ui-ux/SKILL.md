@@ -35,6 +35,9 @@ Always use semantic Tailwind tokens — never raw hex:
 
 ## Typography Scale
 
+The sizes and weights come from the design brief (`.onecommand/design.md`); this is the *structure*, not the
+look — replace the classes with the brief's scale and display face.
+
 ```tsx
 // Heading hierarchy — always consistent
 <h1 className="text-3xl font-bold tracking-tight">Page Title</h1>
@@ -179,7 +182,7 @@ Every component must pass:
   className={cn(
     "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
     pathname === href
-      ? "bg-primary text-primary-foreground font-medium"
+      ? "bg-sidebar-active text-sidebar-foreground font-medium"  // from the brief, e.g. a tinted pill + accent bar
       : "text-muted-foreground hover:text-foreground hover:bg-accent"
   )}
 >
