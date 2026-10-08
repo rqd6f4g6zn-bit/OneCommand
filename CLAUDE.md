@@ -67,8 +67,13 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
 
 ## Domain Blueprints
 
-`skills/domain-blueprints/blueprints/<id>.json` (crm, shop, booking, helpdesk, projects, invoicing, website)
-hold modules, entities, roles, pages and acceptance criteria per tier (mvp ⊂ pro ⊂ enterprise).
+`skills/domain-blueprints/blueprints/<id>.json` — 10 products (crm, shop, booking, helpdesk, projects, invoicing,
+phone-assistant, website, recruiting, warehouse) and 8 industries (notary, law-firm, tax-advisor, medical-practice,
+property-management, real-estate-agency, trades, restaurant) — hold modules, entities, roles, pages, acceptance
+criteria per tier (mvp ⊂ pro ⊂ enterprise), `design`, `compliance` (§ sources) and `integrations`
+(connectable / export_only / not_possible). `detect` plans combinations (`--with` product modules, `--context`
+industry look and duties). No match → the spec needs a `domain_brief` (`blueprint.py brief`); `check` fails
+without it.
 `hooks/blueprint.py detect|expand|check`: spec-analyzer expands the matching blueprint and builds the
 spec on top; `check` fails when a module or a blueprint criterion (`source` tag) is dropped. New
 blueprints: add a JSON file — `tests/test_blueprint.py` validates schema and every tier expansion.

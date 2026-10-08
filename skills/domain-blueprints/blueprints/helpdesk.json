@@ -1,10 +1,12 @@
 {
   "id": "helpdesk",
   "name": "Helpdesk / Ticketsystem",
+  "kind": "product",
   "version": 2,
   "ui_language": "de",
   "aliases": ["helpdesk", "ticketsystem", "ticket-system", "support-system", "kundensupport", "service desk", "servicedesk", "zendesk", "freshdesk", "support tickets", "störungsmeldung"],
   "summary": "Kundenanfragen als Tickets mit Status, Priorität, Zuweisung, Antworten, SLA und Wissensdatenbank.",
+  "design": {"personality": ["hilfsbereit", "aufgeräumt", "schnell"], "typefaces": {"display": "Inter Display", "text": "Inter"}, "palette": "ruhiges Petrol, SLA-Ampel nur für Fristen (grün/amber/rot), sonst neutral", "density": "compact", "signature_ideas": ["Ticket-Ansicht mit Gesprächsverlauf wie ein Chat und Kundendaten rechts", "SLA-Restzeit als Fortschrittsbalken im Ticket"], "references": ["Front", "Zendesk", "Intercom"], "avoid": ["Statusfarben ohne Legende", "Tabellen ohne Vorschau des letzten Satzes"]},
   "roles": [
     {"id": "admin", "name": "Admin", "can": "alles inkl. Teams, SLA, Einstellungen"},
     {"id": "agent", "name": "Support-Mitarbeiter", "can": "Tickets bearbeiten und beantworten"},

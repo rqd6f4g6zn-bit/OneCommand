@@ -2,6 +2,57 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.13.0] — 2026-10-08
+
+Every industry. A short prompt for a notary, a medical practice or a restaurant now yields the software a
+practitioner expects, and any other industry is researched before the build starts instead of guessed.
+
+### Added
+- **10 new blueprints, 18 in total.**
+  - Industries:
+    - `notary`: § 3 BeurkG conflict check, 14-day draft rule (§ 17 Abs. 2a BeurkG), deed register, GNotKG fees,
+      Vollzug checklists, escrow, GwG, handover to the BNotK systems;
+    - `law-firm`: deadline control with Vorfrist and second check, RVG billing, client money, beA handover;
+    - `tax-advisor`: document exchange, filing deadlines, monthly close, StBVV fees, DATEV export, ERiC;
+    - `medical-practice`: booking, anamnesis, check-in, recall, GOÄ/GOZ, Art. 9 DSGVO, no KV/TI;
+    - `property-management`: WEG and rentals, BetrKV/HeizkostenV statements, owners' meeting, resolutions;
+    - `real-estate-agency`: exposé, OpenImmo, matching, § 656c BGB, GEG duties, GwG;
+    - `trades`: quotes, scheduling, mobile field app, acceptance, invoices with § 35a/§ 13b, maintenance;
+    - `restaurant`: reservations, allergens (LMIV), QR ordering, kitchen display; POS/TSE stays certified.
+  - Products:
+    - `recruiting`: deletion periods, AGG, works council;
+    - `warehouse`: picking by phone camera, inventory § 240 HGB, batches.
+- **Every blueprint carries:**
+  - `design`, a design direction for its industry. It becomes `spec.design_direction`, and the design brief
+    starts from it.
+  - `compliance`, the duties with their § source. The delivery report lists them.
+  - `integrations`, split into connectable, export only and not possible. Closed official systems are named,
+    never faked.
+- **Products and industries combine.** `detect` prints a plan:
+  - "Praxis-Software mit Telefon-KI" → `expand medical-practice --with phone-assistant`, with both module sets.
+  - "Webseite für unser Restaurant" → `expand website --context restaurant`: a website with the restaurant's
+    look and duties, without a kitchen display.
+
+  `check` covers every `--with` blueprint.
+- **Domain brief for every other industry.** Without a matching blueprint, the spec must carry a `domain_brief`
+  (`blueprint.py brief` prints the template) with:
+  - roles, and processes linked to features with must-criteria;
+  - legal rules with sources, and deadlines;
+  - honest integrations and a glossary;
+  - a design direction;
+  - assumptions to confirm.
+
+  `blueprint.py check` fails until it is complete.
+- **The UI tour reports a missing design brief** (`.onecommand/design.md`).
+- **New benchmark sets:** `industries` and `hard` (notary, practice with phone AI, restaurant website,
+  unknown industry, a marketplace from four words).
+
+### Fixed
+- "Mandanten" no longer selects the enterprise tier: in a law or tax office it means clients.
+  "Mandantenfähig" still does.
+- When matches tie, the product/industry plan decides, not the file order. "praxis" is no longer a booking
+  alias.
+
 ## [1.12.0] — 2026-10-08
 
 Looks designed, uses every skill. Every rule below comes from what the Nordlicht phone-assistant build got

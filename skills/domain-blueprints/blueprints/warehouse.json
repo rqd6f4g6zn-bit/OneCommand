@@ -1,0 +1,177 @@
+{
+  "id": "warehouse",
+  "name": "Lager & Warenwirtschaft",
+  "kind": "product",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["lagerverwaltung", "lagerverwaltungssoftware", "lagerverwaltungssystem", "lagersoftware", "lagerhaltung", "lagerbestand", "bestandsverwaltung", "bestandsführung", "warenwirtschaft", "warenwirtschaftssystem", "wawi", "wms", "warehouse management", "inventory management", "kommissionierung", "wareneingang", "inventur", "jtl-wawi"],
+  "summary": "Artikel mit Varianten, Lagerorte und Lagerplätze, Wareneingang mit Lieferschein, Kommissionierung per Handy-Scan, Versand über Versanddienstleister, Inventur nach HGB, Mindestbestände mit Bestellvorschlägen, Chargen/MHD sowie Lieferanten und Bestellungen.",
+  "design": {"personality": ["robust", "direkt", "übersichtlich"], "typefaces": {"display": "Barlow Condensed", "text": "IBM Plex Sans (tabellarische Ziffern; IBM Plex Mono für Lagerplatz-Codes)"}, "palette": "Anthrazit mit Signalgelb als Akzent wie Hallenmarkierungen, Bestandsampel Grün/Gelb/Rot nur für Mindestbestand und MHD, hoher Kontrast für Hallenlicht und Handydisplays", "density": "compact", "signature_ideas": ["Lagerplatz-Code als Regalschild (Gang-Regal-Fach) in Schildgröße im Pick-Modus", "Scan-Rückmeldung als grüner bzw. roter Vollbild-Blitz mit Ton – man muss nicht aufs Display schauen", "Bestandsbalken mit Mindestbestand-Marke an jedem Artikel"], "references": ["Pickware", "Xentral", "JTL-WMS"], "avoid": ["kleine Schrift und Hover-Menüs auf Scan-Bildschirmen", "Torten-Diagramme ohne Handlungsbezug", "Statusfarben ohne Text"]},
+  "roles": [
+    {"id": "admin", "name": "Lagerleiter", "can": "alles inkl. Stammdaten, Lagerplätze, Inventur freigeben, Benutzer und Einstellungen"},
+    {"id": "warehouse", "name": "Lagermitarbeiter", "can": "Wareneingang buchen, umlagern, kommissionieren, packen, versenden, zählen; keine Preise und Stammdaten ändern"},
+    {"id": "purchaser", "name": "Einkauf", "can": "Lieferanten, Bestellungen, Bestellvorschläge, Einkaufspreise", "tier": "pro"},
+    {"id": "accounting", "name": "Buchhaltung", "can": "Bestände, Lagerwert, Inventurlisten und Exporte nur lesend", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "Article", "fields": ["sku", "name", "description", "unit(piece|kg|m|l|carton|pallet)", "ean", "weightGrams", "purchasePrice", "averageCost", "minStock", "reorderQuantity", "fixedLocationId", "batchTracking", "serialTracking", "active"], "tier": "mvp"},
+    {"name": "Variant", "fields": ["articleId", "sku", "ean", "attributes", "minStock"], "tier": "mvp"},
+    {"name": "Warehouse", "fields": ["name", "address"], "tier": "mvp"},
+    {"name": "StorageLocation", "fields": ["warehouseId", "code", "zone(picking|reserve|receiving|shipping|blocked)", "sortOrder", "capacity"], "tier": "mvp"},
+    {"name": "Stock", "fields": ["variantId", "locationId", "batchId", "quantity", "reservedQuantity"], "tier": "mvp"},
+    {"name": "StockMovement", "fields": ["variantId", "fromLocationId", "toLocationId", "batchId", "quantity", "type(receipt|transfer|pick|shipment|adjustment|inventory|return)", "reason", "reference", "userId", "createdAt"], "tier": "mvp"},
+    {"name": "GoodsReceipt", "fields": ["supplierId", "deliveryNoteNumber", "deliveryNoteFile", "purchaseOrderId", "lines", "receivedAt", "status(open|booked)"], "tier": "mvp"},
+    {"name": "Order", "fields": ["number", "customerName", "shippingAddress", "lines", "channel", "status(open|picking|packed|shipped|cancelled)", "carrier", "trackingNumber", "shippedAt"], "tier": "mvp"},
+    {"name": "PickList", "fields": ["orderIds", "assigneeId", "lines", "status(open|in_progress|done)"], "tier": "mvp"},
+    {"name": "InventoryCount", "fields": ["method(year_end|rolling|sample)", "countDate", "zone", "status(open|counting|review|booked)", "lines", "approvedById"], "tier": "mvp"},
+    {"name": "Supplier", "fields": ["name", "customerNumber", "contactEmail", "leadTimeDays", "minOrderValue", "paymentTerms"], "tier": "pro"},
+    {"name": "SupplierArticle", "fields": ["supplierId", "variantId", "supplierSku", "price", "packSize"], "tier": "pro"},
+    {"name": "PurchaseOrder", "fields": ["number", "supplierId", "lines", "expectedAt", "status(draft|ordered|partially_received|received|cancelled)"], "tier": "pro"},
+    {"name": "Batch", "fields": ["variantId", "batchNumber", "bestBefore", "dateType(best_before|use_by)", "supplierId", "receivedAt", "blocked", "blockReason"], "tier": "pro"},
+    {"name": "Shipment", "fields": ["orderId", "carrier(dhl|dpd|gls|ups|hermes|pickup)", "trackingNumber", "labelFile", "weightGrams", "packagingId", "createdAt"], "tier": "pro"},
+    {"name": "Packaging", "fields": ["name", "material(paper|plastic|glass|metal|composite)", "weightGrams"], "tier": "pro"},
+    {"name": "Return", "fields": ["orderId", "lines", "reason", "decision(restock|blocked|scrap)", "status(open|done)"], "tier": "pro"},
+    {"name": "Wave", "fields": ["orderIds", "cutoffAt", "assigneeId", "status(open|picking|done)"], "tier": "enterprise"},
+    {"name": "SerialNumber", "fields": ["variantId", "serial", "goodsReceiptId", "orderId", "status(in_stock|shipped|returned)"], "tier": "enterprise"},
+    {"name": "SalesChannel", "fields": ["type(shopify|woocommerce|shopware|amazon)", "credentials", "stockBuffer", "active"], "tier": "enterprise"},
+    {"name": "AuditLog", "fields": ["userId", "action", "entity", "entityId", "oldValue", "newValue", "createdAt"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung, Rollen & Übersicht", "tier": "mvp",
+     "features": ["Login für Lagerleitung und Lagermitarbeiter", "Lagermitarbeiter sehen keine Einkaufspreise und ändern keine Stammdaten", "Dashboard: offene Aufträge, heutige Wareneingänge, laufende Inventur"],
+     "criteria": [
+       {"title": "Unauthenticated access to /dashboard redirects to /login", "verification": "e2e", "start": "/dashboard", "requires_auth": false, "steps": ["Open /dashboard without a session"], "expected": ["URL is /login"]},
+       {"title": "Warehouse staff cannot change article master data", "verification": "api", "steps": ["Log in as Lagermitarbeiter", "PATCH the purchase price of 'Kaffeebohnen 1 kg'", "GET the article as Lagerleiter"], "expected": ["The PATCH returns 403", "The article still has its old purchase price"]}
+     ]},
+    {"id": "articles", "name": "Artikel & Varianten", "tier": "mvp",
+     "features": ["Artikel mit Artikelnummer, EAN/GTIN, Einheit, Gewicht, Maße, Einkaufspreis, Bild", "Varianten (z. B. Größe, Farbe) mit eigener Artikelnummer, EAN und eigenem Bestand", "Verpackungseinheiten (Stück, Karton à 12, Palette)", "Artikel-Etiketten mit Barcode als PDF", "CSV-Import und -Export", "Artikelsuche per Scan"],
+     "criteria": [
+       {"title": "An article with variants gets one stock line per variant", "verification": "e2e", "start": "/articles/new", "requires_auth": true, "steps": ["Create article 'T-Shirt Basic' with variants 'S', 'M' and 'L', each with its own EAN", "Click 'Speichern' and open /stock", "Search the EAN of variant 'M'"], "expected": ["/stock lists 'T-Shirt Basic – S', 'T-Shirt Basic – M' and 'T-Shirt Basic – L', each with Bestand 0", "The EAN search shows only 'T-Shirt Basic – M'"]},
+       {"title": "Article number and EAN are unique", "verification": "api", "steps": ["Create an article with an existing article number", "Create an article with an existing EAN"], "expected": ["Both requests return 409 and name the duplicate field"]}
+     ]},
+    {"id": "locations", "name": "Lagerorte, Lagerplätze & Umlagerung", "tier": "mvp",
+     "features": ["Lagerorte und Lagerplätze mit Code Gang-Regal-Fach (z. B. A-01-03) und Laufweg-Reihenfolge", "Zonen: Kommissionierung, Reserve, Wareneingang, Versand, Sperrlager", "Lagerplatz-Etiketten mit Barcode", "Fester Lagerplatz je Artikel oder chaotische Lagerhaltung", "Umlagerung per Scan: Quellplatz → Artikel → Menge → Zielplatz", "Bestand im Sperrlager ist nicht verfügbar"],
+     "criteria": [
+       {"title": "A transfer moves stock between bins and is journalled", "verification": "e2e", "start": "/locations", "requires_auth": true, "steps": ["'Kaffeebohnen 1 kg' has 20 on 'A-01-01' and none elsewhere", "Click 'Umlagern': source 'A-01-01', quantity 5, target 'B-02-04'", "Click 'Umlagerung buchen' and open /stock"], "expected": ["'A-01-01' shows 15 and 'B-02-04' shows 5 for 'Kaffeebohnen 1 kg'", "Total stock of the article is still 20", "The movement journal shows 'Umlagerung' with user and time"]},
+       {"title": "Stock on a blocked bin is not available", "verification": "api", "steps": ["Put 10 'Kaffeebohnen 1 kg' on bin 'SP-01' in zone 'Sperrlager', none elsewhere", "GET the stock of the article"], "expected": ["Physical quantity is 10 and available quantity is 0"]}
+     ]},
+    {"id": "stock", "name": "Bestand & Bewegungsjournal", "tier": "mvp",
+     "features": ["Bestand je Artikel, Variante, Lagerort und Lagerplatz: physisch, reserviert, verfügbar", "Jede Bestandsänderung als Buchung im Bewegungsjournal (wer, wann, warum, Beleg)", "Buchungen unveränderbar; Korrektur nur als Gegenbuchung", "Bestandskorrektur nur mit Grund (Bruch, Schwund, Fund, Fehlbuchung)", "Reservierung durch offene Aufträge", "Gleichzeitige Buchungen machen den Bestand nie negativ"],
+     "criteria": [
+       {"title": "A stock correction requires a reason and is journalled", "verification": "e2e", "start": "/stock", "requires_auth": true, "steps": ["Open 'Kaffeebohnen 1 kg' on 'A-01-01' with 15 in stock", "Click 'Bestand korrigieren', enter -2 without a reason and click 'Buchen'", "Choose reason 'Bruch' and click 'Buchen'"], "expected": ["Without a reason 'Grund ist erforderlich' is shown and the bin still shows 15", "With the reason the bin shows 13 and the journal shows 'Korrektur −2 · Bruch'", "Journal entries offer no 'Bearbeiten' or 'Löschen'"]},
+       {"title": "Journal entries cannot be changed or deleted", "verification": "api", "steps": ["PATCH a stock movement", "DELETE the same stock movement", "GET the movement"], "expected": ["PATCH and DELETE return 403 or 405", "GET returns the original quantity, user and time"]}
+     ]},
+    {"id": "goods-receipt", "name": "Wareneingang mit Lieferschein", "tier": "mvp",
+     "features": ["Wareneingang frei oder zu einer Bestellung (pro) mit Lieferant und Lieferscheinnummer", "Positionen per Scan erfassen, Soll/Ist-Abgleich", "Lieferschein als Foto oder PDF anhängen", "Mengenabweichung und Beschädigung vermerken", "Einlagerungsvorschlag: fester Platz oder freier Platz in der Zone", "Wareneingangsetiketten drucken"],
+     "criteria": [
+       {"title": "A booked goods receipt raises stock and keeps the delivery note", "verification": "e2e", "start": "/goods-receipts/new", "requires_auth": true, "steps": ["Choose supplier 'Röstwerk Nord', Lieferscheinnummer 'LS-4711', attach 'lieferschein.pdf'", "Scan the EAN of 'Kaffeebohnen 1 kg' and enter quantity 24, target bin 'A-01-01'", "Click 'Wareneingang buchen' and reload"], "expected": ["The receipt shows Status 'Gebucht', 'LS-4711' and the attachment 'lieferschein.pdf'", "/stock shows 'Kaffeebohnen 1 kg' on 'A-01-01' 24 higher than before", "The movement journal shows 'Wareneingang LS-4711 +24'"]}
+     ]},
+    {"id": "picking", "name": "Kommissionierung & Warenausgang", "tier": "mvp",
+     "features": ["Aufträge manuell oder per CSV anlegen; Bestand wird reserviert", "Pickliste je Auftrag sortiert nach Laufweg", "Scan per Smartphone-Kamera: Lagerplatz und Artikel bestätigen; falscher Artikel → Fehlerton", "Ohne Kamera: Eingabe von EAN oder Artikelnummer", "Fehlmenge melden", "Packen: Lieferschein als PDF, Paketgewicht, 'Versendet' mit Sendungsnummer"],
+     "criteria": [
+       {"title": "The pick list follows the walking route and a wrong scan is rejected", "verification": "e2e", "start": "/picking", "requires_auth": true, "steps": ["Order 'A-1001' contains 2× 'Kaffeebohnen 1 kg' on 'A-01-01' and 1× 'Filter Gr. 4' on 'C-03-02'", "Open its pick list", "While 'A-01-01' is the current position, scan the EAN of 'Filter Gr. 4'"], "expected": ["'A-01-01' is listed before 'C-03-02'", "Message 'Falscher Artikel – erwartet: Kaffeebohnen 1 kg' is visible and the picked quantity stays 0"]},
+       {"title": "Finishing picking and shipping books the stock out", "verification": "e2e", "start": "/picking", "requires_auth": true, "steps": ["Scan all positions of order 'A-1001'", "Click 'Kommissionierung abschließen'", "Click 'Als versendet markieren' with Sendungsnummer '00340434161094000000'"], "expected": ["Order 'A-1001' shows Status 'Versendet' and the Sendungsnummer", "/stock shows 'Kaffeebohnen 1 kg' 2 lower and no reservation for 'A-1001'", "The movement journal shows 'Warenausgang A-1001'"]}
+     ]},
+    {"id": "inventory", "name": "Inventur", "tier": "mvp",
+     "features": ["Stichtagsinventur, permanente Inventur und Stichprobeninventur (§ 241 HGB)", "Zähllisten je Zone ohne Sollbestand (Blindzählung)", "Zählen per Scan auf dem Handy, Nachzählung bei Differenz", "Gezählte Plätze während der Zählung für Bewegungen gesperrt", "Differenzliste mit Menge und Wert, Freigabe durch die Lagerleitung", "Differenzen als Inventurbuchung", "Inventurliste als PDF und CSV, 10 Jahre aufbewahrt"],
+     "criteria": [
+       {"title": "Blind count hides the system quantity and books the difference after approval", "verification": "e2e", "start": "/inventory", "requires_auth": true, "steps": ["Start an inventory for zone 'A' with Stichtag today", "As Lagermitarbeiter open the count list and count 13 'Kaffeebohnen 1 kg' on 'A-01-01' (system: 15)", "As Lagerleiter open the inventory and click 'Differenzen buchen'"], "expected": ["The count list shows no system quantity", "Differenzliste shows 'A-01-01', 'Soll 15', 'Ist 13', 'Differenz −2' and the value", "After booking /stock shows 13, the journal shows 'Inventurdifferenz −2' and the inventory shows Status 'Abgeschlossen'"]},
+       {"title": "A bin under count cannot be moved from", "verification": "api", "steps": ["Start an inventory that includes bin 'A-01-01'", "POST a transfer from 'A-01-01' to 'B-02-04'"], "expected": ["Response is 409 with message 'Lagerplatz in Inventur'"]}
+     ]},
+    {"id": "shipping", "name": "Versand mit Versanddienstleistern", "tier": "pro",
+     "features": ["Versanddienstleister DHL, DPD, GLS, UPS, Hermes über deren APIs (Geschäftskundenvertrag nötig)", "Versandlabel am Packplatz erstellen, Sendungsnummer automatisch am Auftrag", "Paketgewicht aus Artikelgewichten plus Verpackung oder manuell", "Retourenlabel", "Tagesabschluss je Dienstleister", "Ohne Zugangsdaten: 'Nicht verbunden' und manuelle Sendungsnummer", "Versandbestätigung mit Tracking-Link an den Empfänger", "Verpackungsmengen je Material für die VerpackG-Meldung"],
+     "criteria": [
+       {"title": "Creating a label stores the tracking number and the PDF label", "verification": "e2e", "start": "/shipments", "requires_auth": true, "steps": ["Carrier 'DHL' is connected in test mode", "Pack order 'A-1001' with packaging 'Karton M', weight 2,4 kg", "Click 'Label erstellen'"], "expected": ["The order shows a Sendungsnummer and link 'Label (PDF)' which downloads a PDF", "The order shows Status 'Versendet'", "Outbox contains the shipping confirmation with the tracking link"]},
+       {"title": "Without carrier credentials the app says so and allows manual entry", "verification": "e2e", "start": "/settings/carriers", "requires_auth": true, "steps": ["Leave the DPD credentials empty", "Open /settings/carriers, then pack an order with carrier 'DPD'"], "expected": ["'DPD: Nicht verbunden' is visible", "The pack dialog offers 'Sendungsnummer manuell eingeben' instead of an error"]}
+     ]},
+    {"id": "batches", "name": "Chargen & MHD", "tier": "pro",
+     "features": ["Chargen- und MHD-Pflicht je Artikel; MHD oder Verbrauchsdatum", "Erfassung im Wareneingang; GS1-128-Scan füllt Charge (AI 10) und MHD (AI 17)", "FEFO: Pickliste schlägt die Charge mit dem frühesten MHD vor", "Chargen sperren (Rückruf, Qualitätsprüfung); Verbrauchsdatum überschritten → automatisch gesperrt", "Rückverfolgung: Charge → Lieferant und Charge → Aufträge/Kunden", "MHD-Warnliste (30 Tage)"],
+     "criteria": [
+       {"title": "The pick list proposes the batch with the earliest best-before date", "verification": "e2e", "start": "/picking", "requires_auth": true, "steps": ["'Joghurt 500 g' has batch 'L-210' (MHD in 10 days) on 'K-01-01' and batch 'L-215' (MHD in 20 days) on 'K-01-02'", "Create order 'A-1002' with 1× 'Joghurt 500 g'", "Open its pick list"], "expected": ["The pick list shows 'K-01-01' with 'Charge L-210'"]},
+       {"title": "Batch trace lists supplier and orders, and a blocked batch is no longer picked", "verification": "e2e", "start": "/batches", "requires_auth": true, "steps": ["Open batch 'L-210' after order 'A-1002' was shipped", "Click 'Rückverfolgung'", "Click 'Charge sperren' with reason 'Rückruf' and create order 'A-1003' with 1× 'Joghurt 500 g'"], "expected": ["Rückverfolgung shows supplier, goods receipt and order 'A-1002' with the customer name", "Batch shows 'Gesperrt: Rückruf'", "The pick list of 'A-1003' proposes 'Charge L-215'"]}
+     ]},
+    {"id": "reorder", "name": "Mindestbestand & Bestellvorschläge", "tier": "pro",
+     "features": ["Mindestbestand und Bestellmenge je Artikel bzw. Variante", "Bestellvorschlag = Mindestbestand unterschritten unter Berücksichtigung offener Bestellungen und Reservierungen", "Wiederbeschaffungszeit, Mindestbestellmenge und -wert je Lieferant", "Vorschläge gruppiert je Lieferant, mit einem Klick als Bestellung", "Warnung auf dem Dashboard"],
+     "criteria": [
+       {"title": "Reorder proposals account for open purchase orders", "verification": "api", "steps": ["'Kaffeebohnen 1 kg': available 8, minimum stock 20, reorder quantity 48, supplier 'Röstwerk Nord', no open purchase order", "GET the reorder proposals", "Create a purchase order for 48 and GET the proposals again"], "expected": ["The first response proposes 48 for 'Röstwerk Nord'", "The second response contains no proposal for 'Kaffeebohnen 1 kg'"]},
+       {"title": "Articles below minimum stock show on the dashboard and become a draft order", "verification": "e2e", "start": "/dashboard", "requires_auth": true, "steps": ["'Kaffeebohnen 1 kg' is below its minimum stock", "Open /dashboard", "Open /reorder and click 'Bestellung erstellen' for 'Röstwerk Nord'"], "expected": ["'Unter Mindestbestand' is at least 1 and lists 'Kaffeebohnen 1 kg'", "A purchase order for 'Röstwerk Nord' with Status 'Entwurf' and 48× 'Kaffeebohnen 1 kg' opens"]}
+     ]},
+    {"id": "purchasing", "name": "Lieferanten & Bestellungen", "tier": "pro",
+     "features": ["Lieferanten mit Kundennummer, Ansprechpartner, Lieferzeit, Konditionen", "Lieferantenartikelnummer und Einkaufspreis je Lieferant", "Bestellung als PDF per E-Mail an den Lieferanten", "Status Entwurf, Bestellt, Teilgeliefert, Geliefert, Storniert", "Wareneingang gegen Bestellung mit Teillieferungen und offener Restmenge", "Überfällige Liefertermine hervorgehoben"],
+     "criteria": [
+       {"title": "A partial delivery keeps the open remainder", "verification": "e2e", "start": "/purchase-orders", "requires_auth": true, "steps": ["Create purchase order to 'Röstwerk Nord' with 48× 'Kaffeebohnen 1 kg' and click 'Bestellen'", "Book a goods receipt against it with 30", "Reload the purchase order"], "expected": ["Outbox contains the order mail to the supplier with the PDF attached", "The purchase order shows Status 'Teilgeliefert' and 'Offen: 18'"]}
+     ]},
+    {"id": "returns", "name": "Retouren", "tier": "pro",
+     "features": ["Retoure zu einem Auftrag mit Grund", "Zustandsprüfung: wieder einlagern, Sperrlager oder Entsorgung", "Hinweis an Buchhaltung bzw. Shop für die Gutschrift", "Retourenquote je Artikel"],
+     "criteria": [
+       {"title": "A damaged return goes to the blocked zone and is not available", "verification": "e2e", "start": "/returns", "requires_auth": true, "steps": ["Create a return for order 'A-1001' with 1× 'Kaffeebohnen 1 kg', reason 'Beschädigt'", "Choose 'Ins Sperrlager' and click 'Retoure abschließen'"], "expected": ["The return shows Status 'Abgeschlossen'", "/stock shows 1 'Kaffeebohnen 1 kg' in zone 'Sperrlager' and the available quantity is unchanged"]}
+     ]},
+    {"id": "reports", "name": "Auswertungen", "tier": "pro",
+     "features": ["Lagerwert zu Einkaufspreisen (gleitender Durchschnitt)", "Reichweite, Ladenhüter (keine Bewegung seit 180 Tagen), ABC-Analyse", "Bewegungen je Zeitraum und Art", "Leistung je Mitarbeiter nur mit Betriebsratszustimmung, sonst nur Teamsummen", "CSV-Export"],
+     "criteria": [
+       {"title": "Stock value uses the moving average purchase price", "verification": "api", "steps": ["Book a receipt of 10 at 5,00 € and one of 10 at 7,00 € for a new article", "GET the stock value"], "expected": ["Average cost of the article is 6,00 €", "Its share of 'Lagerwert (aktuell, zu Einkaufspreisen)' is 120,00 €"]},
+       {"title": "Dashboard and reports show the same stock value", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Open /dashboard and note 'Lagerwert (aktuell, zu Einkaufspreisen)'", "Open /reports"], "expected": ["'Lagerwert (aktuell, zu Einkaufspreisen)' shows the same amount on both pages"]}
+     ]},
+    {"id": "wave-picking", "name": "Sammelkommissionierung & Wellen", "tier": "enterprise",
+     "features": ["Mehrere Aufträge in einem Rundgang (Pickwagen mit Fächern)", "Wellen nach Versandart, Cut-off-Zeit und Priorität", "Zuweisung an Kommissionierer", "Laufweg über alle Aufträge der Welle"],
+     "criteria": [
+       {"title": "A wave combines quantities per bin and shows the cart slot per order", "verification": "e2e", "start": "/waves", "requires_auth": true, "steps": ["Orders 'A-1004' (2× 'Kaffeebohnen 1 kg') and 'A-1005' (1× 'Kaffeebohnen 1 kg') are open", "Create a wave with both orders and open its pick list"], "expected": ["'A-01-01' appears once with quantity 3", "The position shows 'Fach 1: 2' and 'Fach 2: 1'"]}
+     ]},
+    {"id": "serials", "name": "Seriennummern", "tier": "enterprise",
+     "features": ["Seriennummernpflicht je Artikel", "Erfassung im Wareneingang und beim Picken per Scan", "Historie je Seriennummer: Eingang, Auftrag, Retoure", "Doppelte Seriennummern ausgeschlossen"],
+     "criteria": [
+       {"title": "A serial number can be received only once and is traceable to its order", "verification": "api", "steps": ["Receive serial 'SN-1001' for 'Akkuschrauber X1'", "Receive 'SN-1001' again", "Ship 'SN-1001' with order 'A-1006' and GET the serial"], "expected": ["The second receipt returns 409", "The serial response shows Status 'Versendet' and order 'A-1006'"]}
+     ]},
+    {"id": "channels", "name": "Shop- & Marktplatz-Anbindung", "tier": "enterprise",
+     "features": ["Aufträge aus Shopify, WooCommerce, Shopware und Amazon importieren", "Verfügbaren Bestand je Kanal zurückmelden, Puffer je Kanal", "Sendungsnummer an den Kanal zurückgeben", "Ohne Zugangsdaten: 'Nicht verbunden'"],
+     "criteria": [
+       {"title": "An incoming shop order is imported once and reserves stock", "verification": "api", "steps": ["POST the same Shopify order webhook (test signature) twice", "GET the orders and the stock of the ordered article"], "expected": ["Exactly one order exists with channel 'Shopify'", "The reserved quantity rose by the ordered quantity once"]}
+     ]},
+    {"id": "valuation", "name": "Lagerbewertung & Export", "tier": "enterprise",
+     "features": ["Bewertung zum gleitenden Durchschnitt; Abwertung auf den niedrigeren Wert (Niederstwertprinzip)", "Stichtagsbestand rückwirkend aus dem Bewegungsjournal", "Inventurwerte zum Stichtag als CSV für DATEV bzw. Steuerberater", "Gängigkeitsabschläge für Ladenhüter"],
+     "criteria": [
+       {"title": "Stock on a past date is reconstructed from the journal", "verification": "api", "steps": ["'Kaffeebohnen 1 kg' had 20 on 31.12., then 5 were shipped on 05.01.", "GET the valuation for the date 31.12."], "expected": ["The quantity for 31.12. is 20, not the current 15", "The CSV export for 31.12. contains the same quantity and value"]}
+     ]},
+    {"id": "api-audit", "name": "API, SSO & Audit-Log", "tier": "enterprise",
+     "features": ["REST-API mit Token und Webhooks (Bestand geändert, Auftrag versendet)", "SSO über OIDC", "Audit-Log für Stammdaten-, Preis- und Rechteänderungen", "Mehrere Lagerorte mit getrennten Rechten"],
+     "criteria": [
+       {"title": "A price change is written to the audit log with old and new value", "verification": "api", "steps": ["As Lagerleiter change the purchase price of 'Kaffeebohnen 1 kg' from 9,80 € to 10,40 €", "GET the audit log as Lagerleiter", "GET the audit log as Lagermitarbeiter"], "expected": ["The entry shows user, time, '9,80 €' and '10,40 €'", "The Lagermitarbeiter request returns 403"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "open_orders", "tier": "mvp", "label": "Offene Aufträge", "unit": "Anzahl", "definition": "Aufträge mit Status offen, in Kommissionierung oder gepackt (noch nicht versendet, nicht storniert)", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/orders"]},
+    {"id": "stock_value", "tier": "pro", "label": "Lagerwert (aktuell, zu Einkaufspreisen)", "unit": "EUR", "definition": "Summe über alle Lagerplätze inkl. Sperrlager von physischem Bestand × gleitendem Durchschnitts-Einkaufspreis", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "below_min_stock", "tier": "pro", "label": "Unter Mindestbestand", "unit": "Anzahl", "definition": "Artikel bzw. Varianten, deren verfügbarer Bestand (physisch − reserviert − gesperrt) unter dem Mindestbestand liegt", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/reorder"]},
+    {"id": "expiring_30d", "tier": "pro", "label": "MHD läuft ab (nächste 30 Tage)", "unit": "Anzahl", "definition": "nicht gesperrte Chargen mit Bestand > 0, deren MHD oder Verbrauchsdatum in den nächsten 30 Tagen liegt", "period": "nächste 30 Tage", "shown_on": ["/dashboard", "/batches"]},
+    {"id": "inventory_turnover", "tier": "enterprise", "label": "Lagerumschlag (letzte 12 Monate)", "unit": "Faktor", "definition": "Warenausgang zu Einstandspreisen der letzten 12 Monate / Durchschnitt des Lagerwerts der 12 Monatsenden", "period": "letzte 12 Monate", "shown_on": ["/reports"]}
+  ],
+  "compliance": [
+    {"rule": "Zum Schluss jedes Geschäftsjahres ein Inventar aufstellen: Vorräte nach Menge und Wert durch körperliche Bestandsaufnahme", "source": "§ 240 Abs. 1 und 2 HGB", "tier": "mvp"},
+    {"rule": "Zulässige Inventurvereinfachungen: Stichprobeninventur, permanente Inventur, vor- oder nachverlegte Stichtagsinventur (bis 3 Monate vor bzw. 2 Monate nach dem Stichtag)", "source": "§ 241 Abs. 1–3 HGB", "tier": "mvp"},
+    {"rule": "Bestandsbuchungen vollständig, zeitgerecht und unveränderbar; Korrektur nur als nachvollziehbare Gegenbuchung", "source": "§ 239 Abs. 2 und 3 HGB; § 146 Abs. 4 AO; GoBD (BMF-Schreiben)", "tier": "mvp"},
+    {"rule": "Inventare und Zähllisten 10 Jahre aufbewahren", "source": "§ 257 Abs. 1 Nr. 1 und Abs. 4 HGB; § 147 Abs. 1 Nr. 1 und Abs. 3 AO", "tier": "mvp"},
+    {"rule": "Lebensmittel rückverfolgbar halten: je Charge Lieferant und belieferte Unternehmen benennen können", "source": "Art. 18 Verordnung (EG) Nr. 178/2002", "tier": "pro"},
+    {"rule": "Ware mit überschrittenem Verbrauchsdatum ('zu verbrauchen bis') sperren; sie gilt als nicht sicher", "source": "Art. 24 Verordnung (EU) Nr. 1169/2011 (LMIV)", "tier": "pro"},
+    {"rule": "Betroffene Chargen und Abnehmer bei einem Produktrückruf ermitteln können", "source": "Verordnung (EU) 2023/988 (Produktsicherheitsverordnung, GPSR)", "tier": "pro"},
+    {"rule": "Versandverpackungen: Systembeteiligung, Registrierung und Mengenmeldung je Material", "source": "§§ 7, 9, 10 VerpackG", "tier": "pro"},
+    {"rule": "Empfängerdaten an Versanddienstleister nur im nötigen Umfang; E-Mail/Telefon für Paketankündigung nur mit Rechtsgrundlage", "source": "Art. 5 Abs. 1 lit. c, Art. 6 Abs. 1 DSGVO", "tier": "pro"},
+    {"rule": "Leistungsauswertungen je Mitarbeiter (Picks pro Stunde, Scanfehler) nur mit Zustimmung des Betriebsrats", "source": "§ 87 Abs. 1 Nr. 6 BetrVG", "tier": "pro"},
+    {"rule": "Vorräte höchstens zu Anschaffungskosten, bei niedrigerem beizulegendem Wert abwerten (Niederstwertprinzip)", "source": "§ 253 Abs. 1 und 4 HGB", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["DHL (Parcel DE Shipping API, Geschäftskundenvertrag)", "DPD (Webservice, Geschäftskundenvertrag)", "GLS (ShipIT API)", "UPS (Shipping API)", "Multi-Carrier-Dienste mit API (z. B. Sendcloud, shipcloud)", "Shopify, WooCommerce, Shopware (Aufträge, Bestände, Sendungsnummern)", "Amazon Selling Partner API", "lexoffice / sevdesk (Belege, Artikel)"],
+    "export_only": ["DATEV (Inventur- und Lagerwerte als CSV für den Steuerberater)", "Lieferanten ohne Schnittstelle (Bestellung als PDF per E-Mail)", "EDIFACT-Bestellungen und -Lieferavis (ORDERS/DESADV) über einen EDI-Dienstleister", "Etikettendrucker (PDF/ZPL in 100 × 150 mm und 62 mm)"],
+    "not_possible": ["Verpackungsregister LUCID — Mengenmeldung im Portal der Zentralen Stelle; die App liefert nur die Mengen je Material", "ATLAS-Zollanmeldung (Ausfuhr) — nur über zertifizierte Teilnehmersoftware oder einen Zolldienstleister"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Scan-Oberflächen ab 360 px Breite, Tipp-Flächen mindestens 48 px, mit Handschuhen bedienbar"},
+    {"tier": "mvp", "text": "Kamera-Scan im Browser (BarcodeDetector, Fallback ZXing) für EAN-13, EAN-8, Code 128, GS1-128 und QR; Kamera nur über HTTPS, sonst Eingabe der Nummer"},
+    {"tier": "mvp", "text": "Bestandsbuchungen transaktional: gleichzeitige Picks desselben Bestands machen ihn nie negativ"},
+    {"tier": "mvp", "text": "Kein Standard-Secret: ohne AUTH_SECRET (mind. 32 Zeichen) startet der Server nicht"},
+    {"tier": "pro", "text": "Scans bei Funkloch in der Halle werden gepuffert und mit Idempotenz-Schlüssel nachgesendet, ohne Doppelbuchung"},
+    {"tier": "pro", "text": "Carrier-Anbindungen außerhalb des Testmodus mit echten Zugangsdaten; ohne Zugangsdaten zeigt die Oberfläche 'Nicht verbunden'"},
+    {"tier": "enterprise", "text": "100.000 Artikel: Bestandsliste paginiert unter 1 Sekunde; tägliches Backup mit getesteter Wiederherstellung"}
+  ],
+  "production_dependencies": {"mvp": ["email", "storage"], "pro": ["email", "storage"], "enterprise": ["email", "storage", "oauth"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/articles", "/articles/new", "/articles/[id]", "/locations", "/stock", "/goods-receipts", "/goods-receipts/new", "/orders", "/orders/[id]", "/picking", "/picking/[id]", "/inventory", "/inventory/[id]", "/settings/users"], "pro": ["/shipments", "/batches", "/batches/[id]", "/reorder", "/suppliers", "/purchase-orders", "/purchase-orders/[id]", "/returns", "/reports", "/settings/carriers"], "enterprise": ["/waves", "/serials", "/valuation", "/audit", "/settings/channels", "/settings/api"]}
+}

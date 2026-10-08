@@ -1,10 +1,12 @@
 {
   "id": "phone-assistant",
   "name": "KI-Telefonassistent für den Support",
+  "kind": "product",
   "version": 2,
   "ui_language": "de",
   "aliases": ["telefonassistent", "telefon-assistent", "telefon assistent", "telefon-ki", "telefon ki", "ki-telefon", "voicebot", "voice bot", "voice-agent", "voice agent", "sprachassistent", "callbot", "anrufbeantworter mit ki", "telefonbot", "hotline-ki", "ki-hotline", "ki am telefon", "support telefon", "telefonsupport"],
   "summary": "Nimmt Support-Anrufe an, sagt dass es eine KI ist, versteht das Anliegen, antwortet kurz aus der eigenen Wissensbasis, erledigt Aktionen (Bestellstatus, Ticket, Rückruf) und übergibt an Menschen — mit Gesprächsprotokoll, Datenschutz und Auswertung.",
+  "design": {"personality": ["ruhig", "aufmerksam", "menschlich"], "typefaces": {"display": "Fraunces oder Newsreader", "text": "Manrope"}, "palette": "Markenton des Unternehmens, Übergabe in einem eigenen Ton, Rückruf amber, gelöst grün", "density": "comfortable", "signature_ideas": ["Gesprächsverlauf als Chat mit Wellenform der Stimme", "Automatisierungsquote als Hauptkachel mit Markenmerkmal"], "references": ["Aircall", "Intercom Fin", "Linear"], "avoid": ["Roboter-Icons", "Code-Werte von Absichten als Beschriftung"]},
   "roles": [
     {"id": "admin", "name": "Admin", "can": "alles inkl. Telefonie, Stimme, Wissensbasis, Benutzer"},
     {"id": "agent", "name": "Support-Mitarbeiter", "can": "Übergaben annehmen, Gespräche und Transkripte ansehen, Rückrufe erledigen"},

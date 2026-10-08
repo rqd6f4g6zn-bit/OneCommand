@@ -20,6 +20,19 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    ```bash
    python3 "$OC_ROOT/hooks/blueprint.py" detect --prompt "$ARGUMENTS"
    ```
+   **No match → research the domain, never guess it.** Print the template (`blueprint.py brief`) and fill
+   `domain_brief` in the spec before you write features:
+   - roles, the core processes step by step (each linked to a feature with a must-criterion);
+   - legal and professional duties with their source (§ …), deadlines;
+   - integrations split into connectable / export_only / not_possible — closed official systems are named,
+     not faked;
+   - a glossary (the UI uses these words), assumptions to confirm in `to_verify`;
+   - a design direction for the industry (personality, typefaces, palette, density, signature, references,
+     what looks cheap there).
+
+   Use web search when available; otherwise write from domain knowledge and list every uncertain fact in
+   `to_verify`. `blueprint.py check` fails until the brief is complete. A thin brief builds a thin product.
+
    On a match, expand it (`blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json`) and build the spec **on top of that draft**: keep every module and every criterion (`source` tag), add what the prompt asks for beyond it, adapt the wording. Only modules the user explicitly does not want may be left out — via `--exclude "<module>=<the user's reason>"`.
 
 2. **Analyze the prompt** — Extract:
@@ -166,7 +179,7 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    ```
    Exit 1 → fix every `✗` line.
 
-5b. **Validate the acceptance criteria** — the build must not start with an untestable spec (with a blueprint, also run `python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json`; it fails when a blueprint module or criterion was dropped):
+5b. **Validate the acceptance criteria** — the build must not start with an untestable spec (always run `python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json`: with a blueprint it fails when a module or criterion was dropped, without one when the domain brief is missing or thin):
    ```bash
    python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
    ```

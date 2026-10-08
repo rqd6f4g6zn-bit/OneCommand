@@ -110,6 +110,8 @@ Use the `onecommand-spec-analyzer` skill with the project prompt. For known syst
 python3 "$HOME/.codex/skills/onecommand/hooks/blueprint.py" detect --prompt "<user prompt>"
 # on a match: … blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json
 # build the spec on top of the draft, then: … blueprint.py check --spec .onecommand-spec.json
+# no match: fill domain_brief (blueprint.py brief) — check fails without it; start the design brief from
+# spec.design_direction / domain_brief.design
 ```
 Then use the `onecommand-stack-detector` skill.
 

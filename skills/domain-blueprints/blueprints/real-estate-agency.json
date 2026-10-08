@@ -1,0 +1,172 @@
+{
+  "id": "real-estate-agency",
+  "name": "Immobilienmakler",
+  "kind": "industry",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["immobilienmakler", "makler", "maklersoftware", "makler-software", "maklerbüro", "immobilienbüro", "immobilienvermittlung", "immobilienvermarktung", "objektvermarktung", "immobilienexposé", "real estate agent", "real estate agency", "realtor", "estate agent", "onoffice", "propstack", "flowfact"],
+  "summary": "Objekte von der Akquise bis zum Notartermin mit Exposé als PDF und Webseite, Energieausweis-Pflichtangaben, Portal-Export, Interessenten mit Suchprofil-Matching, Widerrufsbelehrung, Besichtigungen, Provisionsrechnung nach § 656c BGB und Geldwäsche-Pflichten des Maklers.",
+  "design": {"personality": ["hochwertig", "einladend", "souverän"], "typefaces": {"display": "DM Serif Display", "text": "DM Sans"}, "palette": "tiefes Nachtblau mit warmem Messing-Akzent, viel Weiß; die Objektfotos tragen die Farbe", "density": "comfortable", "signature_ideas": ["Pipeline-Board von Akquise bis Verkauf mit Provisionsvolumen je Spalte", "Exposé-Vorschau als Druckbogen neben dem Formular — genau das, was der Interessent sieht", "Energieeffizienz-Skala A+ bis H als Badge an jedem Objekt, rot umrandet solange Pflichtangaben fehlen"], "references": ["onOffice", "Propstack", "Engel & Völkers Exposés"], "avoid": ["Stockfotos lachender Familien", "Portal-Optik mit Bannern und Werbeflächen", "Preis groß, Energie- und Provisionsangaben versteckt"]},
+  "roles": [
+    {"id": "admin", "name": "Inhaber", "can": "alle Objekte, Kontakte, Rechnungen, Portalzugänge, Benutzer und GwG-Risikoanalyse"},
+    {"id": "agent", "name": "Makler", "can": "eigene und zugewiesene Objekte, Interessenten, Besichtigungen, Angebote, GwG-Identifizierung"},
+    {"id": "assistant", "name": "Assistenz", "can": "Objektdaten, Exposés, Anfragen und Besichtigungstermine pflegen; keine Rechnungen", "tier": "pro"},
+    {"id": "seller", "name": "Eigentümer", "can": "im Portal: Vermarktungsbericht zum eigenen Objekt, ohne Namen der Interessenten", "tier": "enterprise"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "passwordHash", "role", "branchId", "active"], "tier": "mvp"},
+    {"name": "Property", "fields": ["number", "title", "marketingType(sale|rent)", "propertyType(apartment|house|land|commercial)", "street", "zip", "city", "district", "showAddress", "livingAreaSqm", "plotAreaSqm", "rooms", "price", "buyerCommission", "constructionYear", "status(acquisition|preparation|marketing|reserved|sold|withdrawn)", "ownerId", "agentId", "description", "locationText", "photos", "floorPlans", "slug", "marketingStart"], "tier": "mvp"},
+    {"name": "EnergyCertificate", "fields": ["propertyId", "kind(consumption|demand|none_required)", "energyValueKwh", "primaryEnergySource", "buildingYear", "efficiencyClass", "validUntil", "exemptionReason", "file"], "tier": "mvp"},
+    {"name": "Contact", "fields": ["type(owner|prospect|buyer|tenant|other)", "firstName", "lastName", "email", "phone", "isConsumer", "consentMarketing", "source", "ownerId", "lastActivityAt"], "tier": "mvp"},
+    {"name": "SearchProfile", "fields": ["contactId", "marketingType", "propertyTypes", "cities", "minRooms", "minAreaSqm", "maxPrice", "active"], "tier": "mvp"},
+    {"name": "Inquiry", "fields": ["propertyId", "contactId", "source(website|portal|phone|email)", "message", "receivedAt", "withdrawalInfoSentAt", "earlyStartRequestedAt", "earlyStartWording", "status(new|expose_sent|viewing|offer|declined)"], "tier": "mvp"},
+    {"name": "Viewing", "fields": ["propertyId", "contactIds", "agentId", "start", "end", "meetingPoint", "energyCertificateShown", "status(planned|done|cancelled|no_show)", "feedback", "interestLevel(low|medium|high)"], "tier": "mvp"},
+    {"name": "Activity", "fields": ["contactId", "propertyId", "kind(expose_sent|call|email|viewing|offer|note)", "text", "userId", "createdAt"], "tier": "mvp"},
+    {"name": "Mandate", "fields": ["propertyId", "ownerId", "kind(simple|exclusive|qualified_exclusive)", "startDate", "endDate", "sellerCommission", "buyerCommission", "textFormDocument", "signedAt"], "tier": "pro"},
+    {"name": "Offer", "fields": ["propertyId", "contactId", "amount", "financingProof", "receivedAt", "status(open|accepted|declined|withdrawn)"], "tier": "pro"},
+    {"name": "CommissionInvoice", "fields": ["number", "propertyId", "recipientId", "side(buyer|seller|tenant|landlord)", "basisAmount", "ratePercent", "net", "vatRate", "vat", "gross", "issuedAt", "dueDate", "status(draft|sent|paid|cancelled)"], "tier": "pro"},
+    {"name": "GwgIdentification", "fields": ["contactId", "propertyId", "documentType", "documentNumber", "issuingAuthority", "validUntil", "nationality", "birthDate", "birthPlace", "isPep", "beneficialOwner", "riskLevel(low|normal|high)", "verifiedAt", "verifiedById", "copyFile", "retentionUntil"], "tier": "pro"},
+    {"name": "PortalListing", "fields": ["propertyId", "portal(immoscout24|immowelt|website)", "externalId", "status(draft|online|offline|error)", "lastExportAt", "lastError"], "tier": "pro"},
+    {"name": "Branch", "fields": ["name", "address", "managerId"], "tier": "enterprise"},
+    {"name": "CommissionSplit", "fields": ["invoiceId", "userId", "role(acquisition|sale|referral)", "percent", "amount"], "tier": "enterprise"},
+    {"name": "TrainingRecord", "fields": ["userId", "date", "topic", "hours", "provider", "certificate"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung & Rechte", "tier": "mvp",
+     "features": ["Login für das Maklerteam", "Makler sehen eigene und zugewiesene Objekte"],
+     "criteria": [
+       {"title": "Unauthenticated access to /dashboard redirects to /login", "verification": "e2e", "start": "/dashboard", "requires_auth": false, "steps": ["Open /dashboard without a session"], "expected": ["URL is /login"]}
+     ]},
+    {"id": "properties", "name": "Objekte & Vermarktungspipeline", "tier": "mvp",
+     "features": ["Objekterfassung: Art, Lage, Flächen, Zimmer, Preis, Ausstattung, Fotos, Grundrisse", "Pipeline: Akquise → Vorbereitung → Vermarktung → Reserviert → Verkauft", "Objekthistorie mit allen Aktivitäten", "Adresse im Exposé ausblenden bis zur Freigabe"],
+     "criteria": [
+       {"title": "A property moves through the pipeline and keeps its stage after a reload", "verification": "e2e", "start": "/properties", "requires_auth": true, "steps": ["Create Objekt 'ETW Südstadt', Kauf, Wohnung, 3 Zimmer, 92 m², 489.000 €", "Move the card from 'Akquise' to 'Vermarktung'", "Reload"], "expected": ["The card 'ETW Südstadt' is in column 'Vermarktung'", "The Objekt history shows 'Status geändert: Akquise → Vermarktung'"]}
+     ]},
+    {"id": "energy-certificate", "name": "Energieausweis & Pflichtangaben (§ 87 GEG)", "tier": "mvp",
+     "features": ["Art des Ausweises, Energiekennwert, wesentlicher Energieträger, Baujahr, Effizienzklasse", "Veröffentlichung gesperrt, solange Pflichtangaben fehlen", "Ausnahme mit Begründung (z. B. Baudenkmal)", "Pflichtangaben automatisch in Exposé, Webseite und Portal-Export"],
+     "criteria": [
+       {"title": "Publishing without energy certificate data is blocked", "verification": "e2e", "start": "/properties", "requires_auth": true, "steps": ["Open 'ETW Südstadt' without Energieausweis data", "Click 'Exposé veröffentlichen'"], "expected": ["Message 'Pflichtangaben zum Energieausweis fehlen: Art des Ausweises, Energiekennwert, Energieträger, Baujahr, Effizienzklasse' is visible", "The public exposé URL of 'ETW Südstadt' returns 404"]},
+       {"title": "The public exposé shows the mandatory energy data", "verification": "e2e", "start": "/properties", "requires_auth": true, "steps": ["Enter Verbrauchsausweis, 112 kWh/(m²·a), Erdgas, Baujahr 1994, Klasse D for 'ETW Südstadt'", "Click 'Exposé veröffentlichen'", "Open the public exposé page"], "expected": ["The page shows 'Verbrauchsausweis', '112 kWh/(m²·a)', 'Erdgas', 'Baujahr 1994' and 'Energieeffizienzklasse D'"]}
+     ]},
+    {"id": "expose", "name": "Exposé (PDF & Webseite)", "tier": "mvp",
+     "features": ["Exposé als PDF im Corporate Design: Titelbild, Eckdaten, Beschreibung, Lage, Grundrisse, Energieangaben, Provision", "Exposé-Webseite je Objekt mit Anfrageformular", "Genaue Adresse erst nach Freigabe", "Objektliste für die eigene Webseite"],
+     "criteria": [
+       {"title": "The PDF exposé contains price, commission and energy data", "verification": "e2e", "start": "/properties", "requires_auth": true, "steps": ["Open 'ETW Südstadt'", "Click 'Exposé als PDF'"], "expected": ["A PDF download starts", "The PDF text contains '489.000 €', 'Käuferprovision: 3,57 % inkl. MwSt.' and 'Energieeffizienzklasse D'"]},
+       {"title": "The exposé web page hides the street until the address is released", "verification": "e2e", "start": "/expose/[slug]", "requires_auth": false, "steps": ["Open the public exposé of 'ETW Südstadt' (Adresse anzeigen: Nein)"], "expected": ["Text 'Köln-Südstadt' is visible and the street name is not", "The form 'Exposé anfordern' is visible"]}
+     ]},
+    {"id": "prospects", "name": "Interessenten, Suchprofile & Matching", "tier": "mvp",
+     "features": ["Interessenten mit Suchprofil: Vermarktungsart, Objektart, Orte, Zimmer, Fläche, Höchstpreis", "Matching neuer Objekte gegen alle aktiven Suchprofile", "Exposé-Versand an ausgewählte Treffer mit Protokoll", "Löschung inaktiver Interessenten nach Frist, Werbung nur mit Einwilligung"],
+     "criteria": [
+       {"title": "Matching lists only prospects whose search profile fits", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["Create Interessent 'Lukas Meyer' with Suchprofil 'Kauf · Köln · ab 3 Zimmer · bis 500.000 €'", "Create Interessent 'Sarah Yilmaz' with Suchprofil 'Kauf · Köln · ab 3 Zimmer · bis 400.000 €'", "Open 'ETW Südstadt', tab 'Passende Interessenten'"], "expected": ["'Lukas Meyer' is listed", "'Sarah Yilmaz' is not listed"]},
+       {"title": "Sending the exposé to a match is logged on the contact", "verification": "e2e", "start": "/contacts", "requires_auth": true, "steps": ["In 'Passende Interessenten' select 'Lukas Meyer' and click 'Exposé senden'", "Open 'Lukas Meyer'"], "expected": ["Outbox contains one mail to Lukas Meyer with the exposé link and the 'Widerrufsbelehrung'", "Activities show 'Exposé gesendet: ETW Südstadt'"]}
+     ]},
+    {"id": "inquiries", "name": "Anfragen & Widerrufsbelehrung", "tier": "mvp",
+     "features": ["Anfragen aus Webseite, Portalen, Telefon und E-Mail in einer Liste", "Automatische Antwort an Verbraucher mit Widerrufsbelehrung und Muster-Widerrufsformular", "Ausdrückliches Verlangen des vorzeitigen Leistungsbeginns mit Zeitstempel und Wortlaut", "Doppelte Anfragen desselben Kontakts zusammenführen"],
+     "criteria": [
+       {"title": "An exposé request from a consumer receives the cancellation policy and is listed", "verification": "e2e", "start": "/expose/[slug]", "requires_auth": false, "steps": ["Fill 'Exposé anfordern' with name and e-mail", "Leave 'Ich verlange ausdrücklich, dass Sie vor Ende der Widerrufsfrist mit Ihrer Tätigkeit beginnen' unchecked", "Click 'Anfrage senden'", "Log in as Makler and open /inquiries"], "expected": ["Outbox contains a mail with 'Widerrufsbelehrung' and 'Muster-Widerrufsformular' and without the street address", "/inquiries lists the request with Status 'Neu' and 'Widerrufsbelehrung gesendet' with today's date"]},
+       {"title": "An express request for early start is stored with timestamp and wording", "verification": "api", "steps": ["POST an inquiry with the early-start checkbox set", "GET the inquiry"], "expected": ["POST returns 201", "GET returns the timestamp of the request and the exact wording the consumer confirmed"]}
+     ]},
+    {"id": "viewings", "name": "Besichtigungstermine", "tier": "mvp",
+     "features": ["Einzel- und Sammelbesichtigungen im Kalender je Makler", "Einladung mit Treffpunkt und Kalenderdatei", "Rückmeldung und Interesse nach dem Termin", "Bestätigung, dass der Energieausweis vorgelegt wurde"],
+     "criteria": [
+       {"title": "A booked viewing appears in the calendar and the prospect receives an invitation", "verification": "e2e", "start": "/viewings", "requires_auth": true, "steps": ["Create Besichtigung 'ETW Südstadt' for 'Lukas Meyer' tomorrow 17:00", "Open the calendar for tomorrow"], "expected": ["17:00 shows 'ETW Südstadt · Lukas Meyer'", "Outbox contains a mail to Lukas Meyer with date, time, Treffpunkt and an .ics attachment"]},
+       {"title": "A viewing can only be closed after confirming the energy certificate was shown", "verification": "e2e", "start": "/viewings", "requires_auth": true, "steps": ["Open the viewing and click 'Durchgeführt' without ticking 'Energieausweis vorgelegt'", "Tick 'Energieausweis vorgelegt', choose Interesse 'Hoch' and click 'Durchgeführt'"], "expected": ["First attempt: message 'Bitte bestätigen: Energieausweis vorgelegt (§ 80 GEG)' is visible", "Second attempt: Status 'Durchgeführt' and 'Interesse: Hoch' are shown on the contact"]}
+     ]},
+    {"id": "acquisition", "name": "Akquise & Maklerauftrag", "tier": "pro",
+     "features": ["Eigentümer-Leads mit Quelle und Bewertungstermin", "Wertermittlung im Vergleichswertverfahren als PDF", "Maklerauftrag: einfacher, Allein- oder qualifizierter Alleinauftrag mit Laufzeit", "Textform bei Wohnungen und Einfamilienhäusern", "Erinnerung vor Ablauf des Auftrags"],
+     "criteria": [
+       {"title": "An exclusive mandate expiring soon is flagged on the dashboard", "verification": "e2e", "start": "/acquisition", "requires_auth": true, "steps": ["Create Eigentümer-Lead 'Familie Roth, EFH Rodenkirchen'", "Move to 'Auftrag erhalten' with a qualifizierter Alleinauftrag ending in 20 days and the signed Auftrag uploaded", "Open /dashboard"], "expected": ["The dashboard shows 'Alleinauftrag läuft in 20 Tagen aus: EFH Rodenkirchen'", "/properties lists 'EFH Rodenkirchen' in column 'Vorbereitung'"]},
+       {"title": "A mandate for a single-family house without text form is rejected", "verification": "api", "steps": ["POST a mandate for an Einfamilienhaus without a signed text-form document"], "expected": ["Response is 422 with the message 'Ein Maklervertrag über eine Wohnung oder ein Einfamilienhaus bedarf der Textform (§ 656a BGB)'"]}
+     ]},
+    {"id": "portals", "name": "Portal-Export (OpenImmo)", "tier": "pro",
+     "features": ["Export im OpenImmo-Format (XML + Bilder als ZIP) an ImmoScout24, Immowelt und weitere Portale", "Portalauswahl je Objekt, Status je Portal", "Automatisches Offline-Nehmen bei Reservierung oder Verkauf", "Export gesperrt ohne Energieausweis-Pflichtangaben"],
+     "criteria": [
+       {"title": "The OpenImmo export contains the property with its energy data", "verification": "api", "steps": ["Select ImmoScout24 for 'ETW Südstadt'", "Trigger the export in test mode"], "expected": ["Response is 200 with a ZIP file", "The ZIP contains one OpenImmo XML with the external object number, the purchase price 489000 and an energiepass block with class 'D'", "The ZIP contains the property photos"]},
+       {"title": "A reserved property is taken offline in the next export", "verification": "e2e", "start": "/portals", "requires_auth": true, "steps": ["Set 'ETW Südstadt' to 'Reserviert'", "Open /portals and click 'Export jetzt ausführen'"], "expected": ["'ETW Südstadt' shows Status 'Offline' for ImmoScout24", "The export log shows 'Gelöscht: ETW Südstadt'"]}
+     ]},
+    {"id": "offers", "name": "Angebote & Reservierung", "tier": "pro",
+     "features": ["Kaufpreisangebote mit Finanzierungsnachweis", "Angebot annehmen: Objekt reserviert, andere Bieter informiert", "Notar-Datenblatt mit Käufer, Verkäufer, Objekt und Kaufpreis"],
+     "criteria": [
+       {"title": "Accepting an offer reserves the property and enables the notary data sheet", "verification": "e2e", "start": "/offers", "requires_auth": true, "steps": ["Both parties are identified under GwG", "Record Kaufpreisangebot 'Lukas Meyer' 475.000 € with Finanzierungsbestätigung", "Click 'Angebot annehmen'"], "expected": ["'ETW Südstadt' shows Status 'Reserviert'", "Other open offers show Status 'Abgelehnt'", "Button 'Notar-Datenblatt (PDF)' is enabled"]}
+     ]},
+    {"id": "commission", "name": "Provisionsrechnung", "tier": "pro",
+     "features": ["Provision je Seite mit Prozentsatz inkl. MwSt.", "Halbteilung bei Wohnungen und Einfamilienhäusern mit Verbraucher als Käufer", "Weitergabe an den Käufer höchstens 50 % und erst fällig nach Zahlung des Auftraggebers", "Bestellerprinzip bei Wohnraummiete", "Rechnung mit fortlaufender Nummer und Pflichtangaben, Zahlungseingang"],
+     "criteria": [
+       {"title": "Unequal commission for a house sold to a consumer is rejected", "verification": "api", "steps": ["Einfamilienhaus, buyer is a consumer, agent acts for both sides", "POST commissions: Verkäufer 2,38 %, Käufer 3,57 %"], "expected": ["Response is 422 with the message 'Bei Wohnungen und Einfamilienhäusern muss die Provision für Käufer und Verkäufer gleich hoch sein (§ 656c BGB)'"]},
+       {"title": "The commission invoice shows net, VAT and gross", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["After the notarised sale at 475.000 € create the Provisionsrechnung for the buyer at 3,57 % inkl. MwSt.", "Open the invoice"], "expected": ["Lines 'Netto 14.250,00 €', 'USt 19 % 2.707,50 €' and 'Gesamt 16.957,50 €' are visible", "The invoice shows a Rechnungsnummer, the Steuernummer or USt-IdNr. and the date of the notarial contract"]}
+     ]},
+    {"id": "gwg", "name": "Geldwäscheprävention (GwG)", "tier": "pro",
+     "features": ["Identifizierung beider Kaufvertragsparteien mit Ausweisdaten und Kopie", "Wirtschaftlich Berechtigte und PEP-Abfrage bei Gesellschaften", "Risikoeinstufung je Vorgang und Risikoanalyse des Büros", "Aufbewahrung fünf Jahre, Löschsperre bis dahin", "Hinweis auf Verdachtsmeldung an die FIU"],
+     "criteria": [
+       {"title": "The notary data sheet is blocked until both parties are identified", "verification": "e2e", "start": "/offers", "requires_auth": true, "steps": ["Buyer 'Lukas Meyer' identified, seller 'Familie Roth' not", "Click 'Notar-Datenblatt (PDF)'"], "expected": ["Message 'Identifizierung nach GwG fehlt: Verkäufer' is visible", "No PDF download starts"]},
+       {"title": "An identification record blocks deletion for five years", "verification": "e2e", "start": "/gwg", "requires_auth": true, "steps": ["Record the identification of 'Lukas Meyer': Personalausweis, number, authority, valid until, PEP 'Nein', copy uploaded", "Open 'Lukas Meyer' and click 'Kontakt löschen'"], "expected": ["/gwg shows 'Lukas Meyer · Identifiziert am' with today's date", "Message 'Löschung gesperrt bis 31.12.' of the year five years after the business relationship ends, with '(§ 8 Abs. 4 GwG)', is visible"]}
+     ]},
+    {"id": "reports", "name": "Dashboard & Auswertungen", "tier": "pro",
+     "features": ["Objekte in Vermarktung, Provisionsumsatz, Vermarktungsdauer, Besichtigungen", "Anfragen je Quelle und Portal", "Filter nach Makler und Zeitraum"],
+     "criteria": [
+       {"title": "Dashboard and reports show the same commission revenue for this year", "verification": "e2e", "start": "/dashboard", "requires_auth": true, "steps": ["Seed: two commission invoices this year, net 14.250,00 € and 9.000,00 €; one from last year", "Open /dashboard", "Open /reports with Zeitraum 'Dieses Jahr'"], "expected": ["Tile 'Provisionsumsatz (dieses Jahr)' shows 23.250,00 €", "/reports shows 'Provisionsumsatz (dieses Jahr)' 23.250,00 €"]}
+     ]},
+    {"id": "portal-api", "name": "Portal-Schnittstelle (ImmoScout24-API)", "tier": "enterprise",
+     "features": ["Veröffentlichen, Ändern, Offline-Nehmen über die ImmoScout24-API mit Partnerzugang des Maklers", "Portal-Anfragen automatisch als Anfrage mit Quelle übernehmen", "Klick- und Anfragestatistik je Objekt"],
+     "criteria": [
+       {"title": "Publishing through the portal API is idempotent and imports inquiries once", "verification": "api", "steps": ["Store sandbox API credentials (test mode)", "POST publish for 'ETW Südstadt' twice", "Trigger the inquiry import twice"], "expected": ["The listing shows Status 'Online' with one external id", "Each portal inquiry exists once with Quelle 'ImmoScout24'"]}
+     ]},
+    {"id": "owner-portal", "name": "Eigentümer-Reporting", "tier": "enterprise",
+     "features": ["Portal für Verkäufer: Anfragen, Besichtigungen, Rückmeldungen, Angebote zum eigenen Objekt", "Interessenten anonymisiert", "Wöchentlicher Vermarktungsbericht per E-Mail"],
+     "criteria": [
+       {"title": "A seller sees only their own property with anonymised prospects", "verification": "e2e", "start": "/owner", "requires_auth": true, "steps": ["Log in as Eigentümer of 'EFH Rodenkirchen'", "Open /owner"], "expected": ["'EFH Rodenkirchen' with 'Anfragen' and 'Besichtigungen' counts is visible; 'ETW Südstadt' is not", "Prospects appear as 'Interessent 1', 'Interessent 2' without names"]},
+       {"title": "A seller cannot fetch another property", "verification": "api", "steps": ["As Eigentümer of 'EFH Rodenkirchen', GET /api/properties/<id of 'ETW Südstadt'>"], "expected": ["Response is 403"]}
+     ]},
+    {"id": "valuation", "name": "Online-Immobilienbewertung (Eigentümer-Leads)", "tier": "enterprise",
+     "features": ["Bewertungsformular für die Webseite mit Preisspanne", "Lead mit Einwilligung landet in der Akquise", "Rückruf-Aufgabe für den Makler"],
+     "criteria": [
+       {"title": "A valuation request creates an acquisition lead", "verification": "e2e", "start": "/valuation", "requires_auth": false, "steps": ["Fill Objektart 'Wohnung', PLZ 50667, 85 m², Baujahr 1990, e-mail", "Tick the consent checkbox and click 'Bewertung anfordern'", "Log in as Makler and open /acquisition"], "expected": ["A price range 'von … bis … €' is visible", "/acquisition lists the new lead with Quelle 'Online-Bewertung'"]}
+     ]},
+    {"id": "branches", "name": "Filialen, Teams & Provisionsaufteilung", "tier": "enterprise",
+     "features": ["Filialen mit eigenen Maklern und Objekten", "Interne Provisionsaufteilung: Akquise, Verkauf, Tippgeber", "Weiterbildungsnachweis je Makler (20 Stunden in drei Jahren)"],
+     "criteria": [
+       {"title": "A paid commission is split between agents", "verification": "e2e", "start": "/settings/branches", "requires_auth": true, "steps": ["Commission invoice net 14.250,00 € is paid", "Assign Akquise 30 % to 'Anna Weber' and Verkauf 70 % to 'Tom Krüger'", "Open /reports with filter 'Je Makler'"], "expected": ["'Anna Weber' shows 4.275,00 € and 'Tom Krüger' 9.975,00 €"]},
+       {"title": "Missing training hours are flagged per agent", "verification": "e2e", "start": "/settings/branches", "requires_auth": true, "steps": ["Record 12 training hours for 'Tom Krüger' in the current three-year period", "Open 'Tom Krüger'"], "expected": ["Text 'Weiterbildung: 12 von 20 Stunden' is visible with the end of the period"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "active_listings", "tier": "pro", "label": "Objekte in Vermarktung (aktuell)", "unit": "Anzahl", "definition": "Objekte mit Status Vermarktung, die der Nutzer sehen darf", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/properties"]},
+    {"id": "commission_ytd", "tier": "pro", "label": "Provisionsumsatz (dieses Jahr)", "unit": "EUR", "definition": "Nettosumme der Provisionsrechnungen mit Rechnungsdatum im laufenden Kalenderjahr, ohne stornierte", "period": "Dieses Jahr", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "avg_marketing_days", "tier": "pro", "label": "Ø Vermarktungsdauer (letzte 12 Monate)", "unit": "Tage", "definition": "Durchschnitt der Tage von Vermarktungsbeginn bis Reservierung für Objekte, die in den letzten 12 Monaten reserviert wurden", "period": "letzte 12 Monate", "shown_on": ["/reports"]},
+    {"id": "viewings_week", "tier": "pro", "label": "Besichtigungen (diese Woche)", "unit": "Anzahl", "definition": "geplante und durchgeführte Besichtigungen von Montag bis Sonntag der laufenden Kalenderwoche, ohne abgesagte", "period": "Diese Woche", "shown_on": ["/dashboard", "/viewings"]}
+  ],
+  "compliance": [
+    {"rule": "Pflichtangaben zum Energieausweis in kommerziellen Immobilienanzeigen: Art des Ausweises, Energiekennwert, wesentlicher Energieträger, Baujahr, Effizienzklasse", "source": "§ 87 GEG", "tier": "mvp"},
+    {"rule": "Energieausweis spätestens bei der Besichtigung vorlegen", "source": "§ 80 GEG", "tier": "mvp"},
+    {"rule": "Verbraucher bei Fernabsatz-Maklerverträgen über das 14-tägige Widerrufsrecht belehren, mit Muster-Widerrufsformular", "source": "§§ 312g, 355 BGB; Art. 246a EGBGB", "tier": "mvp"},
+    {"rule": "Tätigkeit vor Ablauf der Widerrufsfrist nur auf ausdrückliches Verlangen des Verbrauchers; Verlangen dokumentieren", "source": "§ 356 Abs. 4 BGB; § 357a BGB", "tier": "mvp"},
+    {"rule": "Interessentendaten zweckgebunden verarbeiten, E-Mail-Werbung nur mit Einwilligung, Löschung nach Zweckende", "source": "Art. 6 und 17 DSGVO; § 7 UWG", "tier": "mvp"},
+    {"rule": "Maklervertrag über Wohnung oder Einfamilienhaus bedarf der Textform", "source": "§ 656a BGB", "tier": "pro"},
+    {"rule": "Bei Tätigkeit für beide Seiten: Provision für Käufer und Verkäufer nur in gleicher Höhe (Wohnung, Einfamilienhaus, Käufer Verbraucher)", "source": "§ 656c BGB", "tier": "pro"},
+    {"rule": "Weitergabe der Provision an den Käufer höchstens zur Hälfte und erst fällig nach Nachweis der Zahlung des Auftraggebers", "source": "§ 656d BGB", "tier": "pro"},
+    {"rule": "Bestellerprinzip: Wohnungssuchender zahlt nur, wenn der Makler ausschließlich für ihn tätig wurde", "source": "§ 2 Abs. 1a WoVermittG", "tier": "pro"},
+    {"rule": "Provisionsrechnung mit den Pflichtangaben einer Rechnung und fortlaufender Nummer", "source": "§ 14 UStG", "tier": "pro"},
+    {"rule": "Immobilienmakler sind Verpflichtete nach dem GwG (bei Miete ab 10.000 € Monatsmiete)", "source": "§ 2 Abs. 1 Nr. 14 GwG", "tier": "pro"},
+    {"rule": "Beide Kaufvertragsparteien identifizieren, sobald ernsthaftes Kaufinteresse besteht", "source": "§ 11 Abs. 2 GwG", "tier": "pro"},
+    {"rule": "Wirtschaftlich Berechtigte feststellen, PEP-Status abklären", "source": "§§ 10, 11 GwG", "tier": "pro"},
+    {"rule": "Risikoanalyse des Büros dokumentieren und aktuell halten", "source": "§ 5 GwG", "tier": "pro"},
+    {"rule": "Aufzeichnungen und Ausweiskopien fünf Jahre aufbewahren, danach löschen", "source": "§ 8 Abs. 4 GwG", "tier": "pro"},
+    {"rule": "Verdachtsfälle unverzüglich der FIU melden; den Betroffenen nicht informieren", "source": "§§ 43, 47 GwG", "tier": "pro"},
+    {"rule": "Weiterbildungspflicht für Immobilienmakler: 20 Stunden in drei Kalenderjahren", "source": "§ 34c Abs. 2a GewO; MaBV", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["ImmoScout24 REST-API — nur mit Partnerzugang und API-Schlüssel des Maklerkontos", "E-Mail (SMTP/IMAP) für Anfragen, Exposé-Versand und Einladungen", "Kalender (Google, Microsoft 365) für Besichtigungen", "Video-Ident-Anbieter für die GwG-Identifizierung aus der Ferne (mit Vertrag)"],
+    "export_only": ["OpenImmo-XML als ZIP per FTP an Immowelt, ImmoScout24 und weitere Portale", "OpenImmo-Feedback — Portal-Anfragen als XML-Import", "Exposé und Notar-Datenblatt als PDF", "DATEV-Export der Provisionsrechnungen (EXTF-CSV)"],
+    "not_possible": ["FIU goAML — Verdachtsmeldungen gibt der Makler selbst im goAML-Portal ab", "Transparenzregister — Einsicht nur nach Registrierung im Register selbst, keine offene Schnittstelle; Auszug wird hochgeladen", "Grundbuch — Auszüge nur über Eigentümer, Notar oder berechtigte Stellen; die App speichert hochgeladene PDFs", "Gutachterausschüsse/Bodenrichtwerte — je Bundesland eigene Portale ohne einheitliche API; Werte werden erfasst"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Preise und Provisionen in Cent gespeichert, Anzeige im deutschen Format (489.000 €)"},
+    {"tier": "mvp", "text": "Fotos beim Upload verkleinert und als WebP ausgeliefert, Original bleibt für PDF und Portal-Export"},
+    {"tier": "mvp", "text": "Exposé-Seiten öffentlich ohne Login, mit Open-Graph-Bild und ohne genaue Adresse vor Freigabe"},
+    {"tier": "pro", "text": "Ausweiskopien und GwG-Daten verschlüsselt gespeichert, nur für Makler und Inhaber lesbar, Zugriffe protokolliert"},
+    {"tier": "pro", "text": "Rechnungen nach Versand unveränderlich, Korrektur nur per Stornorechnung"},
+    {"tier": "enterprise", "text": "Portal-Synchronisation als Hintergrundjob mit Wiederholung und Fehlerprotokoll je Objekt"}
+  ],
+  "production_dependencies": {"mvp": ["email", "storage"], "pro": ["email", "storage"], "enterprise": ["email", "storage", "oauth"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/properties", "/properties/[id]", "/expose/[slug]", "/contacts", "/contacts/[id]", "/inquiries", "/viewings", "/settings/users"], "pro": ["/acquisition", "/offers", "/invoices", "/invoices/[id]", "/gwg", "/portals", "/reports"], "enterprise": ["/owner", "/valuation", "/settings/branches", "/settings/portals"]}
+}

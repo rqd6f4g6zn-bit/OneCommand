@@ -179,9 +179,13 @@ python3 hooks/video.py check public/videos                   # formats, faststar
 
 ## Knows the Domain
 
-Short prompts are enough for common business systems. OneCommand ships domain blueprints for
-**CRM, online shop, appointment booking, helpdesk, project management, invoicing and corporate/premium websites** — what a
-professional expects from each, as modules with concrete acceptance criteria:
+Short prompts are enough. OneCommand ships 18 domain blueprints — **products** (CRM, online shop, appointment
+booking, helpdesk, project management, invoicing, AI phone assistant, corporate/premium website, recruiting,
+warehouse) and **industries** (notary, law firm, tax advisor, medical practice, property management, real-estate
+agency, trades, restaurant). Each holds what a professional in that field expects: modules with acceptance criteria,
+legal duties with their source, honest integrations (what an app cannot connect to) and a design direction for the
+industry. "Software für unser Notariat" or "Webseite für unser Restaurant" is a complete brief. For any other
+industry the spec must carry a researched domain brief before the build starts.
 
 | Prompt says | Tier | Example: CRM |
 |---|---|---|

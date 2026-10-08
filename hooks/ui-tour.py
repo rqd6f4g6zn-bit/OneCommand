@@ -715,14 +715,15 @@ def evaluate(data: dict[str, Any], first_account: str | None) -> tuple[list[str]
 def design_findings(data: dict[str, Any]) -> list[str]:
     """Design-audit results of all visits, one line per distinct finding with the pages it occurs on."""
     pages: dict[str, list[str]] = {}
+    found = [f"{msg} — project" for msg in data.get("project_design", [])]
     for v in data.get("visits", []):
         for d in v.get("design") or []:
             where = f"{v['path']} ({v['viewport']})"
             pages.setdefault(d["msg"], [])
             if where not in pages[d["msg"]]:
                 pages[d["msg"]].append(where)
-    return [f"{msg} — on {', '.join(w[:4])}{f' and {len(w) - 4} more' if len(w) > 4 else ''}"
-            for msg, w in pages.items()]
+    return found + [f"{msg} — on {', '.join(w[:4])}{f' and {len(w) - 4} more' if len(w) > 4 else ''}"
+                    for msg, w in pages.items()]
 
 
 def write_reports(out_dir: Path, spec: dict[str, Any], data: dict[str, Any], blocking: list[str],
@@ -877,6 +878,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             server.stop()
 
     data = json.loads((out_dir / "tour.json").read_text(encoding="utf-8"))
+    if not (project / ".onecommand" / "design.md").exists():
+        data["project_design"] = ["no design brief (.onecommand/design.md) — oc-frontend-design was not applied; "
+                                  "write the brief from spec.design_direction, derive the tokens from it, re-run the tour"]
     first = accounts[0]["email"] if accounts else None
     blocking, warnings, notes = evaluate(data, first)
     write_reports(out_dir, spec, data, blocking, warnings, notes, first)

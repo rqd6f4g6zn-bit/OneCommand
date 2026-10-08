@@ -1,10 +1,12 @@
 {
   "id": "website",
   "name": "Unternehmenswebseite / Premium-Website",
+  "kind": "product",
   "version": 1,
   "ui_language": "de",
   "aliases": ["webseite", "website", "homepage", "landingpage", "landing page", "unternehmenswebseite", "firmenwebseite", "internetauftritt", "webauftritt", "corporate website", "markenwebseite", "agenturwebseite", "portfolio-seite", "imagewebseite"],
   "summary": "Marken- und Unternehmenswebseite auf Agenturniveau: Designsystem, Motion, Hero-Video, Referenzen, CMS für die Redaktion, Mehrsprachigkeit, SEO, Barrierefreiheit, DSGVO und ein hartes Performance-Budget.",
+  "design": {"personality": ["eigenständig", "selbstbewusst", "präzise"], "typefaces": {"display": "charakterstarke Display-Schrift aus der Marke", "text": "gut lesbare Grotesk"}, "palette": "aus dem Markenkern, ein starker Akzent, viel Weißraum oder bewusst dunkel", "density": "spacious", "signature_ideas": ["Hero mit eigenem Film oder Bewegungs-Motiv", "wiederkehrendes grafisches Raster aus der Marke"], "references": ["Stripe", "Linear", "Vercel"], "avoid": ["Template-Hero mit Stockfoto", "Fade-in auf jedem Absatz", "drei Icons in drei Spalten"]},
   "roles": [
     {"id": "editor", "name": "Redaktion", "can": "Seiten, Referenzen, Artikel und Stellen im CMS pflegen, Vorschau, veröffentlichen", "tier": "pro"},
     {"id": "admin", "name": "Admin", "can": "alles inkl. Benutzer, Formular-Empfänger, Integrationen", "tier": "pro"}

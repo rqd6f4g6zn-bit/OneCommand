@@ -34,7 +34,9 @@ halfway down the page. The UI tour now measures these (`hooks/ui-tour.py`, desig
 
 ### 1. Design brief first — `.onecommand/design.md`
 
-Before the first component, write the brief and derive every token from it:
+Before the first component, write the brief and derive every token from it. Start from the spec's
+`design_direction` (blueprint) or `domain_brief.design` (researched domain): it says what this industry
+expects and what looks cheap there. Adapt it to the customer's brand and name — do not copy it verbatim.
 
 | Field | Content |
 |---|---|

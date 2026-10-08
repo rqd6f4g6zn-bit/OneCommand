@@ -226,7 +226,8 @@ python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.j
 ```
 Exit 1 → fix the reported criteria in `.onecommand-spec.json` and validate again (max 3 rounds). Do not continue to Phase 2 with an invalid spec.
 
-If the spec has a `blueprint`, it must still cover it — no module or blueprint criterion silently dropped:
+The spec must cover its `blueprint` (no module or criterion silently dropped) — or, when no blueprint matched,
+carry a complete `domain_brief` (roles, processes, legal rules, deadlines, integrations, glossary, design):
 ```bash
 python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json
 ```

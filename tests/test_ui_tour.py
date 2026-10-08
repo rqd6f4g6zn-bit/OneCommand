@@ -382,3 +382,11 @@ def test_design_audit_in_a_real_browser(tmp_path):
     assert "sidebar background ends at 900px" in bad["layout"]
     assert '"Fraunces Display" is not loaded' in bad["font"]
     assert result["good"] == [], result["good"]
+
+
+def test_missing_design_brief_is_a_design_finding(tmp_path):
+    data = {"logins": [], "visits": [visit(screenshot="001.png")],
+            "project_design": ["no design brief (.onecommand/design.md) — oc-frontend-design was not applied"]}
+    tour.write_reports(tmp_path, SPEC, data, [], [], [], "admin@x.demo")
+    review = (tmp_path / "review.md").read_text()
+    assert "  - ✗ no design brief (.onecommand/design.md)" in review and review.count("— project") == 1

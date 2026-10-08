@@ -1,0 +1,181 @@
+{
+  "id": "law-firm",
+  "name": "Anwaltskanzlei",
+  "kind": "industry",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["anwaltskanzlei", "anwaltssoftware", "anwaltsbüro", "anwaltspraxis", "rechtsanwalt", "rechtsanwältin", "rechtsanwälte", "rechtsanwaltskanzlei", "anwalt", "anwältin", "anwälte", "mandatsverwaltung", "law firm", "legal practice management", "ra-micro", "advoware"],
+  "summary": "Akten mit Aktenzeichen, Kollisionsprüfung, Fristen- und Wiedervorlagenkalender mit Vorfrist und Doppelkontrolle, Schriftsätze aus Vorlagen, Zeiterfassung und Abrechnung nach RVG oder Vergütungsvereinbarung für eine deutsche Anwaltskanzlei.",
+  "design": {"personality": ["souverän", "diskret", "klar"], "typefaces": {"display": "Source Serif 4", "text": "Inter"}, "palette": "tiefes Petrol als Kanzleiton auf warmem Off-White, Fristen in gestuftem Rot erst ab Vorfrist, sonst zurückhaltende Grautöne", "density": "compact", "signature_ideas": ["Fristenleiste am Seitenkopf: heute ablaufende Notfristen bleiben rot sichtbar, bis sie erledigt und doppelt kontrolliert sind", "Aktenzeichen '123/26' als feste Kennung in jedem Kopf, daneben das Rubrum 'Muster ./. Beispiel GmbH'", "Akten-Zeitachse: Posteingang, Fristen, Schriftsätze, Zeiten und Rechnungen auf einer Linie"], "references": ["Clio", "RA-MICRO", "Linear"], "avoid": ["Justitia- und Paragrafen-Clipart", "Fristen als kleine graue Badges, die man übersieht", "bunte Dashboard-Kacheln ohne Handlung"]},
+  "roles": [
+    {"id": "admin", "name": "Kanzleiinhaber", "can": "alle Akten, Benutzer, Gebührentabellen, Einstellungen, Auswertungen; arbeitet zugleich als Rechtsanwalt"},
+    {"id": "lawyer", "name": "Rechtsanwalt/Rechtsanwältin", "can": "eigene und zugewiesene Akten, Kollisionen entscheiden, Fristen erledigen und kontrollieren, Rechnungen freigeben"},
+    {"id": "clerk", "name": "Rechtsanwaltsfachangestellte", "can": "Akten anlegen, Posteingang erfassen, Fristen notieren und kontrollieren, Wiedervorlagen, Schriftsätze vorbereiten, Rechnungsentwürfe"},
+    {"id": "client", "name": "Mandant (Portal)", "can": "eigene Akten, freigegebene Dokumente und Rechnungen sehen, Unterlagen hochladen, Nachrichten senden", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "passwordHash", "role(admin|lawyer|clerk|client)", "initials", "clientId", "active"], "tier": "mvp"},
+    {"name": "Client", "fields": ["type(person|company)", "name", "address", "email", "phone", "registerNumber", "vatId", "createdAt"], "tier": "mvp"},
+    {"name": "Matter", "fields": ["fileNumber", "caption", "subject", "area(civil|labour|family|criminal|administrative|commercial|tenancy|other)", "status(in_review|active|dormant|closed)", "clientId", "responsibleLawyerId", "clerkId", "court", "courtFileNumber", "valueInDispute", "billingMode(rvg|hourly|flat)", "gwgRelevant", "openedAt", "closedAt"], "tier": "mvp"},
+    {"name": "MatterParty", "fields": ["matterId", "name", "role(client|opponent|opposing_counsel|court|third_party|witness)", "address", "representedBy"], "tier": "mvp"},
+    {"name": "ConflictCheck", "fields": ["matterId", "searchedNames", "hits", "decision(pending|clear|conflict)", "reason", "decidedById", "decidedAt"], "tier": "mvp"},
+    {"name": "Deadline", "fields": ["matterId", "type(notfrist|appeal_reasoning|statutory|judicial|limitation|internal)", "title", "triggerDate", "dueDate", "preDeadlineDate", "responsibleLawyerId", "enteredById", "checkedById", "checkedAt", "status(open|done|struck)", "doneNote", "doneById", "strikeReason"], "tier": "mvp"},
+    {"name": "FollowUp", "fields": ["matterId", "date", "note", "assigneeId", "done"], "tier": "mvp"},
+    {"name": "Document", "fields": ["matterId", "folder(correspondence|court|client|opponent|internal)", "title", "version", "fileId", "createdById", "releasedToClient", "createdAt"], "tier": "mvp"},
+    {"name": "Template", "fields": ["name", "kind(brief|letter|power_of_attorney|invoice)", "body", "version"], "tier": "mvp"},
+    {"name": "FeeAgreement", "fields": ["matterId", "type(hourly|flat)", "hourlyRate", "flatAmount", "signedAt", "fileId"], "tier": "mvp"},
+    {"name": "TimeEntry", "fields": ["matterId", "userId", "date", "minutes", "activity", "billable", "invoiceId"], "tier": "mvp"},
+    {"name": "FeeTable", "fields": ["name", "validFrom", "rows"], "tier": "mvp"},
+    {"name": "Invoice", "fields": ["matterId", "number", "kind(rvg|time|flat|advance|credit_note)", "valueInDispute", "items", "expenses", "netAmount", "vatAmount", "totalAmount", "advanceDeducted", "status(draft|issued|paid|cancelled)", "issuedAt"], "tier": "mvp"},
+    {"name": "AuditLog", "fields": ["userId", "action", "entity", "entityId", "at", "ip"], "tier": "mvp"},
+    {"name": "IncomingMail", "fields": ["matterId", "kind(judgment|order|brief|letter|other)", "channel(post|bea_export|email|fax)", "receivedAt", "servedAt", "fileId", "deadlinesNoted"], "tier": "pro"},
+    {"name": "OutgoingFiling", "fields": ["documentId", "exportedAt", "sentAt", "proofFileId", "status(exported|sent)"], "tier": "pro"},
+    {"name": "GwgCheck", "fields": ["matterId", "catalogueBusiness", "riskLevel(low|medium|high)", "identifiedAt", "beneficialOwners", "transparencyRegisterFileId", "status(open|completed)", "retainUntil"], "tier": "pro"},
+    {"name": "TrustMoney", "fields": ["matterId", "amount", "receivedAt", "payer", "payee", "forwardedAt", "status(to_forward|forwarded)"], "tier": "pro"},
+    {"name": "Appointment", "fields": ["matterId", "type(court|meeting|other)", "start", "end", "location", "lawyerId"], "tier": "pro"},
+    {"name": "Absence", "fields": ["userId", "from", "to", "substituteId"], "tier": "pro"},
+    {"name": "Department", "fields": ["name", "lawyerIds", "clerkIds", "location", "state"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung, Rollen & Mandatsgeheimnis", "tier": "mvp",
+     "features": ["Login mit E-Mail und Passwort, Abmeldung nach Inaktivität", "Rollen Kanzleiinhaber, Rechtsanwalt, Rechtsanwaltsfachangestellte (pro: Mandant)", "Akten nur für Kanzleimitarbeiter sichtbar", "Lesezugriffe auf Akten werden protokolliert (§ 43a Abs. 2 BRAO, § 203 StGB)"],
+     "criteria": [
+       {"title": "Unauthenticated access to /matters redirects to /login", "verification": "e2e", "start": "/matters", "requires_auth": false, "steps": ["Open /matters without a session"], "expected": ["URL is /login"]},
+       {"title": "GET /api/matters/<id> without a session returns 401 and no client data", "verification": "api", "steps": ["GET /api/matters/<id> without cookies"], "expected": ["Status 401", "Response body contains no client name"]}
+     ]},
+    {"id": "matters", "name": "Akten & Aktenzeichen", "tier": "mvp",
+     "features": ["Aktenzeichen automatisch fortlaufend je Jahr (z. B. 123/26), optional mit Dezernatskürzel", "Rubrum 'Mandant ./. Gegner', Rechtsgebiet, Gegenstand, Gegenstandswert", "Beteiligte: Mandant, Gegner, Gegenanwalt, Gericht mit gerichtlichem Aktenzeichen, Dritte", "Status In Prüfung → Aktiv → Ruhend → Abgelegt; Ablage erst ohne offene Fristen", "Aktenübersicht mit Fristen, Wiedervorlagen, Dokumenten, Zeiten und Rechnungen", "Suche über Aktenzeichen, Beteiligte und gerichtliches Aktenzeichen"],
+     "criteria": [
+       {"title": "New matter gets the next file number of the year and shows the caption", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Click 'Neue Akte'", "Choose Mandant 'Erika Muster', add Gegner 'Beispiel GmbH', Rechtsgebiet 'Arbeitsrecht'", "Click 'Anlegen'", "Create a second matter the same way"], "expected": ["URL is /matters/<id>", "Heading shows '<n>/<JJ>' and 'Muster ./. Beispiel GmbH'", "The second matter has the number '<n+1>/<JJ>'"]},
+       {"title": "Search by the court's file number finds the matter", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Enter gerichtliches Aktenzeichen '3 Ca 123/26' in a matter and save", "Search '3 Ca 123/26' in /matters"], "expected": ["Exactly that matter is listed"]}
+     ]},
+    {"id": "conflict-check", "name": "Kollisionsprüfung", "tier": "mvp",
+     "features": ["Mandant, Gegner und weitere Beteiligte werden gegen alle Akten der Kanzlei geprüft, auch abgelegte, mit Schreibvarianten", "Treffer zeigen die frühere Rolle (z. B. 'war Mandant in 12/25')", "Akte wird erst nach dokumentierter Prüfung aktiv", "Entscheidung nur durch einen Rechtsanwalt mit Begründung; Interessenkonflikt sperrt die Mandatsannahme", "Prüfung über alle Berufsträger der Sozietät (§ 43a Abs. 4 BRAO, § 3 BORA)"],
+     "criteria": [
+       {"title": "Creating a matter against a former client shows a conflict hit", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["'Erika Muster' is Mandant in matter 12/25", "Create a new matter with Gegner 'Erika Muster'"], "expected": ["Text 'Möglicher Interessenkonflikt: Erika Muster war Mandant in 12/25' is visible", "Matter status is 'In Prüfung'"]},
+       {"title": "Only a lawyer clears a hit, and the documented decision activates the matter", "verification": "e2e", "start": "/conflicts", "requires_auth": true, "steps": ["As Rechtsanwaltsfachangestellte open the open hit", "As lawyer open the hit, click 'Kein Konflikt', fill a reason, click 'Speichern'", "Reload the matter"], "expected": ["The Rechtsanwaltsfachangestellte sees no button 'Kein Konflikt'", "The matter shows 'Kollisionsprüfung: kein Konflikt' with the lawyer's name, the date and the reason", "Matter status is 'Aktiv'"]}
+     ]},
+    {"id": "deadlines", "name": "Fristen- & Wiedervorlagenkalender", "tier": "mvp",
+     "features": ["Fristarten: Notfrist (Berufung, Revision, Einspruch gegen Versäumnisurteil), Rechtsmittelbegründungsfrist, gesetzliche und richterliche Frist, Verjährung, interne Frist", "Fristberechnung nach §§ 187, 188 BGB und § 222 ZPO: Ende an Samstag, Sonntag oder Feiertag am Gerichtsort verschiebt sich auf den nächsten Werktag", "Vorfrist automatisch, Standard eine Woche vor Ablauf, je Fristart einstellbar", "Tagesliste 'Heute' je Anwalt und kanzleiweit mit Fristen, Vorfristen und Wiedervorlagen; überfällige oben", "Wiedervorlagen mit Datum, Verantwortlichem und Notiz", "Eskalation: am Ablauftag noch offene Frist um 12:00 per E-Mail an Anwalt und Kanzleiinhaber"],
+     "criteria": [
+       {"title": "Deadline ending on a Saturday or a regional holiday moves to the next working day", "verification": "api", "steps": ["POST /api/deadlines/calculate with type 'Berufungsfrist' (1 Monat), Zustellung 2026-09-10, court in Hamburg", "POST /api/deadlines/calculate with a 1-week period ending 2026-06-04 (Fronleichnam), once for a court in München and once in Hamburg"], "expected": ["First response: dueDate 2026-10-12 and preDeadlineDate 2026-10-05", "München: dueDate 2026-06-05; Hamburg: dueDate 2026-06-04"]},
+       {"title": "Vorfrist appears in the daily list one week before the deadline", "verification": "e2e", "start": "/deadlines", "requires_auth": true, "steps": ["Enter 'Berufungsbegründungsfrist' due today + 7 days in a matter", "Open /deadlines, tab 'Heute'"], "expected": ["Row 'Vorfrist: Berufungsbegründungsfrist' with the file number and the expiry date is listed"]}
+     ]},
+    {"id": "deadline-control", "name": "Fristenkontrolle", "tier": "mvp",
+     "features": ["Doppelkontrolle für Notfristen und Rechtsmittelbegründungsfristen: eintragende und kontrollierende Person sind verschieden", "Ungeprüfte Fristen rot markiert, bis die zweite Person kontrolliert", "Erledigung nur durch einen Rechtsanwalt mit Erledigungsvermerk (z. B. 'Berufung per beA eingelegt am …')", "Keine Löschung: Streichung nur mit Grund, Name und Zeitpunkt", "Fristenkontrollblatt je Tag als PDF", "Akte kann nicht abgelegt werden, solange Fristen offen sind"],
+     "criteria": [
+       {"title": "A Notfrist is marked 'Kontrolliert' only after a second person confirms it", "verification": "e2e", "start": "/deadlines", "requires_auth": true, "steps": ["As Rechtsanwaltsfachangestellte enter Notfrist 'Berufungsfrist' in a matter", "In /deadlines open that deadline", "Log in as lawyer, open it and click 'Frist kontrollieren'", "Reload"], "expected": ["For the person who entered it, 'Frist kontrollieren' is disabled with hint 'Kontrolle durch eine zweite Person'", "Before the second check the row shows 'Ungeprüft'", "After reload the row shows 'Kontrolliert von' with the lawyer's name"]},
+       {"title": "A deadline cannot be deleted, only struck with a reason", "verification": "e2e", "start": "/deadlines", "requires_auth": true, "steps": ["Open a deadline", "Click 'Frist streichen' with an empty reason", "Fill reason 'Rechtsmittel nicht eingelegt — Mandant informiert' and confirm", "Reload"], "expected": ["Text 'Grund angeben' is visible for the empty reason", "After reload the deadline is shown as 'Gestrichen' with the reason and the user's name", "No button 'Löschen' is shown on deadlines"]}
+     ]},
+    {"id": "documents", "name": "Dokumente & Schriftsatzvorlagen", "tier": "mvp",
+     "features": ["Dokumente je Akte in Ordnern (Schriftverkehr, Gericht, Mandant, Gegner, Intern) mit Versionen", "Schriftsatz- und Briefvorlagen mit Platzhaltern (Rubrum, Aktenzeichen, Gericht, Gegenanwalt) und Kanzlei-Briefkopf", "Schriftsatz als DOCX/PDF erzeugen", "Volltextsuche in Dokumenten, OCR für Scans", "Vollmacht und Mandatsbedingungen als Vorlage"],
+     "criteria": [
+       {"title": "Brief generated from a template carries caption and both file numbers", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Open matter 'Muster ./. Beispiel GmbH' with gerichtliches Aktenzeichen '3 Ca 123/26'", "Click 'Schriftsatz erstellen'", "Choose template 'Klageerwiderung'"], "expected": ["Document 'Klageerwiderung' version 1 is listed under 'Dokumente'", "The preview contains 'Muster ./. Beispiel GmbH', '3 Ca 123/26' and the firm's file number", "No placeholder in double curly braces remains in the preview"]}
+     ]},
+    {"id": "billing", "name": "Zeiterfassung & Abrechnung (RVG / Vergütungsvereinbarung)", "tier": "mvp",
+     "features": ["Zeiterfassung je Akte mit Stoppuhr oder manuell, Taktung einstellbar (z. B. 6 Minuten), Tätigkeit, abrechenbar ja/nein", "RVG-Abrechnung: Gegenstandswert, Gebührentabelle nach § 13 RVG als versionierte Tabelle, Geschäfts-, Verfahrens-, Termins- und Einigungsgebühr nach VV RVG, Pauschale Nr. 7002, Umsatzsteuer Nr. 7008", "Anrechnung der Geschäftsgebühr auf die Verfahrensgebühr (Vorbem. 3 Abs. 4 VV RVG)", "Vergütungsvereinbarung in Textform hinterlegen (§ 3a RVG): Stundensatz oder Pauschale", "Warnung, wenn eine Vereinbarung in gerichtlichen Verfahren unter der gesetzlichen Vergütung liegt (§ 49b BRAO, § 4 RVG)", "Rechnung mit Angaben nach § 10 RVG und § 14 UStG, fortlaufende Nummern, Storno per Gutschrift"],
+     "criteria": [
+       {"title": "RVG invoice for a first-instance lawsuit lists Verfahrens- and Terminsgebühr from the active table", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Open a matter with Gegenstandswert 10.000 €", "Click 'Rechnung erstellen', choose 'RVG — Gerichtliches Verfahren 1. Instanz'"], "expected": ["Line 'Nr. 3100 VV RVG Verfahrensgebühr 1,3' equals 1,3 × the 1,0 fee of the active § 13 RVG table for 10.000 €", "Line 'Nr. 3104 VV RVG Terminsgebühr 1,2' equals 1,2 × that fee", "Line 'Nr. 7002 VV RVG Pauschale' is 20,00 €", "Line 'Nr. 7008 VV RVG Umsatzsteuer 19 %' is shown"]},
+       {"title": "Hourly invoice bills only unbilled billable time entries", "verification": "e2e", "start": "/time", "requires_auth": true, "steps": ["In a matter with Vergütungsvereinbarung 250 €/h record 1:30 h billable and 0:30 h not billable", "Click 'Rechnung erstellen', choose 'Nach Zeitaufwand'", "Issue the invoice and start another time invoice for the same matter"], "expected": ["Invoice shows '1,50 h × 250,00 € = 375,00 €' net", "The non-billable entry is not on the invoice", "The second invoice run shows 'Keine offenen Zeiten'"]}
+     ]},
+    {"id": "inbox-bea", "name": "Posteingang, Zustellungen & beA-Übergabe", "tier": "pro",
+     "features": ["Posteingang erfassen (Papier, beA-Export, E-Mail) mit Zustellungsdatum und Zuordnung zur Akte", "Aus einer Zustellung Fristen vorschlagen: Berufungsfrist ein Monat (§ 517 ZPO), Begründungsfrist zwei Monate (§ 520 ZPO) ab Zustellung", "Hinweis vor Abgabe des Empfangsbekenntnisses: 'Fristen notiert?'", "Ausgang: Schriftsatz als PDF für den Versand über die beA-Webanwendung exportieren; Prüfprotokoll als Versandnachweis hochladen", "Kein direkter beA-Versand aus der App — die Oberfläche nennt den Übergabeweg"],
+     "criteria": [
+       {"title": "Registered judgment proposes appeal deadlines from the service date", "verification": "e2e", "start": "/inbox", "requires_auth": true, "steps": ["Click 'Posteingang erfassen'", "Choose a matter, type 'Urteil', Zustellung 10.09.2026, court in Hamburg", "Click 'Speichern'", "Click 'Fristen übernehmen'"], "expected": ["Proposal 'Berufungsfrist (Notfrist)' with Ablauf 12.10.2026 is shown", "Proposal 'Berufungsbegründungsfrist' with Ablauf 10.11.2026 is shown", "Both deadlines appear in /deadlines only after 'Fristen übernehmen'"]},
+       {"title": "Brief exported for beA stays 'Versandnachweis ausstehend' until the proof is uploaded", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Open document 'Klageerwiderung'", "Click 'Für beA exportieren'", "Upload a Prüfprotokoll and reload"], "expected": ["A PDF download starts", "Before the upload the document shows 'Export für beA — Versandnachweis ausstehend'", "After the upload it shows 'Versandt per beA am' with the date"]}
+     ]},
+    {"id": "client-portal", "name": "Mandantenportal", "tier": "pro",
+     "features": ["Mandant sieht seine Akten mit Status, nächsten Terminen, freigegebenen Dokumenten und Rechnungen", "Unterlagen hochladen und Nachrichten an die Kanzlei statt unverschlüsselter E-Mail", "Mandatsaufnahme online: Fragebogen, Vollmacht, Datenschutzhinweis", "Nur vom Anwalt freigegebene Dokumente sichtbar"],
+     "criteria": [
+       {"title": "Client sees only released documents of their own matter", "verification": "e2e", "start": "/portal", "requires_auth": true, "steps": ["Lawyer releases 'Klageerwiderung' and leaves 'Interne Notiz' unreleased", "Client 'Erika Muster' logs in and opens the matter"], "expected": ["'Klageerwiderung' is listed", "'Interne Notiz' is not listed"]},
+       {"title": "A client cannot read another client's matter", "verification": "api", "steps": ["Log in as client 'Erika Muster'", "GET /api/matters/<id of another client's matter>"], "expected": ["Status 404", "Response body contains no client name"]}
+     ]},
+    {"id": "gwg", "name": "Geldwäscheprüfung (GwG)", "tier": "pro",
+     "features": ["Prüffrage bei Aktenanlage: Kataloggeschäft (Immobilien, Gesellschaften, Treuhand, Vermögensverwaltung)?", "Identifizierung des Mandanten und des wirtschaftlich Berechtigten, Transparenzregister-Auszug", "Risikobewertung und PEP-Prüfung je Mandat dokumentieren", "Aufbewahrung fünf Jahre, danach Löschvorschlag", "Verdachtsfall nur nach Prüfung durch den Anwalt — Meldepflicht mit Ausnahme bei Rechtsberatung (§ 43 Abs. 2 GwG)"],
+     "criteria": [
+       {"title": "A catalogue matter cannot be activated without identification", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Create a matter and answer 'Kauf oder Verkauf von Immobilien oder Gesellschaften' with 'Ja'", "Clear the conflict check", "Click 'Akte aktivieren'"], "expected": ["Text 'GwG-Identifizierung fehlt' is visible", "Matter status is still 'In Prüfung' after reload"]}
+     ]},
+    {"id": "trust-money", "name": "Vorschüsse, Fremdgeld & Offene Posten", "tier": "pro",
+     "features": ["Vorschussrechnung (§ 9 RVG), Verrechnung in der Schlussrechnung", "Fremdgeld getrennt erfassen und unverzüglich weiterleiten; offene Fremdgelder als Liste mit Eingangsdatum", "Offene Posten mit Mahnstufen", "Verrechnung von Fremdgeld mit Honorar nur mit dokumentierter Zulässigkeit"],
+     "criteria": [
+       {"title": "Third-party money stays 'Weiterzuleiten' until forwarding is recorded", "verification": "e2e", "start": "/trust", "requires_auth": true, "steps": ["Record a Fremdgeld receipt of 5.000,00 € from 'Beispiel GmbH' in a matter", "Open /trust", "Click 'Weiterleitung erfassen' and reload"], "expected": ["Row 'Fremdgeld 5.000,00 € — weiterzuleiten seit' with the receipt date is listed before forwarding", "After reload the row shows 'Weitergeleitet am' with today's date"]},
+       {"title": "A paid advance is deducted in the final invoice", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Issue a Vorschussrechnung over 500,00 € net and mark it paid", "Create the final RVG invoice of the matter"], "expected": ["Final invoice lists 'Bereits gezahlter Vorschuss' with 595,00 €", "'Zahlbetrag' equals the invoice total minus 595,00 €"]}
+     ]},
+    {"id": "calendar", "name": "Termine & Gerichtstermine", "tier": "pro",
+     "features": ["Gerichtstermine mit Gericht, Saal, Aktenzeichen", "Besprechungen mit Mandanten", "Kalender je Anwalt und kanzleiweit, Abwesenheiten mit Vertreter", "Warnung bei Terminen in einer Abwesenheit", "Kalender-Sync (CalDAV, Microsoft 365) nur mit Aktenzeichen im Titel, ohne Mandantennamen"],
+     "criteria": [
+       {"title": "Court date during the lawyer's absence shows a warning", "verification": "e2e", "start": "/calendar", "requires_auth": true, "steps": ["Enter an absence for 'RA Schmidt' next Monday to Friday", "Enter Gerichtstermin '3 Ca 123/26' next Wednesday 10:00 for 'RA Schmidt'"], "expected": ["Text 'RA Schmidt ist abwesend — Vertretung bestimmen' is visible", "The court date is shown next Wednesday 10:00 with '3 Ca 123/26'"]}
+     ]},
+    {"id": "reports", "name": "Auswertungen", "tier": "pro",
+     "features": ["Honorarumsatz je Monat, Anwalt und Rechtsgebiet", "Abrechenbare, noch nicht abgerechnete Zeit", "Offene Rechnungen", "Fristenstatistik: erledigt, gestrichen, überfällig"],
+     "criteria": [
+       {"title": "Dashboard and reports show the same unbilled time", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Open /dashboard and note 'Unabgerechnete Zeit (aktuell)'", "Open /reports", "Record 1:00 h billable time and reload /reports"], "expected": ["'Unabgerechnete Zeit (aktuell)' shows the same value on /dashboard and /reports", "The value increases by 1,00 h after the new entry"]}
+     ]},
+    {"id": "departments", "name": "Dezernate, Vertretung & Standorte", "tier": "enterprise",
+     "features": ["Dezernate mit Anwälten und zugeordneten Fachangestellten", "Vertretung bei Abwesenheit: Fristen und Wiedervorlagen des Abwesenden erscheinen beim Vertreter", "Hinweis auf Bestellung eines Vertreters bei Abwesenheit über eine Woche (§ 53 BRAO)", "Standorte mit eigenem Bundesland für Feiertage"],
+     "criteria": [
+       {"title": "Deadlines of an absent lawyer appear in the substitute's list", "verification": "e2e", "start": "/deadlines", "requires_auth": true, "steps": ["Set 'RA Schmidt' absent from today to next Friday with substitute 'RA Weber'", "Log in as 'RA Weber' and open /deadlines, tab 'Meine Fristen'"], "expected": ["RA Schmidt's deadlines in that period are listed with 'Vertretung für RA Schmidt'"]}
+     ]},
+    {"id": "audit", "name": "Protokoll & Aufbewahrung", "tier": "enterprise",
+     "features": ["Unveränderliches Protokoll aller Zugriffe und Änderungen", "Handakten sechs Jahre nach Mandatsende aufbewahren (§ 50 BRAO), danach Löschvorschlag", "DSGVO-Auskunft unter Wahrung des Mandatsgeheimnisses (§ 29 BDSG)"],
+     "criteria": [
+       {"title": "Viewing a matter appears in the audit log, which offers no delete action", "verification": "e2e", "start": "/audit", "requires_auth": true, "steps": ["As Rechtsanwaltsfachangestellte open a matter", "As Kanzleiinhaber open /audit and filter by that matter"], "expected": ["A row with the user's name, 'Akte angesehen' and the time is listed", "No button 'Löschen' is shown on audit rows"]},
+       {"title": "Retention run proposes matters closed more than six years ago only", "verification": "api", "steps": ["Seed one matter closed 7 years ago and one closed 5 years ago", "POST /api/retention/run in test mode"], "expected": ["GET /api/retention/proposals lists the matter closed 7 years ago", "It does not list the matter closed 5 years ago"]}
+     ]},
+    {"id": "security", "name": "Zwei-Faktor, SSO & beschränkte Akten", "tier": "enterprise",
+     "features": ["Zweiter Faktor für alle Mitarbeiter verpflichtend", "Single Sign-on über OIDC/SAML (z. B. Microsoft Entra ID)", "Akten mit beschränktem Zugriff (Ethical Wall) nur für benannte Personen"],
+     "criteria": [
+       {"title": "A restricted matter is hidden from lawyers not on its team", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["As Kanzleiinhaber mark a matter 'Zugriff beschränkt' to 'RA Weber'", "Log in as 'RA Schmidt' and search its file number"], "expected": ["The search shows 'Keine Akten gefunden'", "GET /api/matters/<id> as 'RA Schmidt' returns status 404"]}
+     ]},
+    {"id": "accounting-export", "name": "DATEV & E-Rechnung", "tier": "enterprise",
+     "features": ["DATEV-Buchungsstapel für Rechnungen und Zahlungen", "E-Rechnung als XRechnung oder ZUGFeRD für Unternehmen und Behörden", "Fremdgeld auf getrennten Konten"],
+     "criteria": [
+       {"title": "DATEV export contains each invoice of the month once", "verification": "e2e", "start": "/settings/accounting", "requires_auth": true, "steps": ["Issue two invoices this month", "Click 'DATEV-Export' for this month"], "expected": ["A CSV download starts", "The file has one booking row per invoice number"]},
+       {"title": "Invoice to a company client downloads as XRechnung", "verification": "api", "steps": ["GET /api/invoices/<id>/xrechnung for an issued invoice to a company client"], "expected": ["Status 200 with Content-Type application/xml", "The XML contains the invoice number and the client's name"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "deadlines_next_7_days", "tier": "pro", "label": "Fristen (nächste 7 Tage)", "unit": "Anzahl", "definition": "offene Fristen (nicht erledigt, nicht gestrichen) mit Ablauf heute bis heute + 6 Tage; auf dem Dashboard für die Akten des angemeldeten Anwalts, in /deadlines für den gewählten Filter", "period": "heute bis heute + 6 Tage", "shown_on": ["/dashboard", "/deadlines"]},
+    {"id": "unbilled_time", "tier": "pro", "label": "Unabgerechnete Zeit (aktuell)", "unit": "Stunden", "definition": "Summe der abrechenbaren Zeiteinträge ohne Rechnung", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "open_receivables", "tier": "pro", "label": "Offene Rechnungen (aktuell)", "unit": "EUR", "definition": "Summe der Bruttobeträge aller gestellten, nicht bezahlten und nicht stornierten Rechnungen abzüglich Teilzahlungen", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/invoices"]},
+    {"id": "fee_revenue_month", "tier": "pro", "label": "Honorarumsatz (dieser Monat, netto)", "unit": "EUR", "definition": "Summe der Nettobeträge der im laufenden Monat gestellten Rechnungen ohne Vorschussrechnungen, abzüglich Gutschriften; Fremdgeld zählt nicht", "period": "Dieser Monat", "shown_on": ["/reports"]}
+  ],
+  "compliance": [
+    {"rule": "Verschwiegenheit über alles, was in Ausübung des Berufs bekannt wird; Zugriff nur für Befugte, Zugriffe protokolliert", "source": "§ 43a Abs. 2 BRAO, § 2 BORA, § 203 StGB", "tier": "mvp"},
+    {"rule": "Dienstleister (Hosting, IT) nur mit Verpflichtung zur Verschwiegenheit einsetzen", "source": "§ 43e BRAO", "tier": "mvp"},
+    {"rule": "Keine Vertretung widerstreitender Interessen; Kollisionsprüfung vor Mandatsannahme, auch über die Sozietät", "source": "§ 43a Abs. 4 BRAO, § 3 BORA", "tier": "mvp"},
+    {"rule": "Fristen so organisieren, dass Notfristen und Rechtsmittelbegründungsfristen sicher notiert, kontrolliert und erst nach Erledigung gestrichen werden — Verschulden des Anwalts wird der Partei zugerechnet, Wiedereinsetzung nur ohne Verschulden", "source": "§ 85 Abs. 2 ZPO, § 233 ZPO", "tier": "mvp"},
+    {"rule": "Fristberechnung: Ende an Samstag, Sonntag oder allgemeinem Feiertag verschiebt sich auf den nächsten Werktag", "source": "§ 222 ZPO, §§ 187, 188, 193 BGB", "tier": "mvp"},
+    {"rule": "Vergütung nach RVG mit Berechnung, die Gebührentatbestände, Beträge und Gegenstandswert nennt; Vergütungsvereinbarung in Textform", "source": "§§ 3a, 10 RVG", "tier": "mvp"},
+    {"rule": "Keine geringere als die gesetzliche Vergütung in gerichtlichen Verfahren", "source": "§ 49b Abs. 1 BRAO, § 4 RVG", "tier": "mvp"},
+    {"rule": "Rechnungen mit umsatzsteuerlichen Pflichtangaben", "source": "§ 14 UStG", "tier": "mvp"},
+    {"rule": "Handakten führen und sechs Jahre nach Mandatsende aufbewahren", "source": "§ 50 BRAO", "tier": "mvp"},
+    {"rule": "Personenbezogene Daten zweckgebunden verarbeiten; Auskunft eingeschränkt, soweit das Mandatsgeheimnis betroffen ist", "source": "Art. 5, 15 DSGVO, § 29 BDSG", "tier": "mvp"},
+    {"rule": "Fremdgeld unverzüglich an den Empfangsberechtigten weiterleiten oder auf ein Anderkonto einzahlen", "source": "§ 43a Abs. 5 BRAO, § 4 BORA", "tier": "pro"},
+    {"rule": "Bei Kataloggeschäften: Identifizierung, wirtschaftlich Berechtigter, Risikobewertung, fünf Jahre Aufbewahrung", "source": "§ 2 Abs. 1 Nr. 10, §§ 8, 10–12 GwG", "tier": "pro"},
+    {"rule": "Keine Meldepflicht für Informationen aus Rechtsberatung oder Prozessvertretung, außer bei Kenntnis der Nutzung für Geldwäsche", "source": "§ 43 Abs. 2 GwG", "tier": "pro"},
+    {"rule": "Zustellungen über das beA zur Kenntnis nehmen; Schriftsätze an Gerichte elektronisch einreichen", "source": "§ 31a Abs. 6 BRAO, § 130d ZPO", "tier": "pro"},
+    {"rule": "Bei Verhinderung über eine Woche für Vertretung sorgen", "source": "§ 53 BRAO", "tier": "enterprise"},
+    {"rule": "E-Rechnung im Geschäftsverkehr mit Unternehmen", "source": "§ 14 UStG", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["E-Mail (SMTP/IMAP, Microsoft 365, Google Workspace)", "Kalender (CalDAV, Microsoft 365) — nur Aktenzeichen im Titel", "Banking-Dienst mit API (FinTS/EBICS) für Zahlungseingänge und Fremdgeld"],
+    "export_only": ["beA — Schriftsätze als PDF für den Versand über die beA-Webanwendung; Prüfprotokoll als Versandnachweis zurück in die Akte", "DATEV — Buchungsstapel (CSV)", "E-Rechnung — XRechnung / ZUGFeRD", "Gerichtliches Mahnverfahren — Antragsdaten zur Übernahme in das Online-Mahnverfahren", "Kontoauszüge als CAMT.053-Import"],
+    "not_possible": ["beA direkt — Versand und Abruf nur mit beA-Karte oder Softwarezertifikat des Anwalts über die BRAK-Kanzleisoftwareschnittstelle, die nur registrierten Kanzleisoftware-Herstellern mit Vertrag offensteht", "Elektronische Gerichtsakte — Einsicht nur über das Akteneinsichtsportal der Justiz", "Transparenzregister — kein API-Zugang; Auszug manuell abrufen und hochladen", "juris / beck-online — lizenzpflichtige Datenbanken ohne offene API"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Hosting in der EU mit Auftragsverarbeitungsvertrag (Art. 28 DSGVO) und Verschwiegenheitsverpflichtung der Dienstleister (§ 43e BRAO)"},
+    {"tier": "mvp", "text": "Fristberechnung in Europe/Berlin mit Feiertagskalender je Bundesland des Gerichtsorts"},
+    {"tier": "mvp", "text": "Fristen werden nie physisch gelöscht; jede Änderung mit Benutzer und Zeitpunkt protokolliert"},
+    {"tier": "mvp", "text": "Aktenzeichen und Rechnungsnummern auch bei gleichzeitigen Anfragen eindeutig und lückenlos"},
+    {"tier": "mvp", "text": "Beträge als Cent-Ganzzahlen, Gebühren auf volle Cent gerundet"},
+    {"tier": "mvp", "text": "Kein Standard-Secret: ohne AUTH_SECRET (mind. 32 Zeichen) startet der Server nicht"},
+    {"tier": "mvp", "text": "Security-Header: Content-Security-Policy, frame-ancestors, Referrer-Policy; Redirect-Ziele nur relativ"},
+    {"tier": "pro", "text": "Dokumente verschlüsselt abgelegt; Downloads nur über signierte, ablaufende Links"},
+    {"tier": "pro", "text": "Mandantenportal barrierefrei nach WCAG 2.1 AA"},
+    {"tier": "enterprise", "text": "Tägliches Backup in der EU, Wiederherstellung dokumentiert und getestet"},
+    {"tier": "enterprise", "text": "Rate-Limiting und Audit aller API-Zugriffe"}
+  ],
+  "production_dependencies": {"mvp": ["email"], "pro": ["email", "storage"], "enterprise": ["email", "storage", "oauth", "sms"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/matters", "/matters/[id]", "/clients", "/clients/[id]", "/conflicts", "/deadlines", "/templates", "/time", "/invoices", "/invoices/[id]", "/settings/fees", "/settings/users"], "pro": ["/inbox", "/portal", "/portal/matters/[id]", "/gwg", "/trust", "/calendar", "/reports"], "enterprise": ["/settings/departments", "/audit", "/settings/security", "/settings/accounting"]}
+}

@@ -1,10 +1,12 @@
 {
   "id": "booking",
   "name": "Terminbuchung",
+  "kind": "product",
   "version": 1,
   "ui_language": "de",
-  "aliases": ["terminbuchung", "termin buchen", "online-buchung", "buchungssystem", "terminvereinbarung", "terminplaner", "booking", "appointment", "reservierung", "calendly", "friseur", "praxis", "salon"],
+  "aliases": ["terminbuchung", "termin buchen", "online-buchung", "buchungssystem", "terminvereinbarung", "terminplaner", "booking", "appointment", "reservierung", "calendly", "friseur", "salon"],
   "summary": "Dienstleistungen mit Dauer, freie Zeitslots pro Mitarbeiter, Online-Buchung mit Bestätigung, Stornierung und Kalenderansicht für den Betrieb.",
+  "design": {"personality": ["freundlich", "ruhig", "verlässlich"], "typefaces": {"display": "Fraunces oder Recoleta", "text": "Manrope"}, "palette": "warmer Markenton des Betriebs, freie Slots hell, belegte gedämpft, heute markiert", "density": "comfortable", "signature_ideas": ["Slot-Auswahl als Tageslinie mit großen Tipp-Flächen", "Bestätigungsseite mit Kalender-Karte zum Speichern"], "references": ["Calendly", "Treatwell", "Cal.com"], "avoid": ["Formular-Wände", "winzige Uhrzeit-Buttons auf dem Handy"]},
   "roles": [
     {"id": "admin", "name": "Inhaber", "can": "Dienstleistungen, Mitarbeiter, Öffnungszeiten, alle Termine"},
     {"id": "staff", "name": "Mitarbeiter", "can": "eigene Termine und Abwesenheiten"},

@@ -446,3 +446,13 @@ public/        Static assets
 8. **Final message** — pick the one that matches the gate result, never the optimistic one by default:
    > Gate passed: "Your project is ready. Build, lint, types, tests and [X]/[X] acceptance criteria verified. See ONECOMMAND-DELIVERY.md."
    > Gate failed: "Your project is built but NOT fully verified: [N] open issue(s) listed in ONECOMMAND-DELIVERY.md → Open Issues."
+
+## Branche und Pflichten
+
+When the spec has `compliance` (blueprint) or `domain_brief.rules`, add a section **"Branche und Pflichten"**:
+- every duty with its source and how the software supports it (feature or acceptance criterion), or
+  "organisatorisch — nicht durch Software abgedeckt";
+- `integrations.not_possible` / `export_only` in plain words: which official or closed systems the app does
+  not connect to and how data gets there (export, manual upload) — never imply a connection that does not exist;
+- `domain_brief.to_verify`: assumptions the customer must confirm before going live.
+This is information for the customer, not legal advice; say so in one sentence.

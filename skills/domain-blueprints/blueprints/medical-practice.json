@@ -1,0 +1,174 @@
+{
+  "id": "medical-practice",
+  "name": "Praxisverwaltung (Arzt-, Zahnarzt- und Therapiepraxis)",
+  "kind": "industry",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["arztpraxis", "zahnarztpraxis", "hausarztpraxis", "facharztpraxis", "therapiepraxis", "psychotherapiepraxis", "physiotherapiepraxis", "physiotherapie", "physiotherapeut", "ergotherapie", "logopädie", "praxissoftware", "praxis-software", "praxisverwaltung", "patientenverwaltung", "patientenakte", "medical practice", "dental practice", "doctor's office", "patient management"],
+  "summary": "Praxisverwaltung neben dem PVS: Online-Terminbuchung nach Behandlungsart, Behandler und Raum, Anamnesebogen online, Patientenakte light, Wartezimmer mit Check-in, Recall, Rezept- und Überweisungsanfragen und Privatabrechnung nach GOÄ/GOZ — kein KV-zertifiziertes Praxisverwaltungssystem.",
+  "design": {"personality": ["ruhig", "vertrauenswürdig", "zugewandt"], "typefaces": {"display": "Lexend", "text": "Atkinson Hyperlegible"}, "palette": "gedämpftes Salbeigrün oder die Praxisfarbe auf viel Weiß, warme Neutraltöne statt Klinik-Kälte, Rot nur für Warnhinweise wie Allergien, Kontraste nach WCAG AA", "density": "comfortable", "signature_ideas": ["Wartezimmer-Anzeige mit Aufrufnummer und Raum statt Patientennamen", "Warnhinweis-Band (Allergien, Blutverdünner) oben in jeder Patientenakte", "Behandlungsart-Karten mit Dauer und Vorbereitungshinweis in der Buchung"], "references": ["Doctolib", "samedi", "Linear"], "avoid": ["Stockfotos mit Stethoskop und Händeschütteln", "kaltes Krankenhaus-Blau ohne Wärme", "Patientennamen groß auf öffentlich sichtbaren Bildschirmen", "kleine Schrift und Mini-Buttons für ältere Patienten"]},
+  "roles": [
+    {"id": "admin", "name": "Praxisinhaber", "can": "alles: Behandlungsarten, Räume, Personal, Einstellungen, Auswertungen, Abrechnung"},
+    {"id": "doctor", "name": "Behandler (Ärztin, Zahnarzt, Therapeutin)", "can": "eigener Kalender, Patientenakte, Anamnese sichten, Rezept- und Überweisungsanfragen freigeben"},
+    {"id": "staff", "name": "MFA / Empfang", "can": "Termine, Check-in, Patientenstammdaten, Anfragen vorbereiten — keine Freigabe von Rezepten"},
+    {"id": "patient", "name": "Patient", "can": "Termine buchen und absagen, Anamnesebogen ausfüllen, eigene Anfragen und Rechnungen sehen"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "passwordHash", "role", "patientId", "totpEnabled", "active"], "tier": "mvp"},
+    {"name": "Practitioner", "fields": ["userId", "name", "title", "specialty", "color", "treatmentTypeIds"], "tier": "mvp"},
+    {"name": "Room", "fields": ["name", "kind(treatment|diagnostics|exercise)", "active"], "tier": "mvp"},
+    {"name": "TreatmentType", "fields": ["name", "durationMinutes", "bufferMinutes", "roomKind", "practitionerIds", "bookableOnline", "newPatientsAllowed", "insuranceTypes", "preparationNote", "anamnesisFormId"], "tier": "mvp"},
+    {"name": "WorkingHours", "fields": ["practitionerId", "weekday", "start", "end"], "tier": "mvp"},
+    {"name": "Patient", "fields": ["firstName", "lastName", "dateOfBirth", "email", "phone", "address", "insuranceType(statutory|private|selfPay)", "insurerName", "insuranceNumber", "pvsPatientNumber", "warnings", "lastTreatmentAt", "createdAt"], "tier": "mvp"},
+    {"name": "Appointment", "fields": ["patientId", "practitionerId", "roomId", "treatmentTypeId", "start", "end", "status(booked|checkedIn|inTreatment|done|cancelled|noShow)", "source(online|phone|walkIn)", "cancelToken", "callNumber", "checkedInAt", "calledAt"], "tier": "mvp"},
+    {"name": "AnamnesisForm", "fields": ["name", "version", "questions"], "tier": "mvp"},
+    {"name": "AnamnesisResponse", "fields": ["patientId", "formId", "formVersion", "answers", "submittedAt", "reviewedBy", "reviewedAt", "token"], "tier": "mvp"},
+    {"name": "ChartEntry", "fields": ["patientId", "authorId", "kind(note|finding|therapy)", "text", "createdAt", "supersedesId", "amendedReason"], "tier": "mvp"},
+    {"name": "PatientDocument", "fields": ["patientId", "fileName", "fileHash", "kind(finding|letter|form|image|other)", "uploadedBy", "uploadedAt"], "tier": "mvp"},
+    {"name": "Consent", "fields": ["patientId", "channel(email|sms)", "purpose(reminder|recall|waitlist)", "givenAt", "withdrawnAt", "source"], "tier": "pro"},
+    {"name": "Recall", "fields": ["patientId", "reason", "intervalMonths", "dueDate", "status(planned|sent|booked|done)", "lastSentAt"], "tier": "pro"},
+    {"name": "Request", "fields": ["patientId", "kind(prescription|referral)", "details", "status(new|inReview|approved|rejected|ready|collected)", "decidedBy", "decidedAt", "note"], "tier": "pro"},
+    {"name": "FeeScheduleItem", "fields": ["schedule(goae|goz)", "code", "description", "points", "section", "thresholdFactor", "maxFactor", "validFrom"], "tier": "pro"},
+    {"name": "PrivateInvoice", "fields": ["patientId", "number", "date", "diagnosis", "total", "status(draft|sent|paid|reminded)", "pdfUrl"], "tier": "pro"},
+    {"name": "InvoiceItem", "fields": ["invoiceId", "serviceDate", "schedule", "code", "description", "points", "factor", "justification", "amount"], "tier": "pro"},
+    {"name": "WaitlistEntry", "fields": ["patientId", "treatmentTypeId", "practitionerId", "earliest", "latest", "status(waiting|offered|booked|expired)"], "tier": "pro"},
+    {"name": "Location", "fields": ["name", "address", "practitionerIds", "roomIds"], "tier": "enterprise"},
+    {"name": "PvsExport", "fields": ["kind(gdt|csv)", "patientId", "fileName", "createdBy", "createdAt"], "tier": "enterprise"},
+    {"name": "AuditLog", "fields": ["userId", "patientId", "action", "entity", "entityId", "at", "ip"], "tier": "enterprise"},
+    {"name": "Payment", "fields": ["invoiceId", "amount", "provider", "status(pending|paid|failed)", "paidAt"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung & Rollen", "tier": "mvp",
+     "features": ["Login für Praxispersonal mit 2-Faktor-Anmeldung", "Patientenkonto optional, Buchung auch ohne Konto", "Rollen Praxisinhaber, Behandler, MFA/Empfang, Patient", "Automatische Abmeldung nach Inaktivität am Empfang"],
+     "criteria": [
+       {"title": "Unauthenticated access to /calendar redirects to /login", "verification": "e2e", "start": "/calendar", "requires_auth": false, "steps": ["Open /calendar without a session"], "expected": ["URL is /login"]},
+       {"title": "A patient account cannot read another patient's appointments or documents", "verification": "api", "steps": ["Log in as patient 'Petra Lang'", "GET the appointments and documents of patient 'Jonas Weber'"], "expected": ["Both responses are 403 or 404", "No data of 'Jonas Weber' is in the responses"]}
+     ]},
+    {"id": "treatment-types", "name": "Behandlungsarten, Behandler & Räume", "tier": "mvp",
+     "features": ["Behandlungsarten mit Dauer, Puffer, benötigter Raumart und zugelassenen Behandlern", "Online buchbar ja/nein, nur Bestandspatienten, Versicherungsart (gesetzlich, privat, Selbstzahler)", "Vorbereitungshinweis (z. B. nüchtern erscheinen) für die Bestätigung", "Räume mit Art (Behandlung, Diagnostik, Übungsraum)", "Arbeitszeiten je Behandler"],
+     "criteria": [
+       {"title": "A new online-bookable treatment type is offered on the public booking page", "verification": "e2e", "start": "/settings/treatments", "requires_auth": true, "steps": ["Create 'Erstuntersuchung Neupatient', 40 min, Raumart 'Behandlung', Behandler 'Dr. Berger', tick 'Online buchbar'", "Open /book"], "expected": ["'Erstuntersuchung Neupatient · 40 min' is listed", "Choosing it offers only 'Dr. Berger'"]},
+       {"title": "A room is never double-booked across practitioners", "verification": "api", "steps": ["The only diagnostics room 'Ultraschall' is booked 10:00–10:20 tomorrow for Dr. Berger", "GET slots tomorrow for a 20 min treatment of Dr. Yilmaz that needs Raumart 'Diagnostik'"], "expected": ["10:00 is not in the slot list", "10:20 is in the slot list"]}
+     ]},
+    {"id": "online-booking", "name": "Online-Terminbuchung", "tier": "mvp",
+     "features": ["Behandlungsart → Behandler → Datum/Uhrzeit → Patientendaten → Bestätigung", "Neupatient oder Bestandspatient, Versicherungsart abfragen", "Bestätigungs-E-Mail mit Absage-Link, Vorbereitungshinweis und Link zum Anamnesebogen — ohne Behandlungsart im Text", "Absage über Link bis X Stunden vorher, Slot wird wieder frei", "Doppelbuchung ausgeschlossen, auch bei gleichzeitigen Anfragen"],
+     "criteria": [
+       {"title": "A patient books online and receives a confirmation without the treatment type", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Choose 'Kontrolltermin', 'Dr. Berger' and a free slot", "Enter name, date of birth, e-mail and Versicherung 'gesetzlich'", "Click 'Termin verbindlich buchen'"], "expected": ["Page shows 'Termin bestätigt'", "Outbox contains a mail with date, time, practice address and a cancel link", "The mail does not contain 'Kontrolltermin'"]},
+       {"title": "Two simultaneous bookings for the same slot: exactly one succeeds", "verification": "api", "steps": ["Send two booking requests for the same practitioner and slot in parallel"], "expected": ["One returns 201, the other 409"]}
+     ]},
+    {"id": "calendar", "name": "Praxiskalender", "tier": "mvp",
+     "features": ["Tages- und Wochenansicht je Behandler und je Raum", "Telefonische Termine und Akutsprechstunde manuell eintragen", "Termine verschieben per Drag & Drop mit Raum- und Behandlerprüfung", "Herkunft sichtbar (online, Telefon, ohne Termin)", "Nicht erschienen markieren"],
+     "criteria": [
+       {"title": "An online booking appears in the practitioner's day view", "verification": "e2e", "start": "/calendar", "requires_auth": true, "steps": ["A patient books 'Kontrolltermin' with Dr. Berger tomorrow 10:00", "Open the day view for tomorrow"], "expected": ["Dr. Berger's column shows the appointment at 10:00 with the patient name and badge 'Online'"]},
+       {"title": "A patient cancellation via link shows 'Abgesagt' and frees the slot", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Open the cancel link from the confirmation mail and click 'Termin absagen'", "Open the booking page for that day", "As MFA open /calendar for that day"], "expected": ["Text 'Termin abgesagt' is visible", "The slot is offered again on /book", "The calendar shows the appointment as 'Abgesagt'"]}
+     ]},
+    {"id": "patients", "name": "Patientenakte light", "tier": "mvp",
+     "features": ["Stammdaten, Versicherungsart, Kasse, Versichertennummer, PVS-Patientennummer", "Warnhinweise (Allergien, Blutverdünner, Infektionen) als Band über der Akte", "Dokumentation: Einträge mit Autor und Zeitpunkt; Änderungen nur als neue Fassung, Ursprung bleibt sichtbar", "Dokumente hochladen (Befunde, Arztbriefe, Bilder)", "Terminhistorie und Anamnesebögen je Patient", "Kopie der Akte als PDF für Auskunft und Einsicht"],
+     "criteria": [
+       {"title": "A warning is shown as a band above the patient record", "verification": "e2e", "start": "/patients", "requires_auth": true, "steps": ["Open 'Petra Lang'", "Add Warnhinweis 'Allergie: Penicillin'", "Reload"], "expected": ["A band 'Allergie: Penicillin' is visible above all tabs after reload"]},
+       {"title": "Correcting a chart entry keeps the original version visible", "verification": "api", "steps": ["Create a chart entry 'RR 150/95, Kontrolle in 4 Wochen' for 'Petra Lang'", "PATCH the entry text to 'RR 135/85, Kontrolle in 4 Wochen' with reason 'Tippfehler'", "GET the entry history", "DELETE the original entry"], "expected": ["History lists both versions with author, time and reason 'Tippfehler'", "DELETE returns 405 or 409", "The original text is still returned after a new GET"]}
+     ]},
+    {"id": "anamnesis", "name": "Anamnesebogen online", "tier": "mvp",
+     "features": ["Bögen je Behandlungsart (z. B. Neupatient, Zahnarzt, Physiotherapie) mit Versionen", "Link in der Buchungsbestätigung, ausfüllbar vor dem Termin am Handy", "Pflichtfelder, Medikamente, Vorerkrankungen, Allergien", "Eingang in der Akte mit Status 'Neu – noch nicht gesichtet' bis zur Sichtung durch den Behandler", "Link ist nach dem Absenden nicht mehr nutzbar"],
+     "criteria": [
+       {"title": "A new patient fills the anamnesis form from the confirmation mail and it lands in the record", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Book 'Erstuntersuchung Neupatient' as 'Jonas Weber'", "Open the link 'Anamnesebogen ausfüllen' from the confirmation mail", "Fill all required fields, tick 'Meine Angaben sind vollständig und richtig' and click 'Absenden'", "As Behandler open 'Jonas Weber' in /patients"], "expected": ["Page shows 'Vielen Dank – Ihr Anamnesebogen ist bei der Praxis eingegangen'", "Tab 'Anamnese' shows the answers with status 'Neu – noch nicht gesichtet'"]},
+       {"title": "The anamnesis link cannot be used after submission", "verification": "api", "steps": ["Submit an anamnesis form via its token", "GET the form with the same token"], "expected": ["Response is 410", "No answers are in the response"]}
+     ]},
+    {"id": "check-in", "name": "Wartezimmer & Check-in", "tier": "mvp",
+     "features": ["Check-in am Empfang mit einem Klick, Patient ohne Termin erfassen", "Wartezimmerliste mit Wartezeit seit Check-in", "Aufruf durch Behandler mit Raum", "Anzeige im Wartezimmer mit Aufrufnummer und Raum, ohne Namen", "Status je Termin: Im Wartezimmer → In Behandlung → Fertig"],
+     "criteria": [
+       {"title": "Check-in and call move a patient from the waiting room into a treatment room", "verification": "e2e", "start": "/check-in", "requires_auth": true, "steps": ["Click 'Einchecken' for 'Petra Lang'", "As Dr. Berger click 'Aufrufen' with room 'Behandlungsraum 2'"], "expected": ["After check-in 'Petra Lang' is listed under 'Wartezimmer' with a waiting time in minutes", "After the call the status shows 'In Behandlung · Behandlungsraum 2'"]},
+       {"title": "The waiting-room display shows the call number and room but no name", "verification": "e2e", "start": "/check-in", "requires_auth": true, "steps": ["Check in 'Petra Lang' and call her into 'Behandlungsraum 2'", "Open the waiting-room display via 'Anzeige öffnen'"], "expected": ["The display shows her call number and 'Behandlungsraum 2'", "The text 'Lang' does not appear on the display"]}
+     ]},
+    {"id": "recall", "name": "Recall & Erinnerungen", "tier": "pro",
+     "features": ["Terminerinnerung 24 h vorher per E-Mail oder SMS — nur mit Einwilligung", "Einwilligung je Kanal und Zweck erfassen, Widerruf mit einem Klick, Nachweis mit Zeitpunkt", "Recall nach Intervall (z. B. Kontrolle alle 6 Monate, Check-up)", "Patienten ohne Einwilligung erscheinen in der Liste 'Telefonisch erinnern'", "Texte ohne Diagnose und Behandlungsart"],
+     "criteria": [
+       {"title": "Reminders go only to patients with consent for that channel", "verification": "api", "steps": ["Create two appointments in 24 h: 'Petra Lang' with e-mail consent, 'Jonas Weber' without consent", "Trigger the reminder job (test mode)"], "expected": ["Outbox contains exactly one reminder, addressed to 'Petra Lang'", "The reminder does not contain the treatment type"]},
+       {"title": "Withdrawing consent moves a due recall to phone follow-up", "verification": "e2e", "start": "/recall", "requires_auth": true, "steps": ["'Petra Lang' has recall 'Kontrolle alle 6 Monate', last visit 10.04.2026", "Open her record, click 'Einwilligung widerrufen' for E-Mail", "Open /recall for 'Oktober 2026'"], "expected": ["'Petra Lang' is listed as due on 10.10.2026", "Her row shows 'Keine Einwilligung – telefonisch erinnern'"]}
+     ]},
+    {"id": "requests", "name": "Rezept- & Überweisungsanfragen", "tier": "pro",
+     "features": ["Patient fragt Folgerezept (aus Dauermedikation oder Freitext) oder Überweisung (Fachrichtung) online an", "MFA bereitet vor, nur Behandler gibt frei oder lehnt mit Begründung ab", "Hinweis, wenn die Versichertenkarte im Quartal noch nicht eingelesen ist (Status aus PVS-Import oder manuell)", "Ausstellung selbst erfolgt im PVS (E-Rezept über TI) — die App verwaltet nur Anfrage und Status", "Benachrichtigung ohne Medikamentennamen"],
+     "criteria": [
+       {"title": "A prescription request goes from the portal to approval and back to the patient", "verification": "e2e", "start": "/portal/requests", "requires_auth": true, "steps": ["As patient 'Petra Lang' request Folgerezept 'Ramipril 5 mg, 100 Stück' and click 'Anfrage senden'", "As MFA open /requests", "As Dr. Berger click 'Freigeben'", "As patient reload /portal/requests"], "expected": ["MFA saw the request with status 'Neu'", "The patient sees status 'Freigegeben'", "The notification mail does not contain 'Ramipril'"]},
+       {"title": "Staff without practitioner role cannot approve a request", "verification": "api", "steps": ["Log in as MFA", "POST approve on a new prescription request"], "expected": ["Response is 403", "The request status is still 'Neu' after a new GET"]}
+     ]},
+    {"id": "private-billing", "name": "Privatabrechnung GOÄ/GOZ (Rechenhilfe)", "tier": "pro",
+     "features": ["Gebührenverzeichnis GOÄ und GOZ mit Punktzahl, Punktwert und Abschnitt als versionierte Daten", "Steigerungsfaktor mit Schwellenwert und Höchstsatz je Leistungsart; über dem Schwellenwert Pflicht-Begründung", "Rechnung mit Leistungsdatum, Gebührennummer, Bezeichnung, Faktor, Betrag und Begründung", "Selbstzahlerleistungen (IGeL) mit Vereinbarung", "Mahnwesen für Privatrechnungen", "Hinweis: Rechenhilfe, keine Prüfung von Ausschlussziffern"],
+     "criteria": [
+       {"title": "GOÄ amount follows points × point value × factor and requires a reason above the threshold", "verification": "e2e", "start": "/billing", "requires_auth": true, "steps": ["Add GOÄ Nr. 1 at factor 2,3", "Change the factor to 3,5", "Click 'Speichern' without a reason"], "expected": ["At 2,3 the amount shows 10,72 €", "At 3,5 the amount shows 16,32 € and the hint 'Begründung erforderlich (über Schwellenwert 2,3)'", "Saving is refused until a reason is entered"]},
+       {"title": "A GOZ invoice PDF lists date, code, factor and amount per line", "verification": "e2e", "start": "/billing", "requires_auth": true, "steps": ["Create an invoice for 'Jonas Weber' with GOZ 0010 at factor 2,3 on 05.10.2026", "Click 'Rechnung erstellen' and open the PDF"], "expected": ["The PDF line shows '05.10.2026', '0010', 'Eingehende Untersuchung', '2,3' and '12,94 €'", "The invoice number is the next number of the series"]}
+     ]},
+    {"id": "waitlist", "name": "Warteliste & frei gewordene Termine", "tier": "pro",
+     "features": ["Patienten auf die Warteliste je Behandlungsart und Zeitraum setzen", "Bei Absage werden Wartende mit Einwilligung per E-Mail/SMS benachrichtigt", "Wer zuerst bestätigt, erhält den Termin", "Angebot verfällt nach einstellbarer Zeit"],
+     "criteria": [
+       {"title": "A cancelled slot is offered to the waitlist and goes to the first who confirms", "verification": "api", "steps": ["'Petra Lang' and 'Jonas Weber' (both with consent) wait for 'Kontrolltermin' this week", "Cancel a 'Kontrolltermin' this week", "Confirm via Jonas' link, then via Petra's link"], "expected": ["Outbox contains one offer mail to each of them", "Jonas' confirmation returns 201 and books the slot", "Petra's confirmation returns 409 and the page shows 'Termin bereits vergeben'"]}
+     ]},
+    {"id": "reports", "name": "Praxis-Auswertungen", "tier": "pro",
+     "features": ["No-Show-Quote je Behandler und Behandlungsart", "Auslastung der Behandler und Räume", "Anteil Online-Buchungen", "Offene Privatrechnungen", "Export als CSV"],
+     "criteria": [
+       {"title": "Dashboard and reports show the same 'No-Show-Quote (letzte 30 Tage)'", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Seed 20 past appointments in the last 30 days, 2 marked 'Nicht erschienen'", "Open /dashboard, then /reports"], "expected": ["Both pages show 'No-Show-Quote (letzte 30 Tage)' with 10 %"]}
+     ]},
+    {"id": "multi-location", "name": "Mehrere Standorte & MVZ", "tier": "enterprise",
+     "features": ["Standorte mit eigenen Behandlern, Räumen und Öffnungszeiten", "Standortwahl in der Online-Buchung", "Personal sieht nur freigegebene Standorte", "Kalender-Sync der Behandler (nur 'belegt', keine Patientendaten)"],
+     "criteria": [
+       {"title": "The location filter shows only that location's practitioners", "verification": "e2e", "start": "/book", "requires_auth": false, "steps": ["Choose location 'Altstadt'"], "expected": ["Only practitioners of 'Altstadt' are offered"]},
+       {"title": "Staff of one location cannot open another location's calendar", "verification": "api", "steps": ["Log in as MFA of 'Altstadt'", "GET the calendar of location 'Südstadt'"], "expected": ["Response is 403"]}
+     ]},
+    {"id": "pvs-export", "name": "PVS-Export & Stammdatenabgleich", "tier": "enterprise",
+     "features": ["Anamnese und Dokumente als GDT-Datei (Satzart 6310) mit PDF zum Import ins PVS", "Stammdaten-Import aus dem PVS per GDT (Satzart 6301) oder CSV", "Zuordnung über PVS-Patientennummer", "Exportprotokoll"],
+     "criteria": [
+       {"title": "A submitted anamnesis is exported as a GDT file for the PVS", "verification": "api", "steps": ["Set PVS-Patientennummer 4711 for 'Jonas Weber'", "Export his submitted anamnesis as GDT"], "expected": ["The file contains field 8000 with value '6310'", "Field 3000 has value '4711'", "A PDF of the anamnesis is referenced in the file"]}
+     ]},
+    {"id": "retention-audit", "name": "Aufbewahrung & Zugriffsprotokoll", "tier": "enterprise",
+     "features": ["Aufbewahrung der Dokumentation zehn Jahre nach Abschluss der Behandlung, Löschsperre bis dahin", "Löschvorschläge nach Fristablauf mit Bestätigung durch den Praxisinhaber", "Zugriffsprotokoll: wer hat wann welche Akte geöffnet, exportiert, geändert", "Protokoll unveränderbar und filterbar"],
+     "criteria": [
+       {"title": "Deleting a patient record before the retention period ends is refused", "verification": "api", "steps": ["'Petra Lang' had her last treatment on 15.03.2026", "DELETE her record"], "expected": ["Response is 409 with message 'Aufbewahrungspflicht bis 15.03.2036'", "The record is still returned after a new GET"]},
+       {"title": "Opening a patient record is recorded in the access log", "verification": "e2e", "start": "/audit-log", "requires_auth": true, "steps": ["As MFA open the record of 'Petra Lang'", "As Praxisinhaber open /audit-log"], "expected": ["An entry 'Akte geöffnet' with user name, patient and time is listed", "The entry has no delete action"]}
+     ]},
+    {"id": "online-payments", "name": "Online-Zahlung für Privat- und Selbstzahler", "tier": "enterprise",
+     "features": ["Privatrechnung im Patientenportal ansehen und online bezahlen (Stripe)", "Anzahlung für Selbstzahlerleistungen bei der Buchung", "Zahlstatus in der Rechnungsliste"],
+     "criteria": [
+       {"title": "A patient pays a private invoice online and it shows 'Bezahlt'", "verification": "e2e", "start": "/portal/invoices", "requires_auth": true, "steps": ["As 'Jonas Weber' open the invoice", "Click 'Jetzt bezahlen' and pay with the test card", "As MFA open /billing"], "expected": ["The portal shows 'Bezahlt' after reload", "The invoice row in /billing shows 'Bezahlt' with the payment date"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "avg_wait_today", "tier": "mvp", "label": "Ø Wartezeit (heute)", "unit": "Minuten", "definition": "Mittelwert der Minuten von Check-in bis Aufruf über alle heute aufgerufenen Termine der sichtbaren Behandler", "period": "heute", "shown_on": ["/dashboard", "/check-in"]},
+    {"id": "no_show_rate", "tier": "pro", "label": "No-Show-Quote (letzte 30 Tage)", "unit": "%", "definition": "Termine mit Status nicht erschienen / alle Termine mit Beginn in den letzten 30 Tagen ohne abgesagte Termine", "period": "letzte 30 Tage", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "utilization_week", "tier": "pro", "label": "Auslastung (diese Woche)", "unit": "%", "definition": "gebuchte Behandlungsminuten / verfügbare Arbeitsminuten der Behandler in der laufenden Kalenderwoche", "period": "diese Woche", "shown_on": ["/reports"]},
+    {"id": "open_requests", "tier": "pro", "label": "Offene Anfragen (aktuell)", "unit": "Anzahl", "definition": "Rezept- und Überweisungsanfragen mit Status neu oder in Prüfung", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/requests"]},
+    {"id": "outstanding_private", "tier": "pro", "label": "Offene Privatrechnungen (aktuell)", "unit": "EUR", "definition": "Summe der versendeten oder gemahnten, nicht bezahlten Privatrechnungen", "period": "aktuell (kein Zeitraum)", "shown_on": ["/reports", "/billing"]}
+  ],
+  "compliance": [
+    {"rule": "Gesundheitsdaten nur zur Behandlung und Praxisverwaltung verarbeiten; strenge Zugriffsrechte und Verschlüsselung", "source": "Art. 9 Abs. 2 lit. h und Abs. 3 DSGVO; § 22 BDSG", "tier": "mvp"},
+    {"rule": "Ärztliche Schweigepflicht: schon die Tatsache der Behandlung ist geheim — keine Diagnosen, Behandlungsarten oder Medikamente in E-Mails, SMS und auf Wartezimmer-Anzeigen", "source": "§ 203 Abs. 1 Nr. 1 StGB; Berufsordnung der Ärzte (§ 9 MBO-Ä)", "tier": "mvp"},
+    {"rule": "IT-Dienstleister (Hosting, E-Mail, SMS) zur Verschwiegenheit verpflichten und Auftragsverarbeitungsvertrag schließen", "source": "§ 203 Abs. 3 und 4 StGB; Art. 28 DSGVO", "tier": "mvp"},
+    {"rule": "Dokumentation in zeitlichem Zusammenhang mit der Behandlung; Änderungen nur, wenn der ursprüngliche Inhalt und der Zeitpunkt der Änderung erkennbar bleiben", "source": "§ 630f Abs. 1 BGB", "tier": "mvp"},
+    {"rule": "Patientenakte zehn Jahre nach Abschluss der Behandlung aufbewahren", "source": "§ 630f Abs. 3 BGB; § 10 Abs. 3 MBO-Ä", "tier": "mvp"},
+    {"rule": "Patienten auf Verlangen Einsicht und eine Kopie der Akte geben", "source": "§ 630g BGB; Art. 15 DSGVO", "tier": "mvp"},
+    {"rule": "Technische und organisatorische Maßnahmen: Verschlüsselung, 2-Faktor-Anmeldung, Protokollierung, Hosting in der EU", "source": "Art. 32 DSGVO", "tier": "mvp"},
+    {"rule": "IT-Sicherheitsrichtlinie für Vertrags(zahn)arztpraxen beachten", "source": "§ 75b SGB V", "tier": "mvp"},
+    {"rule": "Erinnerungen, Recall und Wartelisten-Angebote per E-Mail/SMS nur mit dokumentierter, jederzeit widerrufbarer Einwilligung je Kanal", "source": "Art. 6 Abs. 1 lit. a, Art. 7 und Art. 9 Abs. 2 lit. a DSGVO", "tier": "pro"},
+    {"rule": "Privatrechnung mit Leistungsdatum, Gebührennummer, Bezeichnung, Steigerungssatz und Betrag; über dem Schwellenwert mit verständlicher Begründung", "source": "§ 12 GOÄ; § 10 GOZ", "tier": "pro"},
+    {"rule": "Gebührenhöhe aus Punktzahl × Punktwert × Steigerungsfaktor im Gebührenrahmen", "source": "§ 5 GOÄ; § 5 GOZ", "tier": "pro"},
+    {"rule": "Datenschutz-Folgenabschätzung prüfen, wenn Gesundheitsdaten umfangreich verarbeitet werden (z. B. MVZ, mehrere Standorte)", "source": "Art. 35 DSGVO", "tier": "enterprise"},
+    {"rule": "Löschkonzept: Daten nach Ablauf der Aufbewahrungspflicht löschen, Löschung protokollieren", "source": "Art. 17 DSGVO; Art. 5 Abs. 1 lit. e DSGVO", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["E-Mail über SMTP eines EU-Anbieters mit AV-Vertrag", "SMS-Gateway mit Sitz in der EU und AV-Vertrag", "Google- und Outlook-Kalender der Behandler — nur 'belegt', ohne Patientendaten", "Stripe für Privat- und Selbstzahlerrechnungen"],
+    "export_only": ["Praxisverwaltungssystem (PVS) — Anamnese und Dokumente als GDT-Datei (Satzart 6310), Stammdaten per GDT (Satzart 6301) oder CSV", "Privatärztliche Verrechnungsstellen — Rechnungsdaten als Datei (z. B. PADneXt), Format mit der Verrechnungsstelle abstimmen", "DATEV — Privat- und Selbstzahlerrechnungen als Buchungsstapel im DATEV-Format", "Termine als iCal-Datei"],
+    "not_possible": ["KV-Abrechnung (KVDT) — nur mit KBV-zertifiziertem Praxisverwaltungssystem", "KZV-Abrechnung (BEMA) für Zahnärzte — nur mit von der KZBV geprüfter Abrechnungssoftware", "Telematikinfrastruktur, eGK einlesen, Versichertenstammdatenmanagement — nur mit gematik-zugelassenen Komponenten im zertifizierten PVS", "E-Rezept, eAU und elektronische Überweisung ausstellen — erfordert TI-Anbindung, eHBA-Signatur und KBV-zertifiziertes PVS; die App verwaltet nur die Anfrage", "KIM (Kommunikation im Medizinwesen) — nur über einen von der gematik zugelassenen KIM-Dienst mit SMC-B", "elektronische Patientenakte (ePA) — nur über TI und zugelassenes PVS", "Heilmittel-Abrechnung mit Krankenkassen (§ 302 SGB V) — nur über Abrechnungszentrum oder dafür zugelassene Software", "Videosprechstunde für gesetzlich Versicherte — nur über einen zertifizierten Videodienstanbieter (Anlage 31b BMV-Ä)"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Gesundheitsdaten verschlüsselt gespeichert und nur per TLS übertragen; Hosting in Deutschland oder der EU"},
+    {"tier": "mvp", "text": "E-Mails, SMS und Wartezimmer-Anzeige enthalten keine Diagnose, Behandlungsart, Medikamente oder vollen Namen"},
+    {"tier": "mvp", "text": "Alle Zeiten in Europe/Berlin; Online-Buchung am Handy in unter zwei Minuten"},
+    {"tier": "mvp", "text": "Patientenseiten nach WCAG 2.1 AA: Schrift mind. 16 px, Kontrast, Tastaturbedienung"},
+    {"tier": "mvp", "text": "2-Faktor-Anmeldung für Praxispersonal; Abmeldung nach 15 Minuten Inaktivität"},
+    {"tier": "mvp", "text": "Kein Standard-Secret: ohne AUTH_SECRET (mind. 32 Zeichen) startet der Server nicht"},
+    {"tier": "pro", "text": "GOÄ/GOZ-Ziffern, Punktwerte und Schwellenwerte als versionierte Daten, nicht im Code"},
+    {"tier": "pro", "text": "Alle Listen paginiert und serverseitig gefiltert"},
+    {"tier": "enterprise", "text": "Zugriffsprotokoll append-only"}
+  ],
+  "production_dependencies": {"mvp": ["email", "storage"], "pro": ["email", "storage", "sms"], "enterprise": ["email", "storage", "sms", "stripe"]},
+  "pages": {"mvp": ["/book", "/book/confirmed", "/cancel/[token]", "/anamnesis/[token]", "/display/[token]", "/login", "/dashboard", "/calendar", "/patients", "/patients/[id]", "/check-in", "/portal", "/settings/treatments", "/settings/rooms", "/settings/users"], "pro": ["/recall", "/requests", "/portal/requests", "/billing", "/billing/invoices/[id]", "/waitlist", "/reports"], "enterprise": ["/settings/locations", "/exports", "/audit-log", "/portal/invoices"]}
+}

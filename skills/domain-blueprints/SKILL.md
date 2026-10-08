@@ -1,6 +1,6 @@
 ---
 name: domain-blueprints
-description: Domain knowledge for common business systems (CRM, online shop, booking, helpdesk, project management, invoicing) as structured blueprints — modules, entities, roles, pages and concrete acceptance criteria in three tiers (mvp, pro, enterprise). Lets a one-line prompt like "CRM auf höchstem Niveau" produce the full feature set a professional expects. Used by spec-analyzer in Phase 1.
+description: Domain knowledge as structured blueprints — products (CRM, shop, booking, helpdesk, projects, invoicing, phone assistant, website, recruiting, warehouse) and industries (notary, law firm, tax advisor, medical practice, property management, real-estate agency, trades, restaurant) — modules, entities, roles, pages and concrete acceptance criteria in three tiers (mvp, pro, enterprise). Lets a one-line prompt like "CRM auf höchstem Niveau" produce the full feature set a professional expects. Used by spec-analyzer in Phase 1.
 ---
 
 You are the Domain Blueprint step of OneCommand. Users should not have to write long prompts: "ein CRM auf höchstem Niveau" must yield everything a professional means by a CRM — not a contact list with three fields.
@@ -13,16 +13,36 @@ The knowledge lives in `skills/domain-blueprints/blueprints/<id>.json`; `hooks/b
 python3 "$OC_ROOT/hooks/blueprint.py" list
 ```
 
-| id | System | Typical prompts |
-|---|---|---|
-| `crm` | CRM: contacts, companies, pipeline, activities, leads, reports, GDPR, automations | "CRM", "Kundenverwaltung", "Vertriebstool", "wie HubSpot" |
-| `shop` | Online shop: catalogue, cart, checkout, orders, coupons, reviews | "Online-Shop", "Webshop", "E-Commerce" |
-| `booking` | Appointment booking: services, slots, booking, cancellation, calendar | "Terminbuchung", "Friseur", "Praxis" |
-| `helpdesk` | Ticket system: tickets, replies, SLA, macros, knowledge base | "Ticketsystem", "Support", "Helpdesk" |
-| `projects` | Project & task management: workspaces, board, comments, time tracking | "Projektmanagement", "Kanban", "wie Trello" |
-| `invoicing` | Invoices & quotes: §14 UStG, gap-free numbers, PDF, dunning, DATEV | "Rechnungsprogramm", "Faktura" |
-| `phone-assistant` | AI phone support: telephony, AI disclosure, knowledge-base answers, actions, handover, call log, own intent model, GDPR | "Telefonassistent", "Voicebot", "KI am Telefon", "Support Telefon KI" |
-| `website` | Corporate / premium website: design system, motion, hero video, case studies, CMS, i18n, SEO, GDPR, WCAG, performance budget | "Webseite", "Firmenwebseite", "Landingpage", "Premium-Website", "100k" |
+Two kinds: a **product** blueprint describes what is built (CRM, shop, website …); an **industry** blueprint
+describes a business (notary, practice, restaurant …) with its processes, duties, closed systems and look.
+
+| id | Kind | System | Typical prompts |
+|---|---|---|---|
+| `crm` | product | contacts, companies, pipeline, activities, leads, reports, GDPR, automations | "CRM", "Kundenverwaltung", "wie HubSpot" |
+| `shop` | product | catalogue, cart, checkout, orders, coupons, reviews | "Online-Shop", "Webshop" |
+| `booking` | product | services, slots, booking, cancellation, calendar | "Terminbuchung", "Friseur" |
+| `helpdesk` | product | tickets, replies, SLA, macros, knowledge base | "Ticketsystem", "Helpdesk" |
+| `projects` | product | workspaces, board, comments, time tracking | "Projektmanagement", "wie Trello" |
+| `invoicing` | product | §14 UStG, gap-free numbers, PDF, dunning, DATEV | "Rechnungsprogramm", "Faktura" |
+| `phone-assistant` | product | AI phone support: telephony, voice, handover, call log | "Telefon-KI", "Voicebot" |
+| `website` | product | corporate / premium website, motion, CMS, SEO, performance budget | "Webseite", "Landingpage", "100k" |
+| `recruiting` | product | ATS: jobs, career page, pipeline, scorecards, deletion periods, works council | "Bewerbermanagement" |
+| `warehouse` | product | articles, bins, goods in/out, picking by phone camera, inventory (§ 240 HGB), batches | "Lagerverwaltung", "Warenwirtschaft" |
+| `notary` | industry | matters, conflict check (§ 3 BeurkG), 14-day draft rule, deed register, GNotKG, Vollzug, escrow, GwG | "Notariat", "Notar" |
+| `law-firm` | industry | matters, conflict check, deadline control, RVG billing, beA handover, client money | "Anwaltskanzlei", "Kanzleisoftware" |
+| `tax-advisor` | industry | clients, document exchange, filing deadlines, monthly close, StBVV, DATEV export | "Steuerberater", "Steuerkanzlei" |
+| `medical-practice` | industry | online booking, anamnesis, check-in, recall, GOÄ/GOZ — no KV/TI (certification) | "Arztpraxis", "Physiotherapie" |
+| `property-management` | industry | WEG + rentals: units, leases, BetrKV statement, owners' meeting, resolutions | "Hausverwaltung" |
+| `real-estate-agency` | industry | listings, exposé, OpenImmo, matching, viewings, commission (§ 656c BGB), GwG | "Immobilienmakler" |
+| `trades` | industry | inquiries, quotes, scheduling, mobile field app, acceptance, invoices, maintenance | "Handwerksbetrieb", "Elektriker" |
+| `restaurant` | industry | reservations, floor plan, menu with allergens, QR ordering, kitchen display — POS/TSE stays certified | "Restaurant", "Gastronomie" |
+
+**Combinations.** `detect` prints a plan:
+- "Software für …" with an industry → the industry leads, product matches add their modules (`--with`):
+  "Praxis-Software mit Telefon-KI" → `expand medical-practice --with phone-assistant`.
+- A product named for an industry → the product leads, the industry gives look, duties and integrations
+  (`--context`): "Webseite für unser Restaurant" → `expand website --context restaurant` (no kitchen display).
+`check` covers every `--with` blueprint like the primary one.
 
 ## Tiers
 
@@ -40,7 +60,8 @@ Tiers are cumulative: `mvp` ⊂ `pro` ⊂ `enterprise`.
    ```bash
    python3 "$OC_ROOT/hooks/blueprint.py" detect --prompt "$ARGUMENTS"
    ```
-   No match → continue without a blueprint (spec-analyzer derives everything from the prompt).
+   No match → **research the domain** and write `domain_brief` into the spec (`blueprint.py brief` prints the
+   template; `check` fails until it is complete). An unknown industry is never guessed from three words.
 
 2. **Expand** the best match into a draft spec. Pass modules the user explicitly does **not** want with a reason (their own words):
    ```bash
@@ -64,6 +85,20 @@ Tiers are cumulative: `mvp` ⊂ `pro` ⊂ `enterprise`.
    python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
    ```
    A missing module, a dropped criterion or a dropped metric fails the check. The fix is to restore it — or, only if the user asked for that, to exclude the module with their reason.
+
+## What a blueprint carries besides modules
+
+- `design` — the industry's design direction (personality, typefaces, palette, density, signature ideas,
+  references, what looks cheap there). `expand` puts it into the spec as `design_direction`; the frontend
+  agent's design brief starts from it.
+- `compliance` — legal and professional duties with their source (§ …), per tier. The delivery report lists
+  how each one is supported.
+- `integrations` — `connectable`, `export_only`, `not_possible`: honest about closed official systems
+  (notaries' archive, KV billing, beA, TSE cash registers). Build export/handover for those, never a fake
+  connection.
+
+New blueprint: add the JSON file — `tests/test_blueprint.py` validates the schema (design included) and every
+tier expansion against the spec, acceptance and tour validators.
 
 ## What the build agents do with it
 
