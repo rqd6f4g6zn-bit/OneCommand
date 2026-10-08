@@ -16,6 +16,8 @@ Subcommands
 -----------
 start    begin a build (or keep the active one for the same project)
 phase N  mark phase N complete:  --summary "..." [--status ok|warn|fail]
+         Refused (exit 1) while a skill assigned to phase N was not loaded
+         (skill-catalog.py check-read N) — unless --skills-skipped "<reason>".
 finish   mark the build complete (phase 8 done)
 status   print the current state
 
@@ -192,8 +194,26 @@ def cmd_start(args: argparse.Namespace) -> int:
     return 0
 
 
+def skills_loaded(project: Path, n: int) -> tuple[bool, str]:
+    """skill-catalog.py check-read N — only when the build has a skill catalog."""
+    if not (project / ".onecommand" / "skills-catalog.json").exists():
+        return True, ""
+    import subprocess
+    script = Path(__file__).resolve().parent / "skill-catalog.py"
+    r = subprocess.run([sys.executable, str(script), "--project-dir", str(project), "check-read", str(n)],
+                       capture_output=True, text=True)
+    return r.returncode == 0, (r.stdout + r.stderr).strip()
+
+
 def cmd_phase(args: argparse.Namespace) -> int:
     project = project_of(args)
+    ok, report = skills_loaded(project, args.n)
+    if not ok and not args.skills_skipped:
+        print(report)
+        print(f"[checkpoint] ✗ Phase {args.n} NOT saved — the skills above were assigned but never loaded. "
+              "Re-dispatch the owning agent to load and apply them, then run this checkpoint again "
+              "(or pass --skills-skipped \"<reason>\" if a skill truly does not apply).")
+        return 1
     wm = load_wm()
     if not is_active(wm) or Path(wm.get("project_dir", "")) != project:
         wm = new_wm(project, args.oc_root)  # robust: a forgotten `start` must not lose the checkpoint
@@ -210,6 +230,8 @@ def cmd_phase(args: argparse.Namespace) -> int:
     wm["current_phase"] = args.n + 1
     wm.setdefault("phase_summaries", {})[str(args.n)] = args.summary
     wm.setdefault("phase_status", {})[str(args.n)] = args.status
+    if not ok:
+        wm.setdefault("skills_skipped", {})[str(args.n)] = args.skills_skipped
     if args.n == 8:
         wm["finished_at"] = datetime.now().isoformat(timespec="seconds")
     persist(wm, project, f"phase{args.n}")
@@ -220,6 +242,7 @@ def cmd_phase(args: argparse.Namespace) -> int:
 
 def cmd_finish(args: argparse.Namespace) -> int:
     args.n, args.status = 8, args.status or "ok"
+    args.skills_skipped = getattr(args, "skills_skipped", None)
     args.summary = args.summary or "Delivery report written"
     return cmd_phase(args)
 
@@ -249,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("n", type=int, choices=list(PHASES))
     p.add_argument("--summary", required=True)
     p.add_argument("--status", choices=("ok", "warn", "fail"), default="ok")
+    p.add_argument("--skills-skipped", help="save although check-read fails; the reason is recorded")
     p.set_defaults(func=cmd_phase)
 
     p = sub.add_parser("finish", help="mark the build complete")

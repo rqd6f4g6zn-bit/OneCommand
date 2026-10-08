@@ -17,6 +17,15 @@ check      Merge the orchestrator's decisions (.onecommand/skill-plan.json) into
 for-phase  Print the skills a phase must use (name, how to load it, why) — pasted
            into every phase subagent prompt.
 show       Print the catalog grouped by status.
+read       Print a skill's SKILL.md for the agent that applies it AND record the read
+           (.onecommand/skills-read.json: phase, SHA-256 of the file, time). Agents load
+           their skills with this command instead of a plain file read.
+check-read Fail when a skill assigned to a phase was not read during that phase, or was
+           read in an older version. Run by the orchestrator after every phase.
+library    The skill library: every skill OneCommand can use — its own bundled skills and all
+           skills installed elsewhere (personal, project, enabled plugins) — with what each does
+           and when OneCommand uses it. --search ranks by topic; --markdown regenerates
+           skills/LIBRARY.md (bundled skills, tracked in git). Writes ~/.onecommand/skills-library.json.
 
 Decisions file (.onecommand/skill-plan.json), written by the orchestrator:
   {"decisions": [
@@ -70,9 +79,9 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "asset-generator":         {"phases": [2], "when": "game", "use": "sprites, models, audio"},
     "os-builder":              {"phases": [2], "when": "os", "use": "custom Linux OS build"},
     "ml-builder":              {"phases": [2, 4], "when": "ml", "use": "AI/ML training project: data, training, evaluation, model card, inference API (via ml-agent)"},
-    "voice-agent":             {"phases": [2, 3, 4], "when": "web", "use": "phone/voice assistant: telephony, speech, dialogue, handover, test calls (when spec.voice is set)"},
-    "video-producer":          {"phases": [2, 3], "when": "web", "use": "cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set"},
-    "live-integrations":       {"phases": [3], "when": "web", "use": "real e-mail, OAuth, push for production_dependencies"},
+    "voice-agent":             {"phases": [2, 3, 4], "when": "web", "requires": "voice", "use": "phone/voice assistant: telephony, speech, dialogue, handover, test calls (when spec.voice is set)"},
+    "video-producer":          {"phases": [2, 3], "when": "web", "requires": "media.videos", "use": "cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set"},
+    "live-integrations":       {"phases": [3], "when": "web", "requires": "production_dependencies", "use": "real e-mail, OAuth, push for production_dependencies"},
     "oc-marketing":            {"phases": [3], "when": "always", "use": "README, landing page, docs (via marketing-agent)"},
     "acceptance-tester":       {"phases": [4, 6], "when": "web", "use": "Playwright suite from acceptance_criteria"},
     "self-healer":             {"phases": [4, 6], "when": "always", "use": "fix gate failures, record learnings"},
@@ -220,7 +229,16 @@ def spec_targets(spec: dict[str, Any]) -> set[str]:
     return targets
 
 
-def resolve_bundled(entry: dict[str, Any], targets: set[str]) -> None:
+def spec_has(spec: dict[str, Any], dotted: str) -> bool:
+    node: Any = spec
+    for key in dotted.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return False
+        node = node[key]
+    return bool(node)
+
+
+def resolve_bundled(entry: dict[str, Any], targets: set[str], spec: dict[str, Any] | None = None) -> None:
     rule = BUNDLED.get(entry["name"])
     if rule is None:
         entry.update(status="unmapped", phases=[], use="",
@@ -232,6 +250,9 @@ def resolve_bundled(entry: dict[str, Any], targets: set[str]) -> None:
     elif when == "support":
         entry.update(status="not_used", phases=[], use=rule["use"],
                      reason="infrastructure skill used by /oc-resume and /oc-save, not by phase agents")
+    elif (when == "always" or when in targets) and rule.get("requires") and not spec_has(spec or {}, rule["requires"]):
+        entry.update(status="not_used", phases=[], use=rule["use"],
+                     reason=f"spec has no '{rule['requires']}' section")
     elif when == "always" or when in targets:
         entry.update(status="assigned", phases=rule["phases"], use=rule["use"])
     else:
@@ -258,7 +279,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
     entries = discover(oc_root, project, Path(args.home).expanduser(), [Path(d).expanduser() for d in args.plugin_dir])
     for e in entries:
         if e["source"] == "bundled":
-            resolve_bundled(e, targets)
+            resolve_bundled(e, targets, spec)
         else:
             e.update(status="undecided", phases=[], use="")
     missing = sorted(set(BUNDLED) - {e["name"] for e in entries if e["source"] == "bundled"})
@@ -381,11 +402,173 @@ def cmd_for_phase(args: argparse.Namespace) -> int:
     if not catalog.get("complete"):
         print("[skills] ⚠ skill plan not complete — run 'check' and resolve all decisions", file=sys.stderr)
     rows = [e for e in catalog["skills"] if e["status"] == "assigned" and args.phase in e["phases"]]
-    print(f"SKILLS FOR PHASE {args.phase} ({PHASE_NAMES[args.phase]}) — read each SKILL.md and apply it:")
+    script = Path(__file__).resolve()
+    print(f"SKILLS FOR PHASE {args.phase} ({PHASE_NAMES[args.phase]}) — load each one with the command shown "
+          f"(it prints the SKILL.md and records the read; 'check-read {args.phase}' fails for skills not loaded), "
+          "then apply it:")
     if not rows:
         print("  (none)")
     for e in rows:
-        print(f"  - {e['name']} [{e['source']}] — {e['use']}\n      {e['path']}")
+        print(f"  - {e['name']} [{e['source']}] — {e['use']}\n"
+              f"      python3 \"{script}\" --project-dir \"{Path(args.project_dir).resolve()}\" read {e['name']} --phase {args.phase}")
+    return 0
+
+
+# Plugins OneCommand recommends; the library lists them as missing when they are not installed.
+RECOMMENDED_PLUGINS = {
+    "superpowers": "frontend-design and UI/UX skills — /plugin install superpowers",
+    "marketing-skills": "landing pages, copy, SEO — /plugin install marketing-skills",
+    "codex": "backend generation via Codex CLI — /plugin install codex, then /codex:setup",
+}
+OC_ROOT = Path(__file__).resolve().parent.parent
+
+
+def library_entries(project: Path, home: Path) -> list[dict[str, Any]]:
+    entries = discover(OC_ROOT, project, home, [])
+    for e in entries:
+        rule = BUNDLED.get(e["name"]) if e["source"] == "bundled" else None
+        if rule:
+            e.update(phases=rule["phases"], when=rule["when"], use=rule["use"],
+                     requires=rule.get("requires"))
+    return entries
+
+
+def search(entries: list[dict[str, Any]], term: str) -> list[tuple[int, dict[str, Any]]]:
+    words = [w for w in re.split(r"[^a-z0-9äöüß]+", term.lower()) if len(w) > 1]
+    ranked = []
+    for e in entries:
+        name, text = e["name"].lower(), f"{e.get('description', '')} {e.get('use', '')}".lower()
+        score = sum(3 * (w in name) + text.count(w) for w in words)
+        if score:
+            ranked.append((score, e))
+    return sorted(ranked, key=lambda x: (-x[0], x[1]["name"]))
+
+
+def library_markdown(entries: list[dict[str, Any]]) -> str:
+    rows = [e for e in entries if e["source"] == "bundled"]
+    out = ["# OneCommand skill library", "",
+           "Generated by `python3 hooks/skill-catalog.py library --markdown` — do not edit by hand.",
+           "Skills installed elsewhere (personal, project, other plugins) join this library at runtime:",
+           "`/oc-skills` lists everything, `/oc-skills <topic>` searches.", "",
+           "| Skill | Phases | Used for | When |", "|---|---|---|---|"]
+    for e in sorted(rows, key=lambda r: (min(r.get("phases") or [9]), r["name"])):
+        phases = ", ".join(str(n) for n in e.get("phases") or []) or "—"
+        when = e.get("when", "")
+        if e.get("requires"):
+            when += f" + spec.{e['requires']}"
+        out.append(f"| `{e['name']}` | {phases} | {e.get('use', '')} | {when} |")
+    out += ["", "Load a skill inside a build: `python3 hooks/skill-catalog.py --project-dir <project> read <skill> --phase <N>`."]
+    return "\n".join(out) + "\n"
+
+
+def cmd_library(args: argparse.Namespace) -> int:
+    project = Path(args.project_dir).expanduser().resolve()
+    home = Path(args.home).expanduser()
+    entries = library_entries(project, home)
+    if args.markdown:
+        target = OC_ROOT / "skills" / "LIBRARY.md"
+        write_atomic(target, library_markdown(entries))
+        print(f"[skills] wrote {target}")
+        return 0
+    installed = {e["source"].split(":", 1)[1] for e in entries if e["source"].startswith("plugin:")}
+    missing = {k: v for k, v in RECOMMENDED_PLUGINS.items() if k not in installed}
+    lib = {"generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "oc_root": str(OC_ROOT),
+           "skills": entries, "recommended_missing": missing}
+    try:
+        write_atomic(home / ".onecommand" / "skills-library.json", json.dumps(lib, indent=2, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        LOG.warning("library not saved: %s", exc)
+    if args.json:
+        print(json.dumps(lib, indent=2, ensure_ascii=False))
+        return 0
+    if args.search:
+        hits = search(entries, args.search)
+        print(f"SKILL LIBRARY — {len(hits)} match(es) for \"{args.search}\" (of {len(entries)} skills):")
+        for score, e in hits[:15]:
+            print(f"  - {e['name']} [{e['source']}] — {(e.get('use') or e['description'])[:150]}")
+        if not hits:
+            print("  (none) — try other words, or install a plugin that covers it")
+        print("Load one in a build: skill-catalog.py --project-dir <project> read <skill> --phase <N>")
+        return 0
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for e in entries:
+        groups.setdefault(e["source"], []).append(e)
+    print(f"SKILL LIBRARY — {len(entries)} skills ({len(groups.get('bundled', []))} bundled with OneCommand)")
+    for source in sorted(groups, key=lambda s: (s != "bundled", s)):
+        print(f"\n## {source} ({len(groups[source])})")
+        for e in sorted(groups[source], key=lambda r: r["name"]):
+            phases = f" · phase {', '.join(map(str, e['phases']))}" if e.get("phases") else ""
+            print(f"  - {e['name']}{phases} — {(e.get('use') or e['description'])[:140]}")
+    if missing:
+        print("\n## recommended, not installed")
+        for k, v in missing.items():
+            print(f"  - {k} — {v}")
+    return 0
+
+
+def skill_path(name: str, catalog: dict[str, Any] | None, project: Path | None = None) -> Path | None:
+    for e in (catalog or {}).get("skills", []):
+        if e["name"] == name and e.get("path"):
+            return Path(e["path"])
+    if project is not None:  # any skill of the library, also without a build catalog
+        for e in library_entries(project, Path.home()):
+            if e["name"] == name:
+                return Path(e["path"])
+    bundled = Path(__file__).resolve().parent.parent / "skills" / name.split(":")[-1] / "SKILL.md"
+    return bundled if bundled.exists() and (":" not in name or name.split(":")[0] == "onecommand") else None
+
+
+def sha256(path: Path) -> str:
+    import hashlib
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def cmd_read(args: argparse.Namespace) -> int:
+    project, catalog_path, _ = paths(args)
+    catalog = read_json(catalog_path)
+    path = skill_path(args.skill, catalog, project)
+    if path is None or not path.exists():
+        print(f"[skills] unknown skill '{args.skill}' — run 'scan', or check the name in 'for-phase'", file=sys.stderr)
+        return 2
+    log_path = project / ".onecommand" / "skills-read.json"
+    log = read_json(log_path, {"reads": []}) or {"reads": []}
+    log.setdefault("reads", []).append({
+        "skill": args.skill, "phase": args.phase, "sha256": sha256(path), "path": str(path),
+        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    write_atomic(log_path, json.dumps(log, indent=2, ensure_ascii=False) + "\n")
+    print(f"<skill name=\"{args.skill}\" phase=\"{args.phase}\">")
+    print(path.read_text(encoding="utf-8", errors="replace").rstrip())
+    print("</skill>")
+    print(f"[skills] loaded {args.skill} for phase {args.phase} — apply it to your task now.", file=sys.stderr)
+    return 0
+
+
+def cmd_check_read(args: argparse.Namespace) -> int:
+    project, catalog_path, _ = paths(args)
+    catalog = read_json(catalog_path)
+    if catalog is None:
+        print(f"[skills] no catalog at {catalog_path} — run 'scan' and 'check' first", file=sys.stderr)
+        return 2
+    reads = (read_json(project / ".onecommand" / "skills-read.json", {}) or {}).get("reads", [])
+    problems: list[str] = []
+    rows = [e for e in catalog["skills"] if e["status"] == "assigned" and args.phase in e["phases"]]
+    for e in rows:
+        path = Path(e["path"])
+        mine = [r for r in reads if r.get("skill") == e["name"] and r.get("phase") == args.phase]
+        if not mine:
+            problems.append(f"{e['name']}: assigned to phase {args.phase} but never loaded — "
+                            f"its rules were not applied")
+        elif path.exists() and all(r.get("sha256") != sha256(path) for r in mine):
+            problems.append(f"{e['name']}: loaded in an older version — load it again")
+    for p in problems:
+        print(f"  ✗ {p}")
+    if problems:
+        print(f"[skills] phase {args.phase}: {len(problems)} skill(s) not applied — re-dispatch the phase agent "
+              f"with the 'for-phase {args.phase}' list and have it load them, then re-check")
+        return 1
+    print(f"[skills] phase {args.phase}: all {len(rows)} assigned skill(s) loaded")
     return 0
 
 
@@ -437,6 +620,22 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("for-phase", help="print the skills a phase must use")
     p.add_argument("phase", type=int, choices=list(PHASES))
     p.set_defaults(func=cmd_for_phase)
+
+    p = sub.add_parser("read", help="print a skill's SKILL.md and record that it was loaded")
+    p.add_argument("skill")
+    p.add_argument("--phase", type=int, required=True, choices=list(PHASES))
+    p.set_defaults(func=cmd_read)
+
+    p = sub.add_parser("check-read", help="fail when a skill of the phase was not loaded")
+    p.add_argument("phase", type=int, choices=list(PHASES))
+    p.set_defaults(func=cmd_check_read)
+
+    p = sub.add_parser("library", help="list or search every skill OneCommand can use")
+    p.add_argument("--search", help="topic words, e.g. 'pdf invoice' or 'landing page'")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--markdown", action="store_true", help="regenerate skills/LIBRARY.md (bundled skills)")
+    p.add_argument("--home", default=str(Path.home()))
+    p.set_defaults(func=cmd_library)
 
     p = sub.add_parser("show", help="print the plan")
     p.set_defaults(func=cmd_show)

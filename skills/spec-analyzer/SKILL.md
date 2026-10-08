@@ -20,6 +20,19 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    ```bash
    python3 "$OC_ROOT/hooks/blueprint.py" detect --prompt "$ARGUMENTS"
    ```
+   **No match → research the domain, never guess it.** Print the template (`blueprint.py brief`) and fill
+   `domain_brief` in the spec before you write features:
+   - roles, the core processes step by step (each linked to a feature with a must-criterion);
+   - legal and professional duties with their source (§ …), deadlines;
+   - integrations split into connectable / export_only / not_possible — closed official systems are named,
+     not faked;
+   - a glossary (the UI uses these words), assumptions to confirm in `to_verify`;
+   - a design direction for the industry (personality, typefaces, palette, density, signature, references,
+     what looks cheap there).
+
+   Use web search when available; otherwise write from domain knowledge and list every uncertain fact in
+   `to_verify`. `blueprint.py check` fails until the brief is complete. A thin brief builds a thin product.
+
    On a match, expand it (`blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json`) and build the spec **on top of that draft**: keep every module and every criterion (`source` tag), add what the prompt asks for beyond it, adapt the wording. Only modules the user explicitly does not want may be left out — via `--exclude "<module>=<the user's reason>"`.
 
 2. **Analyze the prompt** — Extract:
@@ -166,7 +179,7 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    ```
    Exit 1 → fix every `✗` line.
 
-5b. **Validate the acceptance criteria** — the build must not start with an untestable spec (with a blueprint, also run `python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json`; it fails when a blueprint module or criterion was dropped):
+5b. **Validate the acceptance criteria** — the build must not start with an untestable spec (always run `python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json`: with a blueprint it fails when a module or criterion was dropped, without one when the domain brief is missing or thin):
    ```bash
    python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.json
    ```
@@ -207,11 +220,13 @@ The acceptance criteria are the contract of the whole build. Phase 4 turns every
 1. **Every feature gets at least one `must` criterion.** Core features (auth, the main CRUD flow, payments) get 2–4: happy path, validation error, permission check.
 2. **Observable, not vague.** "Dashboard works" is invalid. "After login, /dashboard shows heading 'Dashboard' and 3 stat cards" is valid. Words like *works, properly, correctly, nice, fast, intuitive, seamless* are flagged by the validator.
 3. **Name the UI text** the user sees (button labels, headings, error messages). The frontend agent must use exactly these strings — they are part of the contract.
-4. **Persistence counts.** For create/update flows add an expected line like "After reload the row is still there".
-5. **Security is a feature.** Every protected API resource gets an `api` criterion for the unauthenticated case (401) and, where ownership exists, for another user's data (403/404).
-6. **External services are verified in test mode** (e-mail outbox, Stripe test mode, credentials login next to OAuth) — never mark a flow `manual` just because it sends an e-mail.
-7. `manual` is only for what a browser cannot judge (print layout, real push delivery on a device, App Store review). For web builds at least 90 % of criteria must be automated.
-8. Typical count: 8–15 criteria for a small app, 15–40 for a SaaS. Fewer than one per page is a sign that something is missing.
+4. **Labels, not code values.** `expected` names what the user reads ("Anliegen 'Versand'"), never an enum value
+   (`shipping`) — the UI must not show code values, so such a line forces a defect.
+5. **Persistence counts.** For create/update flows add an expected line like "After reload the row is still there".
+6. **Security is a feature.** Every protected API resource gets an `api` criterion for the unauthenticated case (401) and, where ownership exists, for another user's data (403/404).
+7. **External services are verified in test mode** (e-mail outbox, Stripe test mode, credentials login next to OAuth) — never mark a flow `manual` just because it sends an e-mail.
+8. `manual` is only for what a browser cannot judge (print layout, real push delivery on a device, App Store review). For web builds at least 90 % of criteria must be automated.
+9. Typical count: 8–15 criteria for a small app, 15–40 for a SaaS. Fewer than one per page is a sign that something is missing.
 
 Game and OS specs also carry `acceptance_criteria` (feature = an entry of `game_features` / `os_features`). Use `verification: "manual"` where no automated harness exists; the os-agent and game-agent report them in the delivery matrix.
 

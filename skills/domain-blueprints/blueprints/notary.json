@@ -1,0 +1,187 @@
+{
+  "id": "notary",
+  "name": "Notariat",
+  "kind": "industry",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["notariat", "notar", "notarin", "notare", "notarbüro", "notarkanzlei", "notariatssoftware", "notarsoftware", "anwaltsnotar", "nurnotar", "notary", "notary office", "beurkundung", "urkundenverzeichnis", "urkundenrolle", "notarfachangestellte"],
+  "summary": "Vorgänge vom Datenblatt bis zum Vollzug für ein deutsches Notariat: Beteiligte, Kollisionsprüfung, Entwurfsversand mit 14-Tage-Frist, Urkundenverzeichnis, Kostenberechnung nach GNotKG, Vollzugs-Checklisten, Notaranderkonto und GwG-Prüfung.",
+  "design": {"personality": ["seriös", "verschwiegen", "präzise"], "typefaces": {"display": "Newsreader", "text": "IBM Plex Sans"}, "palette": "tiefes Tintenblau auf papierweißem Grund, Siegelrot als einziger Akzent nur für Sperren und ablaufende Fristen, Status als ruhige Pillen", "density": "compact", "signature_ideas": ["Urkundennummer 'UVZ 123/2026' als Siegel-Marke im Vorgangskopf — die Kennung, unter der jeder im Notariat sucht", "Vollzugs-Leiste: jede Voraussetzung bis zur Fälligkeitsmitteilung als abhakbarer Schritt mit Datum und Kürzel", "14-Tage-Uhr: vom Entwurfsversand bis zum frühesten zulässigen Beurkundungstag"], "references": ["TriNotar", "XNotar (BNotK)", "Linear"], "avoid": ["verspielte Illustrationen und Emojis", "Stockfotos von Handschlägen, Waagen und Paragrafen-Symbolen", "Ampelfarben überall — Rot nur für echte Sperren und Fristen"]},
+  "roles": [
+    {"id": "notary", "name": "Notar/Notarin", "can": "alle Vorgänge, beurkundet, entscheidet Kollisionen und Fristunterschreitungen, unterschreibt Kostenberechnungen, gibt Anderkonto-Auszahlungen frei, verwaltet Benutzer"},
+    {"id": "clerk", "name": "Notarfachangestellte", "can": "Vorgänge anlegen und vorbereiten, Beteiligte erfassen, Entwürfe versenden, Vollzug bearbeiten, Kostenberechnungen entwerfen"},
+    {"id": "accounting", "name": "Buchhaltung", "can": "Kostenberechnungen, Zahlungseingänge und Anderkonto-Buchungen erfassen; Auszahlungen nur nach Freigabe des Notars", "tier": "pro"},
+    {"id": "client", "name": "Beteiligter (Mandantenportal)", "can": "Datenblatt ausfüllen, Unterlagen hochladen, Status, Termine und Entwürfe der eigenen Vorgänge sehen", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "passwordHash", "role(notary|clerk|accounting|client)", "notaryId", "partyId", "active"], "tier": "mvp"},
+    {"name": "Party", "fields": ["type(person|company)", "firstName", "lastName", "birthName", "birthDate", "birthPlace", "nationality", "address", "email", "phone", "taxId", "maritalPropertyRegime", "companyName", "registerCourt", "registerNumber", "isConsumer"], "tier": "mvp"},
+    {"name": "Matter", "fields": ["matterNumber", "type(property_purchase|land_charge|will|inheritance_contract|lasting_power_of_attorney|gmbh_formation|register_filing|signature_certification)", "title", "status(inquiry|drafting|draft_sent|scheduled|notarized|executing|completed|cancelled)", "notaryId", "clerkId", "isConsumerContract", "purchasePrice", "businessValue", "appointmentAt", "earliestAppointmentDate", "createdAt"], "tier": "mvp"},
+    {"name": "MatterParty", "fields": ["matterId", "partyId", "role(seller|buyer|creditor|owner|testator|grantor|attorney_in_fact|shareholder|managing_director|signatory)"], "tier": "mvp"},
+    {"name": "IdentityCheck", "fields": ["partyId", "matterId", "method(id_card|passport|personally_known|register_extract)", "documentNumber", "issuingAuthority", "validUntil", "verifiedAt", "verifiedById", "copyFileId"], "tier": "mvp"},
+    {"name": "ConflictRelation", "fields": ["notaryId", "name", "birthDate", "relation(spouse|relative|business_interest|prior_involvement|law_firm_client)", "note"], "tier": "mvp"},
+    {"name": "ConflictCheck", "fields": ["matterId", "partyId", "hits", "decision(pending|clear|prohibited)", "reason", "decidedById", "decidedAt"], "tier": "mvp"},
+    {"name": "Draft", "fields": ["matterId", "version", "fileId", "sentAt", "sentToPartyIds", "sentById", "deadlineOverrideReason", "overrideById"], "tier": "mvp"},
+    {"name": "Deed", "fields": ["notaryId", "year", "number", "matterId", "kind(notarization|certification_with_draft|certification_without_draft|other)", "notarizedAt", "place", "subject", "participantNames", "pdfFileId", "archiveStatus(not_exported|exported|confirmed)", "correctionNotes"], "tier": "mvp"},
+    {"name": "CopyIssued", "fields": ["deedId", "kind(original_execution|certified_copy|simple_copy)", "recipient", "issuedAt"], "tier": "mvp"},
+    {"name": "FeeTable", "fields": ["name", "validFrom", "rows"], "tier": "mvp"},
+    {"name": "FeeInvoice", "fields": ["matterId", "number", "businessValue", "valueProvision", "items", "expenses", "netAmount", "vatAmount", "totalAmount", "debtorPartyId", "status(draft|issued|paid|cancelled)", "issuedAt", "signedById"], "tier": "mvp"},
+    {"name": "ExecutionStep", "fields": ["matterId", "title", "kind", "required", "dueDate", "doneAt", "doneById", "documentFileId"], "tier": "mvp"},
+    {"name": "FollowUp", "fields": ["matterId", "date", "note", "assigneeId", "done"], "tier": "mvp"},
+    {"name": "AuditLog", "fields": ["userId", "action", "entity", "entityId", "at", "ip"], "tier": "mvp"},
+    {"name": "GwgCheck", "fields": ["matterId", "riskLevel(low|medium|high)", "pepCheckedAt", "sanctionsCheckedAt", "status(open|completed)", "completedById", "retainUntil"], "tier": "pro"},
+    {"name": "BeneficialOwner", "fields": ["partyId", "name", "birthDate", "residence", "nationality", "ownershipPercent", "controlType", "transparencyRegisterFileId", "discrepancyNoted"], "tier": "pro"},
+    {"name": "DataSheet", "fields": ["matterId", "token", "expiresAt", "answers", "submittedAt", "acceptedById"], "tier": "pro"},
+    {"name": "Escrow", "fields": ["matterId", "massNumber", "iban", "securityInterest", "instructionFileId", "balance", "status(open|closed)"], "tier": "pro"},
+    {"name": "EscrowTransaction", "fields": ["escrowId", "type(deposit|payout)", "amount", "bookedAt", "payee", "enteredById", "approvedById", "status(pending_approval|approved|booked)"], "tier": "pro"},
+    {"name": "Template", "fields": ["name", "matterType", "body", "version"], "tier": "pro"},
+    {"name": "ArchiveExport", "fields": ["createdAt", "createdById", "deedIds", "fileId"], "tier": "pro"},
+    {"name": "Substitution", "fields": ["notaryId", "substituteName", "from", "to"], "tier": "enterprise"},
+    {"name": "BankStatementLine", "fields": ["bookedAt", "amount", "reference", "counterparty", "escrowId", "feeInvoiceId"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung, Rollen & Verschwiegenheit", "tier": "mvp",
+     "features": ["Login mit E-Mail und Passwort, Abmeldung nach Inaktivität", "Rollen Notar und Notarfachangestellte (pro: Buchhaltung, Beteiligte im Portal)", "Vorgänge nur für Mitarbeiter des Notariats sichtbar", "Jeder Lesezugriff auf einen Vorgang wird protokolliert (Verschwiegenheit, § 18 BNotO)"],
+     "criteria": [
+       {"title": "Unauthenticated access to /matters redirects to /login", "verification": "e2e", "start": "/matters", "requires_auth": false, "steps": ["Open /matters without a session"], "expected": ["URL is /login"]},
+       {"title": "GET /api/matters/<id> without a session returns 401 and no party data", "verification": "api", "steps": ["GET /api/matters/<id> without cookies"], "expected": ["Status 401", "Response body contains no party name"]}
+     ]},
+    {"id": "matters", "name": "Vorgänge & Beteiligte", "tier": "mvp",
+     "features": ["Vorgangsarten: Grundstückskaufvertrag, Grundschuldbestellung, Testament, Erbvertrag, Vorsorgevollmacht, GmbH-Gründung, Handelsregisteranmeldung, Unterschriftsbeglaubigung", "Beteiligte mit Rolle im Vorgang (Verkäufer, Käufer, Gläubiger, Erblasser, Vollmachtgeber, Gesellschafter, Geschäftsführer)", "Verbrauchereigenschaft je Beteiligtem", "Identitätsfeststellung nach § 10 BeurkG mit Ausweisart, -nummer, Behörde und Gültigkeit", "Status Anfrage → Entwurf in Arbeit → Entwurf versandt → Termin vereinbart → Beurkundet → Im Vollzug → Abgeschlossen", "Vorgangsakte mit Dokumenten, Notizen, Verlauf und Wiedervorlagen", "Dashboard: heutige Termine, fällige Wiedervorlagen, ablaufende Fristen"],
+     "criteria": [
+       {"title": "New property purchase matter lists seller and buyer on its detail page", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Click 'Neuer Vorgang'", "Choose type 'Grundstückskaufvertrag'", "Add 'Erika Muster' as 'Verkäufer' and 'Max Beispiel' as 'Käufer' (Verbraucher)", "Click 'Speichern'"], "expected": ["URL is /matters/<id>", "Section 'Beteiligte' lists 'Erika Muster — Verkäufer' and 'Max Beispiel — Käufer'", "Status 'Anfrage' is shown"]},
+       {"title": "A matter cannot be recorded as notarized while a party's identity is not established", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Open a matter with status 'Termin vereinbart' where 'Max Beispiel' has no identity check", "Click 'Als beurkundet erfassen'", "Reload"], "expected": ["Text 'Identität von Max Beispiel nicht festgestellt (§ 10 BeurkG)' is visible", "Status is still 'Termin vereinbart' after reload"]}
+     ]},
+    {"id": "conflict-check", "name": "Kollisionsprüfung (Mitwirkungsverbote)", "tier": "mvp",
+     "features": ["Jeder Beteiligte wird gegen alle früheren Vorgänge, Beteiligten und hinterlegten Beziehungen des Notars geprüft (§ 3 BeurkG)", "Hinterlegte Angehörige, Ehegatten, eigene Beteiligungen und Vorbefassung (beim Anwaltsnotar auch Anwaltsmandate der Sozietät)", "Treffer entscheidet nur der Notar: 'Kein Mitwirkungsverbot' oder 'Mitwirkungsverbot — Amtstätigkeit abgelehnt', jeweils mit Begründung", "Ohne abgeschlossene Prüfung kein Beurkundungstermin", "Prüfungen bleiben unveränderlich dokumentiert (§ 28 BNotO)"],
+     "criteria": [
+       {"title": "A party registered as the notary's relative blocks scheduling until the notary decides", "verification": "e2e", "start": "/conflicts", "requires_auth": true, "steps": ["Add 'Petra Notarius' as 'Angehörige des Notars'", "Create a matter with party 'Petra Notarius'", "Try to book the notarization appointment"], "expected": ["Text 'Mitwirkungsverbot prüfen (§ 3 BeurkG)' is visible", "No appointment is saved"]},
+       {"title": "Only the notary clears a conflict hit, and the decision with reason survives a reload", "verification": "e2e", "start": "/conflicts", "requires_auth": true, "steps": ["As Notarfachangestellte open the open hit", "As notary open the same hit, click 'Kein Mitwirkungsverbot', fill a reason, click 'Speichern'", "Reload"], "expected": ["The Notarfachangestellte sees no button 'Kein Mitwirkungsverbot'", "After reload the hit shows 'Geprüft von' with the notary's name, the date and the reason"]}
+     ]},
+    {"id": "drafts", "name": "Entwürfe & 14-Tage-Frist", "tier": "mvp",
+     "features": ["Entwurf als Version am Vorgang (PDF/DOCX)", "Versand an die Beteiligten per E-Mail mit Versandprotokoll: wer, wann, an wen, welche Version", "Verbraucherverträge über Grundstücke: frühester Beurkundungstag = Versand des beabsichtigten Textes durch den Notar + 14 Tage (§ 17 Abs. 2a BeurkG)", "Unterschreitung nur durch den Notar mit sachlichem Grund, der in die Niederschrift aufzunehmen ist", "Hinweis an den Notar, wenn eine neue Entwurfsversion wesentlich geändert wurde"],
+     "criteria": [
+       {"title": "Appointment earlier than 14 days after sending the draft to a consumer is blocked", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Open a 'Grundstückskaufvertrag' with a consumer buyer", "Click 'Entwurf versenden' today", "Try to book the notarization for today + 10 days"], "expected": ["Text 'Beurkundung frühestens am <heute + 14 Tage> (§ 17 Abs. 2a BeurkG)' is visible", "No appointment is saved"]},
+       {"title": "Only the notary can shorten the period, and the reason is shown in the matter history", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["As notary click 'Frist unterschreiten'", "Fill reason 'Finanzierungszusage läuft ab, Käufer ausführlich belehrt'", "Book the appointment for today + 10 days", "Reload"], "expected": ["The appointment is saved", "History shows 'Frist nach § 17 Abs. 2a BeurkG unterschritten — Grund: Finanzierungszusage läuft ab, Käufer ausführlich belehrt' with the notary's name", "Logged in as Notarfachangestellte, no button 'Frist unterschreiten' is visible"]}
+     ]},
+    {"id": "deed-register", "name": "Urkundenverzeichnis & Urkundensammlung", "tier": "mvp",
+     "features": ["Fortlaufende Urkundennummer je Notar und Kalenderjahr (z. B. 123/2026), lückenlos und ohne Wiederverwendung", "Eintrag mit Datum, Ort, Art des Geschäfts, Beteiligten und Gegenstand", "Beurkundungen sowie Unterschriftsbeglaubigungen mit und ohne Entwurf", "Einträge nicht löschbar; Berichtigungen als Vermerk", "Elektronische Fassung der Urkunde als PDF/A je Eintrag", "Ausfertigungen und beglaubigte Abschriften mit Empfänger und Datum protokollieren", "Interne Vorerfassung: das amtliche Verzeichnis wird im Elektronischen Urkundenarchiv geführt (Übergabe in pro)"],
+     "criteria": [
+       {"title": "Two notarizations in a row get consecutive deed numbers of the current year", "verification": "e2e", "start": "/deeds", "requires_auth": true, "steps": ["Record two matters as 'Beurkundet' today", "Open /deeds"], "expected": ["The two entries show '<n>/<Jahr>' and '<n+1>/<Jahr>' with the current year", "No number of the current year is missing in the list"]},
+       {"title": "A deed register entry cannot be deleted", "verification": "api", "steps": ["DELETE /api/deeds/<id> as notary"], "expected": ["Status 409", "GET /api/deeds/<id> still returns the entry with status 200"]}
+     ]},
+    {"id": "fees", "name": "Kostenberechnung nach GNotKG", "tier": "mvp",
+     "features": ["Geschäftswert je Vorgangsart mit Wertvorschrift (Kaufpreis § 47, Grundpfandrecht § 53, Verfügung von Todes wegen § 102, Vollmacht § 98, Gesellschaftsvertrag § 107 GNotKG)", "Gebühren nach KV-Nummer mit Satz aus Tabelle B: Beurkundung, Vollzug, Betreuung, Beglaubigung, inkl. Mindest- und Höchstbeträge", "Tabelle B als versionierte Tabelle mit Gültigkeitsdatum in den Einstellungen", "Auslagen: Dokumentenpauschale, Post- und Telekommunikationspauschale, Grundbuch- und Registerabrufe, verauslagte Gerichtskosten", "Kostenberechnung mit allen Angaben nach § 19 GNotKG, Umsatzsteuer, Kostenschuldner, Unterschrift des Notars", "Fortlaufende Nummern; Änderung nur durch berichtigte Kostenberechnung", "Kein Gebührenerlass und keine Gebührenvereinbarung (§ 125 GNotKG)"],
+     "criteria": [
+       {"title": "Fee for a property purchase uses the 2,0 rate of Tabelle B on the purchase price", "verification": "e2e", "start": "/fees", "requires_auth": true, "steps": ["Open a notarized 'Grundstückskaufvertrag' with Kaufpreis 300.000 €", "Click 'Kostenberechnung erstellen'"], "expected": ["Line 'KV 21100 Beurkundungsverfahren 2,0' shows Geschäftswert '300.000,00 €' and twice the 1,0 fee of the active Tabelle B for 300.000 €", "Lines 'KV 22110 Vollzug 0,5' and 'KV 22200 Betreuung 0,5' are proposed", "Total includes '19 % Umsatzsteuer'"]},
+       {"title": "Signature certification fee is held between its minimum and maximum", "verification": "api", "steps": ["POST /api/fees/calculate with KV 25100 and Geschäftswert 5.000 €", "POST /api/fees/calculate with KV 25100 and Geschäftswert 1.000.000 €"], "expected": ["First response amount is 20.00", "Second response amount is 70.00"]}
+     ]},
+    {"id": "execution", "name": "Vollzug", "tier": "mvp",
+     "features": ["Vollzugs-Checkliste je Vorgangsart aus Vorlage, mit Frist, Erledigt-Datum und Kürzel je Schritt", "Grundstückskaufvertrag: Auflassungsvormerkung beantragen, Vorkaufsrechtsanfrage an die Gemeinde (§ 28 BauGB), Veräußerungsanzeige an das Finanzamt binnen zwei Wochen (§ 18 GrEStG), Abschrift an den Gutachterausschuss (§ 195 BauGB), Löschungsbewilligung anfordern, Genehmigungen, Fälligkeitsmitteilung, Unbedenklichkeitsbescheinigung, Nachweis unbarer Kaufpreiszahlung (§ 16a GwG), Grundbuchantrag auf Eigentumsumschreibung", "Grundschuld: Eintragungsantrag, vollstreckbare Ausfertigung an den Gläubiger", "GmbH-Gründung: Handelsregisteranmeldung, Gesellschafterliste, Mitteilung an das Finanzamt (§ 54 EStDV)", "Testament/Erbvertrag: Ablieferung in die besondere amtliche Verwahrung bzw. Erbvertragssammlung, Meldung an das Zentrale Testamentsregister", "Vorsorgevollmacht: Registrierung im Zentralen Vorsorgeregister auf Wunsch", "Fälligkeitsmitteilung und Umschreibungsantrag erst, wenn alle Voraussetzungen abgehakt sind"],
+     "criteria": [
+       {"title": "Fälligkeitsmitteilung is blocked while a prerequisite is open", "verification": "e2e", "start": "/execution", "requires_auth": true, "steps": ["Open the Vollzug of a notarized 'Grundstückskaufvertrag'", "Check every prerequisite except 'Löschungsbewilligung liegt vor'", "Click 'Fälligkeitsmitteilung erstellen'"], "expected": ["Text 'Offen: Löschungsbewilligung liegt vor' is visible", "No Fälligkeitsmitteilung is listed in the matter's documents"]},
+       {"title": "Grundbuchantrag for the transfer of ownership waits for Unbedenklichkeitsbescheinigung and proof of non-cash payment", "verification": "e2e", "start": "/execution", "requires_auth": true, "steps": ["Open the Vollzug of a 'Grundstückskaufvertrag' after the Fälligkeitsmitteilung", "Leave 'Unbedenklichkeitsbescheinigung liegt vor' and 'Nachweis unbarer Zahlung liegt vor' unchecked"], "expected": ["Button 'Umschreibung beantragen' is disabled", "Hint 'Fehlt: Unbedenklichkeitsbescheinigung, Nachweis unbarer Zahlung (§ 16a GwG)' is visible"]}
+     ]},
+    {"id": "gwg", "name": "Geldwäscheprävention (GwG)", "tier": "pro",
+     "features": ["GwG-Prüfung je Vorgang mit Risikobewertung (Immobilien und Gesellschaftsrecht immer)", "Identifizierung nach §§ 11, 12 GwG mit Ausweiskopie", "Wirtschaftlich Berechtigte bei Gesellschaften mit Eigentums- und Kontrollstruktur", "Transparenzregister-Auszug hochladen, Unstimmigkeit vermerken und Meldung vorbereiten (§ 23a GwG)", "PEP- und Sanktionslisten-Prüfung dokumentieren", "Beurkundungssperre beim Immobilienerwerb, solange die Eigentums- und Kontrollstruktur nicht dokumentiert ist", "Aufbewahrung der GwG-Unterlagen fünf Jahre, danach Löschvorschlag (§ 8 GwG)"],
+     "criteria": [
+       {"title": "Property purchase by a company without documented beneficial owners cannot be scheduled", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Create a 'Grundstückskaufvertrag' with buyer 'Bau Invest GmbH'", "Try to book the notarization appointment"], "expected": ["Text 'Wirtschaftlich Berechtigte nicht dokumentiert — Beurkundung gesperrt (GwG)' is visible", "No appointment is saved"]},
+       {"title": "Documented beneficial owner with register extract releases the block", "verification": "e2e", "start": "/gwg", "requires_auth": true, "steps": ["Open 'Bau Invest GmbH'", "Add beneficial owner 'Klaus Bauer' with 60 %", "Upload a Transparenzregister extract", "Click 'Prüfung abschließen'", "Book the notarization appointment for the matter"], "expected": ["Status 'GwG-Prüfung abgeschlossen' is shown after reload", "The appointment is saved"]}
+     ]},
+    {"id": "client-portal", "name": "Mandantenportal & Datenblatt", "tier": "pro",
+     "features": ["Datenblatt je Vorgangsart per ablaufendem Link oder im Portal: Personalien, Steuer-ID, Güterstand, Objekt, Kaufpreis, Finanzierung, Gesellschafter", "Angaben werden erst nach Prüfung durch die Notarfachangestellte übernommen", "Beteiligte sehen Status, Termin und Entwürfe ihrer Vorgänge", "Unterlagen hochladen (Ausweis, Grundbuchauszug, Teilungserklärung)", "Verschlüsselte Ablage, Downloads nur über ablaufende Links", "Kein Zugriff auf Vorgänge anderer Beteiligter"],
+     "criteria": [
+       {"title": "Datenblatt sent by link arrives in the matter and is applied only after review", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Open a matter and click 'Datenblatt senden' to 'Max Beispiel'", "Open the link from the outbox without a session", "Fill Steuer-ID and Güterstand, click 'Absenden'", "Open the matter as Notarfachangestellte"], "expected": ["The public page shows 'Vielen Dank — Ihre Angaben sind beim Notariat eingegangen'", "The matter shows 'Datenblatt eingegangen' with the entered Steuer-ID", "The party's Steuer-ID changes only after clicking 'Übernehmen'"]},
+       {"title": "A portal user cannot read another party's matter", "verification": "api", "steps": ["Log in as client 'Max Beispiel'", "GET /api/matters/<id of a matter without Max Beispiel>"], "expected": ["Status 404", "Response body contains no party name"]}
+     ]},
+    {"id": "escrow", "name": "Notaranderkonto & Verwahrungsverzeichnis", "tier": "pro",
+     "features": ["Verwahrung nur mit schriftlicher Verwahrungsanweisung und dokumentiertem berechtigtem Sicherungsinteresse (§ 57 BeurkG)", "Masse je Verwahrung mit Massenummer, Anderkonto und Auszahlungsvoraussetzungen", "Ein- und Auszahlungen mit Datum, Betrag und Empfänger", "Auszahlung nur nach Freigabe durch den Notar; Bestand kann nicht negativ werden", "Abrechnung an die Beteiligten bei Abschluss der Masse", "Verwahrungsverzeichnis lückenlos, Übergabe an das Elektronische Urkundenarchiv"],
+     "criteria": [
+       {"title": "Escrow cannot be opened without a documented security interest", "verification": "e2e", "start": "/escrow", "requires_auth": true, "steps": ["Click 'Neue Verwahrung'", "Leave 'Berechtigtes Sicherungsinteresse' empty", "Click 'Speichern'"], "expected": ["Text 'Berechtigtes Sicherungsinteresse angeben (§ 57 BeurkG)' is visible", "No new Masse is listed"]},
+       {"title": "Payouts above the balance are rejected and others wait for the notary", "verification": "e2e", "start": "/escrow", "requires_auth": true, "steps": ["Open a Masse with balance 50.000,00 €", "As Buchhaltung enter Auszahlung 60.000,00 €", "Enter Auszahlung 40.000,00 €"], "expected": ["Text 'Auszahlung übersteigt den Bestand' is visible for 60.000,00 €", "The 40.000,00 € payout shows 'Wartet auf Freigabe durch den Notar'", "Balance is still 50.000,00 € after reload"]}
+     ]},
+    {"id": "templates", "name": "Urkundenvorlagen & Textbausteine", "tier": "pro",
+     "features": ["Vorlagen je Vorgangsart mit Platzhaltern aus Vorgang und Datenblatt", "Textbausteine: Belehrungen, Finanzierungsvollmacht, Vollzugsvollmacht", "Entwurf als DOCX/PDF erzeugen, Versionen vergleichen", "Musterprotokoll für die GmbH-Gründung"],
+     "criteria": [
+       {"title": "Draft generated from a template contains the parties and the purchase price", "verification": "e2e", "start": "/matters", "requires_auth": true, "steps": ["Open a 'Grundstückskaufvertrag' with Kaufpreis 300.000 €", "Click 'Entwurf aus Vorlage erzeugen'", "Choose 'Kaufvertrag Eigentumswohnung'"], "expected": ["Draft version 1 is listed in the matter", "The preview contains 'Erika Muster', 'Max Beispiel' and '300.000,00 EUR'", "No placeholder in double curly braces remains in the preview"]}
+     ]},
+    {"id": "archive-handover", "name": "Übergabe an BNotK-Systeme", "tier": "pro",
+     "features": ["Export der Urkundenverzeichnis- und Verwahrungsverzeichnis-Daten zur Übernahme in XNP / das Elektronische Urkundenarchiv", "Elektronische Fassung der Urkunden als PDF/A zur Signatur durch den Notar in XNP", "Meldedaten für das Zentrale Testamentsregister und das Zentrale Vorsorgeregister", "Status je Urkunde: 'Nicht exportiert', 'Exportiert — Signatur in XNP ausstehend', 'Im Urkundenarchiv bestätigt' (vom Notar gesetzt)", "Die Oberfläche nennt den Übergabeweg und täuscht keine Direktverbindung vor"],
+     "criteria": [
+       {"title": "Export bundles deeds not yet handed over and marks them as exported", "verification": "e2e", "start": "/archive-export", "requires_auth": true, "steps": ["Click 'Export erstellen'"], "expected": ["A ZIP download starts", "The included deeds show 'Exportiert — Signatur in XNP ausstehend' after reload", "A second export contains none of these deeds"]}
+     ]},
+    {"id": "reports", "name": "Auswertungen", "tier": "pro",
+     "features": ["Urkunden je Jahr, Monat und Vorgangsart", "Offener Vollzug und überfällige Wiedervorlagen", "Gebührenumsatz je Monat, offene Kostenberechnungen", "Fristen-Übersicht: 14-Tage-Fristen, Veräußerungsanzeigen"],
+     "criteria": [
+       {"title": "Dashboard and reports show the same deed count for 'Dieses Jahr'", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Open /dashboard and note 'Urkunden (dieses Jahr)'", "Open /reports", "Record one more deed today and reload /reports"], "expected": ["'Urkunden (dieses Jahr)' shows the same number on /dashboard and /reports", "The number increases by 1 after the new deed"]}
+     ]},
+    {"id": "office-network", "name": "Sozietät, Vertretung & Amtsnachfolge", "tier": "enterprise",
+     "features": ["Mehrere Notare mit eigenem Urkundenverzeichnis und eigener Nummernfolge", "Notarvertreter mit Zeitraum; seine Urkunden stehen im Verzeichnis des Vertretenen", "Aktenverwahrung und Amtsnachfolge für ausgeschiedene Notare", "Kollisionsprüfung über alle Sozien (Anwaltsnotar: einschließlich Anwaltsmandate)"],
+     "criteria": [
+       {"title": "Deeds of a substitute are numbered in the represented notary's register", "verification": "e2e", "start": "/settings/notaries", "requires_auth": true, "steps": ["Enter 'Dr. Vertreter' as Notarvertreter for 'Dr. Notarius' from today to next week", "Record a deed by 'Dr. Vertreter'", "Open /deeds filtered by 'Dr. Notarius'"], "expected": ["The deed has the next number of 'Dr. Notarius'", "The entry shows 'Notarvertreter Dr. Vertreter'"]}
+     ]},
+    {"id": "audit", "name": "Protokoll, Aufbewahrung & Dienstprüfung", "tier": "enterprise",
+     "features": ["Unveränderliches Protokoll aller Zugriffe und Änderungen", "Aufbewahrungsfristen nach NotAktVV und GwG; Löschvorschläge nach Ablauf, Verzeichnisse und Urkunden bleiben", "Export für die Prüfung der Amtsführung durch die Aufsichtsbehörde", "DSGVO-Auskunft je Beteiligtem unter Wahrung der Verschwiegenheit"],
+     "criteria": [
+       {"title": "Viewing a matter appears in the audit log, which offers no delete action", "verification": "e2e", "start": "/audit", "requires_auth": true, "steps": ["As Notarfachangestellte open a matter", "As notary open /audit and filter by that matter"], "expected": ["A row with the Notarfachangestellte's name, 'Vorgang angesehen' and the time is listed", "No button 'Löschen' is shown on audit rows"]},
+       {"title": "Retention run proposes deleting old side files but keeps the deed register entry", "verification": "api", "steps": ["Seed a matter completed 8 years ago", "POST /api/retention/run in test mode"], "expected": ["The matter is listed in GET /api/retention/proposals", "GET /api/deeds/<id of its deed> returns 200"]}
+     ]},
+    {"id": "bank-sync", "name": "Kontoabgleich Anderkonto & Zahlungseingänge", "tier": "enterprise",
+     "features": ["Kontoumsätze per CAMT.053-Import oder Banking-Dienst (FinTS/EBICS)", "Zuordnung zu Massen und Kostenberechnungen über den Verwendungszweck", "Nicht zuordenbare Umsätze als eigene Liste"],
+     "criteria": [
+       {"title": "Imported bank statement credits the deposit to its Masse", "verification": "e2e", "start": "/escrow", "requires_auth": true, "steps": ["Click 'Kontoauszug importieren'", "Upload a CAMT.053 file with 50.000,00 € and reference 'M 12/2026' and one unknown booking"], "expected": ["Masse 'M 12/2026' shows a deposit of 50.000,00 €", "The unknown booking is listed under 'Nicht zugeordnet'"]}
+     ]},
+    {"id": "security", "name": "Zwei-Faktor & Single Sign-on", "tier": "enterprise",
+     "features": ["Zweiter Faktor (TOTP oder SMS) für alle Mitarbeiter verpflichtend", "Single Sign-on über OIDC/SAML (z. B. Microsoft Entra ID)", "Sperrvermerk je Vorgang: einzelne Mitarbeiter ausgeschlossen (z. B. bei eigener Beteiligung)"],
+     "criteria": [
+       {"title": "With two-factor required, staff must enter a code before seeing matters", "verification": "e2e", "start": "/settings/security", "requires_auth": true, "steps": ["Turn on 'Zwei-Faktor-Anmeldung verpflichtend'", "Log out and log in as Notarfachangestellte with password only", "Open /matters"], "expected": ["Page shows 'Bestätigungscode eingeben'", "/matters redirects to the code page until a valid code is entered"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "deeds_this_year", "tier": "pro", "label": "Urkunden (dieses Jahr)", "unit": "Anzahl", "definition": "Einträge im Urkundenverzeichnis aller Notare des Amtssitzes mit Urkundsdatum im laufenden Kalenderjahr", "period": "Dieses Jahr", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "open_execution", "tier": "pro", "label": "Offener Vollzug (aktuell)", "unit": "Anzahl", "definition": "Vorgänge mit Status 'Beurkundet' oder 'Im Vollzug', deren Vollzugs-Checkliste mindestens einen offenen Pflichtschritt hat", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/execution"]},
+    {"id": "unpaid_fees", "tier": "pro", "label": "Offene Kostenberechnungen (aktuell)", "unit": "EUR", "definition": "Summe der Bruttobeträge aller erteilten, nicht bezahlten und nicht ersetzten Kostenberechnungen", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/fees"]},
+    {"id": "fee_revenue_month", "tier": "pro", "label": "Gebührenumsatz (dieser Monat, netto)", "unit": "EUR", "definition": "Summe der Nettobeträge (Gebühren und Auslagen ohne durchlaufende Posten) der im laufenden Monat erteilten Kostenberechnungen abzüglich berichtigter", "period": "Dieser Monat", "shown_on": ["/reports"]}
+  ],
+  "compliance": [
+    {"rule": "Mitwirkungsverbote vor jeder Amtstätigkeit prüfen; Vorkehrungen zur Einhaltung dokumentieren", "source": "§ 3 BeurkG, § 28 BNotO", "tier": "mvp"},
+    {"rule": "Verschwiegenheit über alle Amtsgeschäfte; Zugriff nur für Befugte, Zugriffe protokolliert", "source": "§ 18 BNotO, § 203 StGB", "tier": "mvp"},
+    {"rule": "Dienstleister (Hosting, IT) nur mit Verpflichtung zur Verschwiegenheit einsetzen", "source": "§ 26a BNotO", "tier": "mvp"},
+    {"rule": "Verbraucherverträge über Grundstücke: beabsichtigter Text in der Regel zwei Wochen vor der Beurkundung durch den Notar; Abweichung nur mit Grund in der Niederschrift", "source": "§ 17 Abs. 2a BeurkG", "tier": "mvp"},
+    {"rule": "Identität der Beteiligten feststellen und vermerken", "source": "§ 10 BeurkG", "tier": "mvp"},
+    {"rule": "Urkundenverzeichnis mit fortlaufender Nummer je Kalenderjahr, elektronische Urkundensammlung", "source": "§ 55 BeurkG, NotAktVV", "tier": "mvp"},
+    {"rule": "Kostenberechnung mit Verfahren, KV-Nummern, Geschäftswert und Wertvorschriften, Beträgen und Unterschrift des Notars", "source": "§ 19 GNotKG", "tier": "mvp"},
+    {"rule": "Keine Vereinbarungen über die Höhe der Notarkosten, kein Gebührenerlass", "source": "§ 125 GNotKG, § 17 BNotO", "tier": "mvp"},
+    {"rule": "Veräußerungsanzeige an das Finanzamt binnen zwei Wochen; Eigentumsumschreibung erst nach Unbedenklichkeitsbescheinigung", "source": "§§ 18, 22 GrEStG", "tier": "mvp"},
+    {"rule": "Abschrift jedes Grundstückskaufvertrags an den Gutachterausschuss", "source": "§ 195 BauGB", "tier": "mvp"},
+    {"rule": "Testament in die besondere amtliche Verwahrung bringen; erbfolgerelevante Urkunden an das Zentrale Testamentsregister melden", "source": "§§ 34, 34a BeurkG", "tier": "mvp"},
+    {"rule": "Personenbezogene Daten zweckgebunden verarbeiten; Auskunft und Löschung nach Ablauf der Aufbewahrungsfristen", "source": "Art. 5, 15, 17 DSGVO", "tier": "mvp"},
+    {"rule": "Kaufpreis beim Immobilienerwerb nicht bar; Umschreibungsantrag erst nach Nachweis unbarer Zahlung", "source": "§ 16a GwG", "tier": "mvp"},
+    {"rule": "Identifizierung der Beteiligten und wirtschaftlich Berechtigten, Einsicht ins Transparenzregister, Aufzeichnung und fünf Jahre Aufbewahrung", "source": "§§ 8, 10–12 GwG", "tier": "pro"},
+    {"rule": "Keine Beurkundung eines Immobilienerwerbs, solange die Eigentums- und Kontrollstruktur des erwerbenden Unternehmens nicht schlüssig dokumentiert ist", "source": "§ 10 Abs. 9 GwG", "tier": "pro"},
+    {"rule": "Unstimmigkeiten zum Transparenzregister melden", "source": "§ 23a GwG", "tier": "pro"},
+    {"rule": "Verwahrung auf Notaranderkonto nur bei berechtigtem Sicherungsinteresse und schriftlicher Verwahrungsanweisung; Verwahrungsverzeichnis führen", "source": "§§ 57, 58 BeurkG, NotAktVV", "tier": "pro"},
+    {"rule": "Gesellschafterliste nach Mitwirkung an Veränderungen einreichen; Abschrift der Gründungsurkunde an das Finanzamt", "source": "§ 40 Abs. 2 GmbHG, § 54 EStDV", "tier": "pro"},
+    {"rule": "Notarvertreter führt die Amtsgeschäfte mit den Akten und Verzeichnissen des vertretenen Notars", "source": "§ 41 BNotO", "tier": "enterprise"},
+    {"rule": "Aufbewahrungsfristen für Verzeichnisse, Urkundensammlung und Nebenakten einhalten; Unterlagen für die Prüfung der Amtsführung bereitstellen", "source": "NotAktVV, § 93 BNotO", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["E-Mail (SMTP, Microsoft 365, Google Workspace) für Entwurfsversand und Portal-Benachrichtigungen", "Kalender (CalDAV, Microsoft 365) für Beurkundungstermine — nur Vorgangsnummer im Titel", "Banking-Dienst mit API (FinTS/EBICS) für Anderkonto-Umsätze"],
+    "export_only": ["XNP / Elektronisches Urkundenarchiv — Urkundenverzeichnis-Daten und PDF/A-Urkunden als Übergabepaket; Signatur und Einstellen durch den Notar mit seiner Signaturkarte", "Grundbuchamt und Handelsregister — Antragsunterlagen als PDF zur Übernahme in XNP (elektronischer Rechtsverkehr)", "Zentrales Testamentsregister / Zentrales Vorsorgeregister — Meldedaten zur Übernahme über den BNotK-Zugang", "Kontoauszüge als CAMT.053-Import", "DATEV — Kostenberechnungen und Zahlungen als Buchungsstapel"],
+    "not_possible": ["Elektronisches Urkundenarchiv (BNotK) direkt — Zugang nur über XNP mit der Signaturkarte des Notars, keine offene API", "XNP / elektronischer Rechtsverkehr mit Grundbuchamt und Registergericht — qualifizierte elektronische Signatur des Notars erforderlich, Versand nur aus XNP", "Zentrales Testaments- und Vorsorgeregister — Meldung nur über den BNotK-Zugang des Notars", "Elektronisches Grundbuch (automatisiertes Abrufverfahren) — Zulassung je Notar, kein freier API-Zugang", "Transparenzregister — kein API-Zugang; Auszug wird manuell abgerufen und hochgeladen", "Online-Beurkundung per Video — nur über das Videokommunikationssystem der BNotK"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Hosting in der EU mit Auftragsverarbeitungsvertrag (Art. 28 DSGVO) und Verschwiegenheitsverpflichtung der Dienstleister (§ 26a BNotO)"},
+    {"tier": "mvp", "text": "Urkundennummern und Kostenberechnungsnummern auch bei gleichzeitigen Anfragen eindeutig und lückenlos (Datenbank-Sequenz je Notar und Jahr)"},
+    {"tier": "mvp", "text": "Alle Datums- und Fristberechnungen in Europe/Berlin"},
+    {"tier": "mvp", "text": "Beträge als Cent-Ganzzahlen, Rundung nach GNotKG auf volle Cent"},
+    {"tier": "mvp", "text": "Kein Standard-Secret: ohne AUTH_SECRET (mind. 32 Zeichen) startet der Server nicht"},
+    {"tier": "mvp", "text": "Security-Header: Content-Security-Policy, frame-ancestors, Referrer-Policy; Redirect-Ziele nur relativ"},
+    {"tier": "pro", "text": "Dokumente verschlüsselt abgelegt; Downloads nur über signierte, ablaufende Links"},
+    {"tier": "pro", "text": "Mandantenportal und Datenblatt barrierefrei nach WCAG 2.1 AA und auf dem Handy ausfüllbar"},
+    {"tier": "enterprise", "text": "Tägliches Backup in der EU, Wiederherstellung dokumentiert und getestet"},
+    {"tier": "enterprise", "text": "Rate-Limiting und Audit aller API-Zugriffe"}
+  ],
+  "production_dependencies": {"mvp": ["email"], "pro": ["email", "storage"], "enterprise": ["email", "storage", "oauth", "sms"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/matters", "/matters/[id]", "/parties", "/conflicts", "/deeds", "/fees", "/fees/[id]", "/execution", "/settings/fees", "/settings/users"], "pro": ["/gwg", "/portal", "/portal/matters/[id]", "/datasheet/[token]", "/escrow", "/escrow/[id]", "/templates", "/archive-export", "/reports"], "enterprise": ["/settings/notaries", "/audit", "/settings/security"]}
+}

@@ -2,6 +2,243 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.13.0] — 2026-10-08
+
+Every industry. A short prompt for a notary, a medical practice or a restaurant now yields the software a
+practitioner expects, and any other industry is researched before the build starts instead of guessed.
+
+### Added
+- **10 new blueprints, 18 in total.**
+  - Industries:
+    - `notary`: § 3 BeurkG conflict check, 14-day draft rule (§ 17 Abs. 2a BeurkG), deed register, GNotKG fees,
+      Vollzug checklists, escrow, GwG, handover to the BNotK systems;
+    - `law-firm`: deadline control with Vorfrist and second check, RVG billing, client money, beA handover;
+    - `tax-advisor`: document exchange, filing deadlines, monthly close, StBVV fees, DATEV export, ERiC;
+    - `medical-practice`: booking, anamnesis, check-in, recall, GOÄ/GOZ, Art. 9 DSGVO, no KV/TI;
+    - `property-management`: WEG and rentals, BetrKV/HeizkostenV statements, owners' meeting, resolutions;
+    - `real-estate-agency`: exposé, OpenImmo, matching, § 656c BGB, GEG duties, GwG;
+    - `trades`: quotes, scheduling, mobile field app, acceptance, invoices with § 35a/§ 13b, maintenance;
+    - `restaurant`: reservations, allergens (LMIV), QR ordering, kitchen display; POS/TSE stays certified.
+  - Products:
+    - `recruiting`: deletion periods, AGG, works council;
+    - `warehouse`: picking by phone camera, inventory § 240 HGB, batches.
+- **Every blueprint carries:**
+  - `design`, a design direction for its industry. It becomes `spec.design_direction`, and the design brief
+    starts from it.
+  - `compliance`, the duties with their § source. The delivery report lists them.
+  - `integrations`, split into connectable, export only and not possible. Closed official systems are named,
+    never faked.
+- **Products and industries combine.** `detect` prints a plan:
+  - "Praxis-Software mit Telefon-KI" → `expand medical-practice --with phone-assistant`, with both module sets.
+  - "Webseite für unser Restaurant" → `expand website --context restaurant`: a website with the restaurant's
+    look and duties, without a kitchen display.
+
+  `check` covers every `--with` blueprint.
+- **Domain brief for every other industry.** Without a matching blueprint, the spec must carry a `domain_brief`
+  (`blueprint.py brief` prints the template) with:
+  - roles, and processes linked to features with must-criteria;
+  - legal rules with sources, and deadlines;
+  - honest integrations and a glossary;
+  - a design direction;
+  - assumptions to confirm.
+
+  `blueprint.py check` fails until it is complete.
+- **The UI tour reports a missing design brief** (`.onecommand/design.md`).
+- **New benchmark sets:** `industries` and `hard` (notary, practice with phone AI, restaurant website,
+  unknown industry, a marketplace from four words).
+
+### Fixed
+- "Mandanten" no longer selects the enterprise tier: in a law or tax office it means clients.
+  "Mandantenfähig" still does.
+- When matches tie, the product/industry plan decides, not the file order. "praxis" is no longer a booking
+  alias.
+
+## [1.12.0] — 2026-10-08
+
+Looks designed, uses every skill. Every rule below comes from what the Nordlicht phone-assistant build got
+wrong, and from a test run of the design skill on a throwaway copy of it. The rules went into the skills; the
+build itself was not touched.
+
+### Added
+- **Skill library** (`/oc-skills [topic]`, `skill-catalog.py library [--search]`): every skill OneCommand
+  can use in one place — its 31 bundled skills plus all personal, project and plugin skills installed on the
+  machine — with what each does and in which phase it is used. Recommended plugins that are missing are listed
+  with their install command. Agents search the library when their task needs something their list does not
+  cover, and `read` loads any library skill. `skills/LIBRARY.md` documents the bundled skills.
+- **Skills are loaded provably.** A real build ignored the design skill: it was named in the prompt, but
+  nothing checked it.
+  - `skill-catalog.py read <skill> --phase N` prints the SKILL.md for the agent and records the load with
+    the file's SHA-256.
+  - `check-read N` fails for every assigned skill that was not loaded, or was loaded in an older version.
+  - `checkpoint.py phase N` refuses to save while that check fails. A skipped skill needs
+    `--skills-skipped "<reason>"`, and the reason is recorded.
+  - Every agent starts with "Step 0 — Load your skills" and lists its skills both bare and as
+    `onecommand:<name>`.
+  - The frontend agent now names the bundled `oc-frontend-design` and `oc-ui-ux` skills.
+  - `voice-agent`, `video-producer` and `live-integrations` are assigned only when the spec has their
+    section.
+- **Design audit in the UI tour.** Every visited page is measured in the browser. The audit reports:
+  - text in a system font stack, or in a font the app does not load;
+  - code values shown in monospace (`callback`, `order_status`);
+  - text contrast below WCAG AA (disabled controls are exempt);
+  - table row lines that stop at a column (`last:border-b-0` on cells);
+  - a sidebar background that ends above the page bottom.
+
+  The findings appear in `report.md` and under "Design audit" in `review.md`. They keep `review-status` red
+  until a re-run no longer finds them.
+- **Visual quality bar** in `oc-frontend-design`:
+  - a design brief `.onecommand/design.md` with personality, typefaces, brand palette with tinted neutrals,
+    shape, signature element and reference products;
+  - self-hosted fonts (`@fontsource-variable/*`, `next/font/local`) and pairings;
+  - type scale and tabular KPI figures;
+  - the layout details the tour measures, and composition rules for dashboards, row actions and empty states.
+
+  The frontend agent, the orchestrator, the test agent and the Codex skill follow it. The screenshot review
+  gains a "looks designed, not generated" check.
+- **Design rules from a real redesign**:
+  - mobile layouts are designed, not stacked;
+  - no half-empty pages and no redundant columns;
+  - German dates with a date-range picker;
+  - an identity check on every reviewed screen;
+  - a signature element in at most three places, with a meaning;
+  - pitfalls: tooltips hidden with `invisible`, no nested forms, `min-w-0` in grids, scrims behind text on imagery.
+
+### Changed
+- The backend returns each metric with its previous-period value and a daily series, so dashboards can show trends.
+- Acceptance criteria and Playwright tests assert labels, never code values.
+- `oc-frontend-design` no longer pins Next.js 14 or `tailwind.config` (Tailwind v4 uses `@theme`). Shared UI
+  components are restyled from the brief. `react-hook-form` is used only where the project already uses it.
+- The UI tour's browser runs in the spec's locale, so date fields look as they do for real users.
+
+## [1.11.0] — 2026-10-05
+
+### Added
+- **Human-sounding voice for phone assistants.** The skill `voice-agent` has a new section "Voice — it must sound
+  like a person":
+  - One neural voice for every sentence: ElevenLabs Flash v2.5 or Multilingual v2, or Azure Neural HD.
+  - Audio is streamed in telephone format.
+  - Text is made speakable: numbers, dates and order numbers are written as spoken.
+  - A pronunciation lexicon covers company and product names, and prosody follows the rules in the section.
+  - The assistant serves `POST /api/voice/tts` with an `X-Voice-Provider` header.
+- **Own brand voice** (new enterprise module `brand-voice`):
+  - Two paths: a consented voice clone at the provider, or an own model on your server, fine-tuned from a
+    commercially licensed base.
+  - The build delivers a recording kit (`voice/recording/script.md`, `GUIDE.md`) and documents the speaker's
+    consent and the base model's licence.
+  - The skill says plainly that training from scratch needs 24 h+ of recordings and sounds robotic with less.
+    Non-commercial weights such as XTTS-v2 and F5-TTS are excluded.
+- **`dataset.py --task speech`** checks voice recordings and their transcripts:
+  - Transcripts come from `metadata.csv` (LJSpeech format or a CSV header) or a sidecar `.txt`.
+  - Each clip is checked with ffmpeg. Clips are rejected when they:
+    - have no transcript, or are shorter than 1 s or longer than 20 s,
+    - are below 22.05 kHz,
+    - are clipped or too quiet,
+    - have more than 1 s of silence at either end,
+    - have a speaking rate that does not fit the transcript.
+  - Transcripts with digits produce a warning.
+  - The manifest records hours per speaker and the readiness per voice path: clone 0.5 h, fine-tune 1 h,
+    production 3 h, from scratch 24 h.
+  - The datasheet carries the consent note. `--min-hours` fails the build when the recordings are too short.
+  - **Source and licence check:** `<input>/sources.json` must record, for every folder, its name, licence and
+    URL. Own recordings need a consent file. The build refuses to run without it.
+    - Allowed: CC0, public domain, CC BY, MIT, Apache-2.0, and own recordings. Share-alike is accepted with a
+      warning.
+    - NC and ND licences only pass with `--allow-noncommercial`, and the manifest then records
+      `commercial_use: false`.
+    - Content from YouTube, TikTok, Spotify and other platforms is always rejected.
+    - Clips outside a recorded source are dropped. CC BY sources are listed in `ATTRIBUTION.md`, and the
+      datasheet has a sources table.
+  - The skill names licensed corpora for a base model: Mozilla Common Voice (CC0), Multilingual LibriSpeech
+    (CC BY 4.0) and LibriVox (public domain). A model trained on them is then fine-tuned with your own speaker.
+- **`call-sim.py`**:
+  - **Small-talk probe** in every run. A separate call says "Hallo?", "Ja, hallo" and "Moment bitte". A "not
+    understood" reply, a handover or an ended call fails the run.
+  - **Voice code check.** `validate` fails on TwiML `<Say>` and `.say()`, because they use Twilio's built-in
+    second voice. It also fails on eSpeak, Festival, Flite and Pico.
+  - **Content check.** A scenario turn that checks only length or latency is rejected.
+  - **Voice samples.** With `voice.tts_endpoint`, call-sim synthesises the greeting and every reply into
+    `.onecommand/calls/audio/` and lists them in report.md.
+    - Fails on a missing audio reply, on a robotic engine, and on speech faster than 25 or slower than 8 letters/s.
+    - Skips with a warning in test mode without credentials.
+- **Conversation memory and complaints** (`voice-agent` §4):
+  - The session keeps the last intent, the last topic and every entity the caller gave.
+  - Follow-up questions are resolved against the last topic, and a number given after the assistant asked for
+    one fills that slot.
+  - The `complaint` intent acknowledges, apologises and opens a ticket or hands over.
+  - Answers cover exactly the question asked. When the article does not cover the country or product asked
+    about, the assistant says so.
+  - `call-sim` adds two more built-in calls to every run:
+    - a complaint, which must be recognised as `complaint`, become a ticket or be handed over;
+    - a follow-up, where the first scenario turn naming an order number is replayed and then "Wann kommt es
+      denn genau?" is asked. The assistant must not ask for the number again.
+  - Both are configurable with `voice.complaint` and `voice.followup`.
+- **Connecting the phone number** (`voice-agent` §2a, telephony module):
+  - The admin area gets the setup wizard "Rufnummer verbinden". It offers three ways:
+    - keep the existing company number with call forwarding (always, when busy, after N seconds, or outside
+      opening hours), with the steps for mobile GSM codes, FRITZ!Box, Telekom/Vodafone and cloud PBX;
+    - a new number from the provider account;
+    - SIP.
+  - Credentials are entered in the UI and stored encrypted. The wizard has a connection test, sets the
+    webhook automatically through the provider API, and offers a test call with live display.
+  - The connection status is shown on the dashboard.
+  - `call-sim` checks `GET /api/voice/setup/status`. A missing status, or a localhost / http webhook offered
+    as usable, fails the build.
+  - The Nordlicht build only showed `http://127.0.0.1:3210/api/voice/incoming` to copy, with credentials only
+    as server environment variables. Its status endpoint is missing, and the check reports that.
+- **Pronunciation test**, an automatic round trip in `call-sim`. With `voice.stt_endpoint`
+  (`POST /api/voice/stt`, the assistant's own speech recogniser), every reply plus a German test set is spoken
+  by the voice and transcribed back. The test set covers umlauts and ß, numbers, dates, prices, order digits,
+  the company name, `voice.lexicon` and `voice.pronunciation`.
+  - Numbers are normalised to German words on both sides, so "18" and "achtzehn" count as the same word.
+  - A sentence above `voice.max_wer` (word error rate, default 0.2) fails, and so does a company or product
+    name the recogniser cannot find. The remedy is a lexicon entry.
+  - `report.md` shows what was said, what was heard and the word error rate.
+  - Without a recogniser the test is skipped with a warning.
+- **Caller recognition** (`voice-agent` §3, new pro module `caller-id`):
+  - The caller's number is matched against customer and order data, so the assistant greets the customer by
+    name, offers the latest order and knows earlier calls. Several customers on one number get a question
+    which one; a suppressed number gets a question for the order number.
+  - A phone number is not treated as proof of identity. Changes and sensitive information need a second
+    factor (postcode, customer number, one-time code) or a handover.
+  - Voice biometrics are offered only as opt-in with explicit consent, because they are biometric data under
+    GDPR Art. 9.
+  - `call-sim` adds a built-in `identity` probe: a known number asks to change the delivery address, and
+    changing it straight away fails the build.
+  - In the Nordlicht build the request was answered with the order status, without any verification.
+- Blueprint `phone-assistant` v2: `smalltalk` intent (mvp), voice requirements and criteria for the TTS endpoint
+  and TwiML without `<Say>`, `tts_endpoint`, and the `brand-voice` module.
+- The delivery report has a phone-assistant section: test calls, the small-talk probe, voice samples to listen
+  to, and the recording kit.
+
+- **UI tour: visible code values.** Every page is checked for snake_case identifiers in the visible text, such
+  as `order_status` or `knowledge_question`, and they are reported as a warning. The frontend agent maps every
+  enum, status and intent to its label. The Nordlicht dashboard, call log and intent page showed raw intent
+  ids, and the tour finds them for all three roles.
+- Showcase `docs/showcase/telefon-assistent/` holds screenshots of the phone build, the simulator during a test
+  call, and what the v1.11.0 checks find in it.
+
+### Changed
+- The Codex orchestrator (`/einbefehl`) now also knows ML training, website videos and phone assistants. It
+  covers `call-sim validate`, the `voice-agent` rules and the built-in test calls. Before this it covered
+  none of the three. A new test fails when the Codex skill falls behind `commands/onecommand.md` for a build
+  type.
+
+### Fixed (found by probing the same build with 15 realistic caller turns: 8 good, 7 weak)
+- After "Wo ist meine Bestellung 4711?" the question "Wann kommt es denn genau?" was answered with "Wie lautet
+  Ihre Bestellnummer?". After the return policy, "Kostet das was?" got the shipping costs. Cause: no
+  conversation memory.
+- "Das ist ja unglaublich, schon wieder falsch geliefert!" was answered with "nicht verstanden". A phone number
+  given after a callback request was not understood either.
+- "Versand nach Österreich?" was answered with the delivery times for Germany, and "Frage zu meiner Rechnung"
+  with the payment methods.
+
+### Fixed (found by a real build: "Telefon-KI-Assistent für Nordlicht Tee", v1.10.0, 61 criteria, 60/60 automated acceptance tests and 11/11 test calls green)
+- "Hallo?" after the greeting was answered with "nicht verstanden". After "Ja, hallo" and "Moment bitte" the
+  call was handed over to an employee. The scenario passed anyway because its turn checked only the reply length.
+- The DTMF handover spoke through TwiML `<Say>`, so callers heard Twilio's robotic voice instead of the
+  configured neural voice.
+- `dataset.py`: a stray copy without a transcript no longer pushes out the transcribed original as a "duplicate".
+
 ## [1.10.0] — 2026-10-04
 
 ### Added

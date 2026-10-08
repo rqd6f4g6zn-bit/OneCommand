@@ -145,6 +145,8 @@ test('AC-007: GET /api/workouts without a session returns 401', async ({ request
 3. **Never** use `test.skip`, `test.fixme`, `test.only`, `test.fail`, or wrap assertions in `try/catch`.
 4. **Never** use `page.waitForTimeout` — rely on Playwright's auto-waiting `expect`.
 5. **Prefer accessible locators** (`getByRole`, `getByLabel`, `getByText`) — if a locator can't be written that way, the UI has an accessibility bug: fix the UI.
+   Assert what the user sees: the **label** of an enum ("Versand", "Übergabe"), never its code value
+   (`shipping`, `handover`) — the UI must not show code values, so a test expecting them forces a defect.
 6. **Never mock the app's own routes or database.** The point is to test the real thing.
 7. **External services** (email, payments, push, OAuth) run in test mode: the app must honour `ONECOMMAND_E2E=1` by routing e-mail to a local outbox (e.g. JSON files in `.onecommand/outbox/`, read by the test), using Stripe test keys or a fake provider, and offering credentials login next to OAuth. Implement that switch in the app if it is missing — it is a legitimate testability feature, not a hack.
 8. Criteria with `"verification": "manual"` get no test; they are listed as manual in the delivery report.

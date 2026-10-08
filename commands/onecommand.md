@@ -171,7 +171,7 @@ Context stays small because heavy work happens in subagents, not in this convers
 - Named agents (`frontend-agent`, `backend-agent`, `test-agent`, …) are dispatched directly. Plugin agents are namespaced: use `subagent_type: "onecommand:test-agent"` (fall back to the short name only if the namespaced one is rejected). Skill-only phases are dispatched to a `general-purpose` subagent with this prompt template:
   > `You are a OneCommand phase runner. OC_ROOT=<path>. PROJECT_DIR=<path>. Read $OC_ROOT/skills/<skill>/SKILL.md and execute it completely inside PROJECT_DIR. Read .onecommand-spec.json for requirements. Do not ask questions — decide and document. Return at most 5 lines, ending with: PHASE_RESULT {"phase": N, "status": "ok|warn|fail", "summary": "<one line>"}`
 - Always pass `OC_ROOT` and `PROJECT_DIR` in every subagent prompt — subagents do not inherit them.
-- **Always pass the phase's skills.** Before dispatching phase N, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase N` and paste its output into every subagent prompt of that phase, with: "Read each listed SKILL.md and apply it where it fits your task." This is how bundled and user-installed skills reach the agents that do the work.
+- **Always pass the phase's skills — and check they were loaded.** Before dispatching phase N, run `python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir "$PROJECT_DIR" for-phase N` and paste its output into every subagent prompt of that phase, with: "Load each listed skill with the command shown and apply it to your task." After the phase's agents return, run `python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir "$PROJECT_DIR" check-read N`. Exit 1 lists the skills nobody loaded: re-dispatch the agent that owns that part with only those skills and "load and apply them to the existing code", then re-check. Do not start phase N+1 while `check-read N` fails. The full library (every bundled and installed skill, searchable) is `skill-catalog.py library [--search <topic>]` — `/oc-skills` for the user. (A real build ignored the design skill entirely — the instruction to read it was in the prompt, but nothing checked it.)
 - Independent subagents of one phase are dispatched **in the same message** so they run in parallel.
 - Subagents cannot dispatch further subagents: a phase runner does its skill's work itself.
 - Never paste file contents or full logs into this conversation. Read summaries and `PHASE_RESULT` lines only.
@@ -226,7 +226,8 @@ python3 "$OC_ROOT/hooks/acceptance-report.py" validate --spec .onecommand-spec.j
 ```
 Exit 1 → fix the reported criteria in `.onecommand-spec.json` and validate again (max 3 rounds). Do not continue to Phase 2 with an invalid spec.
 
-If the spec has a `blueprint`, it must still cover it — no module or blueprint criterion silently dropped:
+The spec must cover its `blueprint` (no module or criterion silently dropped) — or, when no blueprint matched,
+carry a complete `domain_brief` (roles, processes, legal rules, deadlines, integrations, glossary, design):
 ```bash
 python3 "$OC_ROOT/hooks/blueprint.py" check --spec .onecommand-spec.json
 ```
@@ -329,6 +330,8 @@ Skip frontend-agent, backend-agent for pure OS projects.
 - **Then** generates project-specific / domain-specific components from scratch
   for what 21st.dev doesn't cover
 - Uses `oc-frontend-design` and `oc-ui-ux` skills (bundled) for layout/typography/spacing rules
+- Writes the design brief `.onecommand/design.md` first (personality, self-hosted typefaces, brand palette,
+  signature element) — the UI tour's design audit and screenshot review hold the build to it
 
 **Backend Agent** (`backend-agent`):
 - Generates all API routes, DB schema, auth, seed data
@@ -349,8 +352,16 @@ Skip frontend-agent, backend-agent for pure OS projects.
 
 **If the spec has a `voice` section (phone assistant):** the backend agent follows the `voice-agent` skill
 (telephony webhooks, media-stream gateway, dialogue engine, `POST /api/voice/simulate`, actions, handover) and
-writes `voice/scenarios/*.json` — one test call per intent plus the handover; `hooks/call-sim.py validate` must
-pass before Phase 4. The gate plays every call in its `tour` stage.
+writes `voice/scenarios/*.json` — one test call per intent plus the handover, every turn checking content;
+`hooks/call-sim.py validate` must pass before Phase 4 (it also rejects TwiML `<Say>` and robotic speech engines).
+Every spoken sentence uses the one configured neural voice, and `POST /api/voice/tts` serves it. The admin area
+gets the setup wizard "Rufnummer verbinden" (voice-agent §2a). It covers call forwarding of the existing number,
+a new number or SIP, credentials in the UI, a connection test, automatic webhook setup and a test call, and
+`GET /api/voice/setup/status` reports the result. Small talk gets
+its own intent, and so do complaints. The dialogue keeps the conversation state, so follow-up questions work.
+With module `brand-voice`, the build writes the recording kit (`voice/recording/script.md`, `GUIDE.md`). The gate
+plays every call plus four built-in probes (small talk, complaint, follow-up, caller identity) in its `tour` stage. With voice credentials, it
+also saves voice samples to `.onecommand/calls/audio/` for listening.
 
 **If `videos` is true (spec.media.videos — premium websites):** also dispatch a phase runner with the
 `video-producer` skill in the same message. It cuts the user's footage from `media.raw_dir` (or builds
