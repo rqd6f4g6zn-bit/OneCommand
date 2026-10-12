@@ -192,7 +192,10 @@ code** (Next.js — full design freedom, best performance, built-in CMS) or **Wo
 - demo content, deployment and handover.
 
 `hooks/wp-gate.py` runs the real site on PHP + SQLite with no Docker, then the acceptance tests and the UI tour.
-`python3 hooks/wp-gate.py serve` starts it locally.
+`python3 hooks/wp-gate.py serve` starts it locally. A website for an industry ("Webseite für unsere Kanzlei")
+gets that industry's own pages: menu with allergens for a restaurant, practice areas and fee information for
+a law firm, listings with energy data for an estate agent. See
+[the WordPress showcase](docs/showcase/wordpress-restaurant/README.md), built from one sentence.
 
 ## Knows the Domain
 
