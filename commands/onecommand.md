@@ -197,6 +197,19 @@ Dispatch `onecommand:brain-agent` (foreground) — agent detection, memory READ,
 
 This loads all past learnings, finds similar past projects, detects if Codex is available, and sets the collaboration plan — before a single line of code is generated.
 
+**Platform question (websites and shops).** Run `python3 "$OC_ROOT/hooks/blueprint.py" detect --prompt "$ARGUMENTS" --json`.
+When its `plan.ask_platform` is not empty, the prompt did not say how the site should be built — ask the user
+exactly once (AskUserQuestion), then continue without further questions:
+- **Eigener Code (Next.js)** (Recommended) — individuell programmiert: volle gestalterische Freiheit, beste
+  Performance, Inhalte über das eingebaute CMS; Hosting z. B. Vercel oder eigener Server.
+- **WordPress** — Block-Theme + eigenes Plugin: die Redaktion pflegt alles selbst im bekannten WordPress-Backend;
+  läuft bei jedem WordPress-Hoster.
+
+The free-text answer ("Other") may name something else (e.g. Astro, statisches HTML) — then build with custom
+code on that stack via `stack-detector`. Headless runs (`claude -p`, the benchmark) and no answer → custom code.
+Pass the choice to spec-analyzer as `PLATFORM=<custom|wordpress>`; it records it in `spec.blueprint.platform`.
+Never ask when the prompt already says it ("WordPress", "Next.js", "eigener Code", "React" …).
+
 Then invoke the `spec-analyzer` skill with: $ARGUMENTS (pass `OC_ROOT` so it can run the validator).
 The spec MUST contain `acceptance_criteria` — the definition of done that Phase 4 verifies with real browser tests.
 For known system types (CRM, shop, booking, helpdesk, project management, invoicing) spec-analyzer starts from a **domain blueprint** (`domain-blueprints` skill): a short prompt gets the complete professional feature set of its tier (mvp / pro / enterprise — "höchstes Niveau" selects enterprise).

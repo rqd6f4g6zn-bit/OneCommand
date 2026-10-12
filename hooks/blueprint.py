@@ -163,7 +163,11 @@ SYSTEM_WORDS = ("software", "verwaltung", "system", "programm", "app", "plattfor
 
 # The platform the product is built on. WordPress: block theme + site plugin, checked by hooks/wp-gate.py.
 PLATFORM_WORDS = {"wordpress": ("wordpress", "word press", "wp-seite", "wp seite", "wp-webseite", "woocommerce",
-                                "gutenberg", "elementor", "divi", "wp theme", "wordpress-theme")}
+                                "gutenberg", "elementor", "divi", "wp theme", "wordpress-theme"),
+                  # The user named own code / a framework: no platform question, no WordPress.
+                  "custom": ("next.js", "nextjs", "react", "vue", "nuxt", "svelte", "astro", "eigener code", "eigenem code",
+                             "eigenen code", "selbst programmiert", "individuell programmiert", "custom code", "html und css",
+                             "statische seite", "ohne cms")}
 WP_PATHS = {"/admin/login": "/wp-login.php", "/admin": "/wp-admin/"}
 WP_ROLES = {"admin": "administrator", "owner": "administrator", "editor": "editor", "author": "author"}
 
@@ -212,6 +216,10 @@ def detect(prompt: str) -> dict[str, Any]:
         plan["context"] = [m["id"] for m in industries[:1]]     # look, duties, terms of the industry
     plan.pop("with_", None)
     plan["platform"] = platform_of(text)
+    if plan["platform"] is None:
+        offered = sorted({p for m in [plan["primary"], *plan["with"]] if m
+                          for p in (load(m).get("platforms") or {})})
+        plan["ask_platform"] = ["custom", *offered] if offered else []
     order = [plan["primary"], *plan["with"], *plan["context"]]
     matches.sort(key=lambda m: order.index(m["id"]) if m["id"] in order else len(order))
     tier, reason = "pro", "default — no tier wording in the prompt"
@@ -237,6 +245,9 @@ def cmd_detect(args: argparse.Namespace) -> int:
             flags = "".join(f" --with {w}" for w in plan["with"]) + "".join(f" --context {c}" for c in plan["context"])
             flags += f" --platform {plan['platform']}" if plan.get("platform") else ""
             print(f"[blueprint] plan: expand {plan['primary']}{flags}")
+        if plan.get("ask_platform"):
+            print(f"[blueprint] platform open — ask the user once: {' | '.join(plan['ask_platform'])} "
+                  "(no answer / headless: custom)")
         print(f"[blueprint] tier: {result['tier']} ({result['tier_reason']})")
     return 0 if result["matches"] else 1
 
@@ -355,6 +366,8 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
     }
     if platform == "wordpress":
         wordpressify(draft, [bp, *with_bps])
+    elif platform == "custom":
+        draft["blueprint"]["platform"] = "custom"
     return draft
 
 

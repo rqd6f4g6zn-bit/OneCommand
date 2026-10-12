@@ -321,3 +321,23 @@ def test_woocommerce_shop_gets_the_german_legal_module(tmp_path):
     assert bp("expand", "shop", "--platform", "wordpress", "--out", str(out)).returncode == 0
     spec = json.loads(out.read_text())
     assert "wc-germany" in spec["features"] and spec["wordpress"]["third_party_plugins"] == ["woocommerce", "woocommerce-germanized"]
+
+
+@pytest.mark.parametrize("prompt,platform,ask", [
+    ("Webseite für unser Restaurant", None, ["custom", "wordpress"]),      # open → the orchestrator asks once
+    ("Online-Shop für Kaffee", None, ["custom", "wordpress"]),
+    ("WordPress Webseite für unser Restaurant", "wordpress", []),
+    ("Next.js Webseite für unsere Kanzlei", "custom", []),
+    ("Webseite mit eigenem Code für unsere Kanzlei", "custom", []),
+    ("CRM auf höchstem Niveau", None, []),                                 # no platform choice for apps
+])
+def test_platform_question_only_when_the_prompt_leaves_it_open(prompt, platform, ask):
+    plan = json.loads(bp("detect", "--prompt", prompt, "--json").stdout)["plan"]
+    assert plan["platform"] == platform and plan.get("ask_platform", []) == ask, plan
+
+
+def test_custom_platform_is_recorded_without_wordpress(tmp_path):
+    out = tmp_path / "s.json"
+    assert bp("expand", "website", "--platform", "custom", "--out", str(out)).returncode == 0
+    spec = json.loads(out.read_text())
+    assert spec["blueprint"]["platform"] == "custom" and "wordpress" not in spec

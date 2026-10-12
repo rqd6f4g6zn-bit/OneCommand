@@ -46,6 +46,10 @@ WordPress at agency level, and Emil Kowalski's design engineering in one command
   - WooCommerce;
   - demo content (fixed German slugs: "Über uns" becomes `uber-uns` without the de_DE locale);
   - operations and handover.
+- **The user decides: own code or WordPress.** When a website or shop prompt does not say how to build it,
+  OneCommand asks exactly once at the start. The options are custom code (Next.js, recommended) or WordPress;
+  a free-text answer such as Astro or static HTML also works. There is no question when the prompt already
+  says it (WordPress, Next.js, React, "eigener Code" …). Headless runs default to custom code.
 - **`/emil`.** Emil Kowalski's design-engineering skills (MIT) in one skill and one command: 15 guides on polish,
   building, reviewing and auditing animations, animation performance, Apple-style motion, mobile web that feels
   native, worst-case data, prototypes, library picks, Sonner, Expo and Swift. The frontend and mobile agents load

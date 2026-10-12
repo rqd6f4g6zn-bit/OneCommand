@@ -4,7 +4,7 @@
   "kind": "industry",
   "version": 1,
   "ui_language": "de",
-  "aliases": ["anwaltskanzlei", "anwaltssoftware", "anwaltsbüro", "anwaltspraxis", "rechtsanwalt", "rechtsanwältin", "rechtsanwälte", "rechtsanwaltskanzlei", "anwalt", "anwältin", "anwälte", "mandatsverwaltung", "law firm", "legal practice management", "ra-micro", "advoware"],
+  "aliases": ["kanzlei", "anwaltskanzlei", "anwaltssoftware", "anwaltsbüro", "anwaltspraxis", "rechtsanwalt", "rechtsanwältin", "rechtsanwälte", "rechtsanwaltskanzlei", "anwalt", "anwältin", "anwälte", "mandatsverwaltung", "law firm", "legal practice management", "ra-micro", "advoware"],
   "summary": "Akten mit Aktenzeichen, Kollisionsprüfung, Fristen- und Wiedervorlagenkalender mit Vorfrist und Doppelkontrolle, Schriftsätze aus Vorlagen, Zeiterfassung und Abrechnung nach RVG oder Vergütungsvereinbarung für eine deutsche Anwaltskanzlei.",
   "design": {"personality": ["souverän", "diskret", "klar"], "typefaces": {"display": "Source Serif 4", "text": "Inter"}, "palette": "tiefes Petrol als Kanzleiton auf warmem Off-White, Fristen in gestuftem Rot erst ab Vorfrist, sonst zurückhaltende Grautöne", "density": "compact", "signature_ideas": ["Fristenleiste am Seitenkopf: heute ablaufende Notfristen bleiben rot sichtbar, bis sie erledigt und doppelt kontrolliert sind", "Aktenzeichen '123/26' als feste Kennung in jedem Kopf, daneben das Rubrum 'Muster ./. Beispiel GmbH'", "Akten-Zeitachse: Posteingang, Fristen, Schriftsätze, Zeiten und Rechnungen auf einer Linie"], "references": ["Clio", "RA-MICRO", "Linear"], "avoid": ["Justitia- und Paragrafen-Clipart", "Fristen als kleine graue Badges, die man übersieht", "bunte Dashboard-Kacheln ohne Handlung"]},
   "roles": [

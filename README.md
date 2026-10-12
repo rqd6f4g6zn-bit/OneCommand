@@ -179,6 +179,8 @@ python3 hooks/video.py check public/videos                   # formats, faststar
 
 ## WordPress Websites
 
+Websites are built the way the customer wants. When the prompt does not say, OneCommand asks once: **custom
+code** (Next.js — full design freedom, best performance, built-in CMS) or **WordPress**.
 "WordPress Webseite für unser Restaurant" builds a WordPress site, not a Next.js app. You get:
 
 - a block theme generated from the design brief, with tokens in `theme.json` and self-hosted fonts;

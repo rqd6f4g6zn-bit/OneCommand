@@ -33,7 +33,9 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    Use web search when available; otherwise write from domain knowledge and list every uncertain fact in
    `to_verify`. `blueprint.py check` fails until the brief is complete. A thin brief builds a thin product.
 
-   The detect plan names the platform when the prompt does ("WordPress", "WooCommerce", "Gutenberg" →
+   When the orchestrator passes `PLATFORM=wordpress` (the user chose it), expand with `--platform wordpress`;
+   `PLATFORM=custom` or nothing → no platform flag (custom code) and record `"platform": "custom"` in
+   `spec.blueprint`. The detect plan names the platform when the prompt does ("WordPress", "WooCommerce", "Gutenberg" →
    `--platform wordpress`): pass it to expand — the draft then carries the `wordpress` section, WordPress paths,
    roles and the WordPress modules (theme, editor experience, privacy, security, performance, operations).
 
