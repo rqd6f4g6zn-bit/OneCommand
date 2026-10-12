@@ -34,6 +34,7 @@ assigned skill that was not loaded.
 
 ## WordPress
 
+Every website — Next.js or WordPress — loads `emil` (mandatory, see Step 2b).
 Spec has a `wordpress` section → load `wordpress-builder` and build the block theme, the site plugin, blocks and
 `seed.php` exactly as it says (layout in its section 1). Design brief, `emil` and the quality bar apply
 unchanged; `theme.json` carries the tokens.

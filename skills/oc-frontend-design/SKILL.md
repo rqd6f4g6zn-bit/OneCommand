@@ -52,6 +52,9 @@ Write the tokens into `globals.css` from the brief — CSS variables plus `@them
 to the brief; they are the project's own code, not a vendor folder. Stock shadcn
 defaults with a changed primary colour are not a design.
 
+**Websites and every public page always load `emil`** (Emil Kowalski's design engineering, `/emil`): its
+`emil-design-eng` guide is the polish bar, `animate` the motion bar. `check-read 2` fails without it.
+
 ### 2. Typography — ship the fonts
 
 - **Never** a bare system stack (`ui-sans-serif, system-ui …`, `Georgia`, `Arial`) as the first family: it

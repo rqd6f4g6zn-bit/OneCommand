@@ -54,8 +54,9 @@ Demo logins: `demo.accounts` with `wp_role` (administrator, editor …) and `log
   patterns (`esc_html__()` with the theme's text domain) or in content.
 - Every section of the blueprint's pages is a pattern (hero, services, case grid, testimonials, team, CTA, FAQ,
   contact). Register a pattern category named after the brand. Start pages from patterns in `seed.php`.
-- Motion and interaction: load the `emil` skill — `emil-design-eng` and `animate` for transitions (CSS,
-  `prefers-reduced-motion`), `mobile-native` for touch. No animation library for a website unless the brief
+- **`emil` is mandatory for every website** (`skill-catalog.py read emil --phase 2`): read `emil-design-eng`
+  before the first pattern, `animate` before every transition (CSS, `prefers-reduced-motion`), `mobile-native`
+  for touch, and in Phase 6 `break-ui` on every pattern with long German texts and `review-animations`. No animation library for a website unless the brief
   asks for a signature motion piece.
 - Style variations (`styles/*.json`) for a dark mode or seasonal look instead of a second theme.
 
