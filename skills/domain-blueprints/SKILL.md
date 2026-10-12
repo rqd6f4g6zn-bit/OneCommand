@@ -42,6 +42,13 @@ describes a business (notary, practice, restaurant …) with its processes, duti
   "Praxis-Software mit Telefon-KI" → `expand medical-practice --with phone-assistant`.
 - A product named for an industry → the product leads, the industry gives look, duties and integrations
   (`--context`): "Webseite für unser Restaurant" → `expand website --context restaurant` (no kitchen display).
+- **A website for an industry** uses the industry's `website` block: its guest-facing modules and criteria
+  (restaurant: menu with allergens, opening hours, table request, events; law firm: practice areas, lawyers,
+  consultation request …), renamed pages (`/leistungen` → `/speisekarte`), website modules that do not fit
+  left out with a reason (no case studies for lawyers or doctors), the public site's look on top of the
+  website's craft rules, and only the duties that apply to a website (`compliance[].scope`: `software` rules —
+  cash register, deadline control, working time — are left out). Their criteria carry the source
+  `blueprint:<industry>.website/<module>/<i>`; `check` covers them like any other.
 `check` covers every `--with` blueprint like the primary one.
 
 ## Tiers
@@ -96,6 +103,16 @@ Tiers are cumulative: `mvp` ⊂ `pro` ⊂ `enterprise`.
 - `integrations` — `connectable`, `export_only`, `not_possible`: honest about closed official systems
   (notaries' archive, KV billing, beA, TSE cash registers). Build export/handover for those, never a fake
   connection.
+- `compliance[].scope` — `software`, `website` or missing (both). `expand` keeps the rules that apply to what is
+  built (a website owes the Impressum and advertising rules of the profession, not the deed register).
+- `website` (industries) — `summary`, `design` (the public site's look), `page_map`, `exclude`
+  (`{website module: reason}`), `pages`, `entities`, `modules` (same schema as `modules`), `integrations`.
+  `tests/test_blueprint.py` requires it for every industry and expands it in every tier, also on WordPress.
+- `module_pages` (products) — pages that exist only for a module (`case-studies` → `/referenzen`); an excluded
+  module takes them along unless the industry's `page_map` gives them a new purpose.
+- `platforms.wordpress` (products) — extra `modules`, `third_party_plugins` and `criteria_overrides`
+  (`{"<module>/<index>": criterion}`) where the WordPress version of a criterion differs (contact form posts
+  to admin-post.php, the feed is `/feed/`, external media instead of analytics consent).
 
 New blueprint: add the JSON file — `tests/test_blueprint.py` validates the schema (design included) and every
 tier expansion against the spec, acceptance and tour validators.

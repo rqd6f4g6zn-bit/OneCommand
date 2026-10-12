@@ -194,6 +194,24 @@ def kind(bp: dict[str, Any]) -> str:
     return bp.get("kind", "product")
 
 
+def scope_of(bp: dict[str, Any]) -> str:
+    """What the build delivers: a public website, or software the business works in."""
+    return bp.get("scope", "website" if bp["id"] == "website" else "software")
+
+
+def site_part(b: dict[str, Any]) -> dict[str, Any] | None:
+    """An industry's guest-facing website block as a pseudo-blueprint (id '<industry>.website')."""
+    block = b.get("website")
+    if not block:
+        return None
+    return {"id": f"{b['id']}.website", "kind": "industry", "modules": block.get("modules", []),
+            "pages": block.get("pages", {}), "roles": [], "metrics": [], "entities": block.get("entities", [])}
+
+
+def in_scope(rule: dict[str, Any], scope: str) -> bool:
+    return rule.get("scope", "all") in ("all", scope)
+
+
 def detect(prompt: str) -> dict[str, Any]:
     text = f" {norm(prompt)} "
     matches = []
@@ -296,9 +314,19 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
            with_bps: list[dict[str, Any]] | None = None, context_bps: list[dict[str, Any]] | None = None,
            platform: str | None = None) -> dict[str, Any]:
     with_bps, context_bps = with_bps or [], context_bps or []
+    scope = scope_of(bp)
+    # A website for an industry: the industry's website block adds its guest-facing modules (menu, opening hours,
+    # booking …), renames the generic pages and leaves out website modules that do not fit (with the reason).
+    site_parts = [sp for b in context_bps if scope == "website" for sp in [site_part(b)] if sp]
+    exclude = dict(exclude)
+    page_map: dict[str, str] = {}
+    for b in context_bps:
+        if scope == "website" and b.get("website"):
+            exclude.update({k: v for k, v in (b["website"].get("exclude") or {}).items() if k not in exclude})
+            page_map.update(b["website"].get("page_map") or {})
     parts: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
     taken: set[str] = set()
-    for b in [bp, *with_bps]:
+    for b in [bp, *with_bps, *site_parts]:
         mods = merged_modules(b, tier, exclude if b is bp else {}, taken, platform)
         taken |= {m["id"] for m in mods}
         parts.append((b, mods))
@@ -312,13 +340,31 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
                 crit.update({k: v for k, v in c.items() if k != "priority"})
                 criteria.append(crit)
     sources = [bp, *with_bps]
-    pages = unique([p for b in sources for t in upto(tier) for p in b.get("pages", {}).get(t, [])], key=lambda p: p)
+    # Pages that only exist for an excluded module go too (unless the industry maps them to a page of its own).
+    dropped = {p for m in exclude for p in (bp.get("module_pages") or {}).get(m, []) if p not in page_map}
+    pages = unique([page_map.get(p, p) for b in [*sources, *site_parts] for t in upto(tier)
+                    for p in b.get("pages", {}).get(t, []) if p not in dropped], key=lambda p: p)
+    for c in criteria:
+        if c.get("start") in page_map:
+            c["start"] = page_map[c["start"]]
     roles = unique([r for b in sources for r in b.get("roles", []) if in_tier(r, tier)], key=lambda r: r["id"])
     metrics = unique([{k: v for k, v in m.items() if k != "tier"} for b in sources for m in b.get("metrics", [])
                       if in_tier(m, tier)], key=lambda m: m["id"])
     # The industry decides the look and the duties, also when a product blueprint leads.
     industry = next((b for b in [bp, *with_bps, *context_bps] if kind(b) == "industry"), bp)
-    entities = unique([e for b in sources for e in b.get("entities", []) if in_tier(e, tier)], key=lambda e: e["name"])
+    design = industry.get("design") or bp.get("design")
+    integrations_from = [*sources, *context_bps]
+    if scope == "website" and industry is not bp:
+        # The guest-facing look of the industry on top of the website's craft rules (motion, avoid …),
+        # not the look of its back-office software (floor plan, kitchen display).
+        site = industry.get("website") or {}
+        design = {**(bp.get("design") or {}), **(industry.get("design") or {}), **(site.get("design") or {})}
+        design["avoid"] = unique([*(bp.get("design") or {}).get("avoid", []),
+                                  *(site.get("design") or industry.get("design") or {}).get("avoid", [])], key=lambda a: a)
+        if site.get("integrations"):
+            integrations_from = [*sources, {"integrations": site["integrations"]}]
+    entities = unique([e for b in [*sources, *site_parts] for e in b.get("entities", []) if in_tier(e, tier)],
+                      key=lambda e: e["name"])
     login = next((p for p in pages if "login" in p), None)
     extra: dict[str, Any] = {}
     if bp.get("performance_budget", {}).get(tier):
@@ -336,7 +382,7 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
         "build_targets": bp.get("build_targets", ["web"]),
         "ui_language": bp.get("ui_language", "en"),
         "blueprint": {"id": bp["id"], "version": bp.get("version", 1), "tier": tier, "excluded_modules": exclude,
-                      "with": [b["id"] for b in with_bps], "context": [b["id"] for b in context_bps]},
+                      "with": [b["id"] for b in with_bps], "context": [b["id"] for b in context_bps], "scope": scope},
         "features": [m["id"] for m in modules],
         "module_features": {m["id"]: m["features"] for m in modules},
         "pages": pages,
@@ -355,10 +401,12 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
         "production_dependencies": unique([d for b in sources for d in b.get("production_dependencies", {}).get(tier, [])],
                                           key=lambda d: d),
         # Seeds .onecommand/design.md (oc-frontend-design): adapt to the customer's brand, do not copy blindly.
-        "design_direction": industry.get("design") or bp.get("design"),
-        "compliance": unique([{k: v for k, v in r.items() if k != "tier"} for b in [*sources, *context_bps]
-                              for r in b.get("compliance", []) if in_tier(r, tier)], key=lambda r: r["rule"]),
-        "integrations": {k: unique([x for b in [*sources, *context_bps] for x in (b.get("integrations") or {}).get(k, [])],
+        "design_direction": design,
+        # Duties are filtered by what is built: a restaurant website owes the allergen list, not the cash register.
+        "compliance": unique([{k: v for k, v in r.items() if k not in ("tier", "scope")} for b in [*sources, *context_bps]
+                              for r in b.get("compliance", []) if in_tier(r, tier) and in_scope(r, scope)],
+                             key=lambda r: r["rule"]),
+        "integrations": {k: unique([x for b in integrations_from for x in (b.get("integrations") or {}).get(k, [])],
                                    key=lambda x: x)
                          for k in ("connectable", "export_only", "not_possible")},
         "acceptance_criteria": criteria,
@@ -369,6 +417,16 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
     elif platform == "custom":
         draft["blueprint"]["platform"] = "custom"
     return draft
+
+
+# Paths of a Next.js build that WordPress serves elsewhere (criteria wording follows the platform).
+WP_TEXT = (("POST /api/contact", "POST /wp-admin/admin-post.php"), ("/rss.xml", "/feed/"), ("rss.xml", "/feed/"))
+
+
+def wp_text(text: str) -> str:
+    for a, b in WP_TEXT:
+        text = text.replace(a, b)
+    return text
 
 
 def wordpressify(draft: dict[str, Any], sources: list[dict[str, Any]]) -> None:
@@ -383,10 +441,20 @@ def wordpressify(draft: dict[str, Any], sources: list[dict[str, Any]]) -> None:
                            "database": "MySQL/MariaDB in production · SQLite in the gate", "testing": "Playwright"}
     draft["wordpress"] = {"version": "6.8", "theme": slug, "plugins": [f"{slug}-core"], "third_party_plugins": third,
                           "plugin_budget": 6, "seed": "wordpress/seed.php", "build": "npm run build"}
-    draft["pages"] = [wp_path(p) for p in draft["pages"]]
+    # wp-admin and wp-login are WordPress's own screens: logged in by the tour, never a page of the site.
+    draft["pages"] = [wp_path(p) for p in draft["pages"] if wp_path(p) not in WP_PATHS.values()]
+    overrides = {f"blueprint:{b['id']}/{key}": crit for b in sources
+                 for key, crit in (((b.get("platforms") or {}).get("wordpress") or {}).get("criteria_overrides") or {}).items()}
     for c in draft["acceptance_criteria"]:
+        if c.get("source") in overrides:
+            keep = {k: c[k] for k in ("id", "feature", "priority", "source")}
+            for k in ("start", "requires_auth"):
+                c.pop(k, None)
+            c.update({**overrides[c["source"]], **keep})
         if c.get("start"):
             c["start"] = wp_path(c["start"])
+        for field in ("steps", "expected"):
+            c[field] = [wp_text(x) for x in c.get(field, [])]
     demo = draft["demo"]
     demo["login_path"] = "/wp-login.php"
     demo["seed_command"] = None
@@ -394,6 +462,8 @@ def wordpressify(draft: dict[str, Any], sources: list[dict[str, Any]]) -> None:
         acct["wp_role"] = WP_ROLES.get(acct["role"], "subscriber")
     if not any(a["wp_role"] == "administrator" for a in demo["accounts"]):
         demo["accounts"].insert(0, {"role": "admin", "wp_role": "administrator", "email": "admin@demo.example", "password": "Demo1234!"})
+    # The administrator first: wp-gate creates the users in this order and the tour logs in as the first one.
+    demo["accounts"].sort(key=lambda a: a["wp_role"] != "administrator")
     draft["non_functional"] = draft["non_functional"] + [
         "WordPress: only escaped output, nonces on every form, $wpdb->prepare for SQL, ABSPATH guard in every plugin file",
         "WordPress: no third-party requests without consent (emoji script, Gravatar, Google Fonts, embeds)"]
@@ -453,6 +523,11 @@ def check(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     criteria = spec.get("acceptance_criteria") or []
     sources = {c.get("source") for c in criteria if isinstance(c, dict)}
     blueprints = [bp] + [load(i) for i in ref.get("with") or []]
+    if scope_of(bp) == "website":
+        for i in ref.get("context") or []:
+            sp = site_part(load(i))
+            if sp:
+                blueprints.append(sp)
     taken: set[str] = set()
     plan = []
     for b in blueprints:
