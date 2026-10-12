@@ -2,6 +2,64 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.14.0] — 2026-10-12
+
+WordPress at agency level, and Emil Kowalski's design engineering in one command.
+
+### Added
+- **WordPress websites.** "WordPress", "WooCommerce" or "Gutenberg" in the prompt makes `detect` plan
+  `--platform wordpress`. The same blueprint modules are then built as a WordPress site:
+  - a block theme from the design brief, with tokens in `theme.json` and self-hosted fonts;
+  - a site plugin for post types, blocks and settings;
+  - locked patterns for editors;
+  - WordPress paths, roles and logins.
+- **Six WordPress modules** with acceptance criteria:
+  - theme;
+  - editor experience;
+  - privacy without third parties;
+  - security hardening;
+  - performance;
+  - operations.
+
+  A shop on WordPress also gets WooCommerce with German legal requirements ("Zahlungspflichtig bestellen",
+  Widerruf, Grundpreise).
+- **`hooks/wp-gate.py`**, the WordPress verdict. `quality-gate.sh` hands every spec with a `wordpress` section
+  to it. It covers:
+  - PHP lint;
+  - WordPress rules: escaping, nonces, sanitizing, prepared SQL, ABSPATH guard, no eval, no remote
+    fonts/CDNs, theme.json v3 with palette and self-hosted fonts, block.json, the plugin budget, no page
+    builder;
+  - the real site on PHP's built-in server with the official SQLite integration, with no Docker and no MySQL.
+    WordPress core is fetched once via git, so wordpress.org is not needed. The site gets the theme,
+    plugins, demo users and `seed.php`;
+  - the acceptance tests and the UI tour;
+  - PHP fatal errors in `debug.log`.
+
+  `wp-gate.py serve` starts the site locally.
+- **Skill `wordpress-builder`.** It covers:
+  - the project layout;
+  - theme from the brief;
+  - site plugin and blocks;
+  - privacy for Germany (emoji script and Gravatar removed, two-click embeds);
+  - security;
+  - performance;
+  - WooCommerce;
+  - demo content (fixed German slugs: "Über uns" becomes `uber-uns` without the de_DE locale);
+  - operations and handover.
+- **The user decides: own code or WordPress.** When a website or shop prompt does not say how to build it,
+  OneCommand asks exactly once at the start. The options are custom code (Next.js, recommended) or WordPress;
+  a free-text answer such as Astro or static HTML also works. There is no question when the prompt already
+  says it (WordPress, Next.js, React, "eigener Code" …). Headless runs default to custom code.
+- **`/emil`.** Emil Kowalski's design-engineering skills (MIT) in one skill and one command: 15 guides on polish,
+  building, reviewing and auditing animations, animation performance, Apple-style motion, mobile web that feels
+  native, worst-case data, prototypes, library picks, Sonner, Expo and Swift. The frontend and mobile agents load
+  it in Phase 2. In Phase 6, `exceed-expectations` runs `break-ui`, `review-animations` and
+  `animation-performance` on the app.
+- **UI tour: third-party requests.** Every request to another host is a design/privacy finding
+  (GDPR, because it sends the visitor's IP). Allowed hosts go in `spec.allowed_third_parties`. CMS back offices
+  (`/wp-admin`, `/wp-login.php`) are no longer judged as the project's design. WordPress login fields are
+  recognised.
+
 ## [1.13.0] — 2026-10-08
 
 Every industry. A short prompt for a notary, a medical practice or a restaurant now yields the software a

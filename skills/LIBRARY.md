@@ -15,6 +15,7 @@ Skills installed elsewhere (personal, project, other plugins) join this library 
 | `21st-components` | 2, 3 | community UI sections before custom code | web |
 | `app-icon-generator` | 2 | app icons in every iOS/Android size | mobile |
 | `asset-generator` | 2 | sprites, models, audio | game |
+| `emil` | 2, 6 | Emil Kowalski's design engineering: polish, animation, native feel on phones, worst-case data (/emil) | web |
 | `game-engine-selector` | 2 | choose Godot / Three.js / Phaser | game |
 | `godot-builder` | 2 | Godot 4 project (if selected) | game |
 | `ml-builder` | 2, 4 | AI/ML training project: data, training, evaluation, model card, inference API (via ml-agent) | ml |
@@ -25,6 +26,7 @@ Skills installed elsewhere (personal, project, other plugins) join this library 
 | `threejs-builder` | 2 | Three.js project (if selected) | game |
 | `video-producer` | 2, 3 | cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set | web + spec.media.videos |
 | `voice-agent` | 2, 3, 4 | phone/voice assistant: telephony, speech, dialogue, handover, test calls (when spec.voice is set) | web + spec.voice |
+| `wordpress-builder` | 2, 4, 6 | WordPress site: block theme from the design brief, site plugin, patterns, privacy, security, WooCommerce (hooks/wp-gate.py) | web + spec.wordpress |
 | `live-integrations` | 3 | real e-mail, OAuth, push for production_dependencies | web + spec.production_dependencies |
 | `oc-marketing` | 3 | README, landing page, docs (via marketing-agent) | always |
 | `acceptance-tester` | 4, 6 | Playwright suite from acceptance_criteria | web |

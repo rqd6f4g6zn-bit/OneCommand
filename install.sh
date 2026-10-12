@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.13.0"
+PLUGIN_VERSION="1.14.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=false
@@ -538,6 +538,8 @@ section "[ 4/4 ] Verifying bundled skills"
 
 BUNDLED_SKILLS=(
   "oc-frontend-design"
+  "emil"
+  "wordpress-builder"
   "oc-ui-ux"
   "oc-marketing"
   "app-icon-generator"

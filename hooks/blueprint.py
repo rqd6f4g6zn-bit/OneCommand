@@ -161,6 +161,35 @@ SYSTEM_WORDS = ("software", "verwaltung", "system", "programm", "app", "plattfor
                 "komplettlösung", "alles")
 
 
+# The platform the product is built on. WordPress: block theme + site plugin, checked by hooks/wp-gate.py.
+PLATFORM_WORDS = {"wordpress": ("wordpress", "word press", "wp-seite", "wp seite", "wp-webseite", "woocommerce",
+                                "gutenberg", "elementor", "divi", "wp theme", "wordpress-theme"),
+                  # The user named own code / a framework: no platform question, no WordPress.
+                  "custom": ("next.js", "nextjs", "react", "vue", "nuxt", "svelte", "astro", "eigener code", "eigenem code",
+                             "eigenen code", "selbst programmiert", "individuell programmiert", "custom code", "html und css",
+                             "statische seite", "ohne cms")}
+WP_PATHS = {"/admin/login": "/wp-login.php", "/admin": "/wp-admin/"}
+WP_ROLES = {"admin": "administrator", "owner": "administrator", "editor": "editor", "author": "author"}
+
+
+def platform_of(text: str) -> str | None:
+    for platform, words in PLATFORM_WORDS.items():
+        if any(re.search(rf"(?<![a-zäöüß]){re.escape(w)}(?![a-zäöüß])", text) for w in words):
+            return platform
+    return None
+
+
+def slugify(name: str) -> str:
+    name = name.lower()
+    for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        name = name.replace(a, b)
+    return re.sub(r"[^a-z0-9]+", "-", name).strip("-") or "site"
+
+
+def platform_modules(b: dict[str, Any], platform: str | None) -> list[dict[str, Any]]:
+    return ((b.get("platforms") or {}).get(platform) or {}).get("modules", []) if platform else []
+
+
 def kind(bp: dict[str, Any]) -> str:
     return bp.get("kind", "product")
 
@@ -186,6 +215,11 @@ def detect(prompt: str) -> dict[str, Any]:
         plan["with"] = [m["id"] for m in products[1:2]]
         plan["context"] = [m["id"] for m in industries[:1]]     # look, duties, terms of the industry
     plan.pop("with_", None)
+    plan["platform"] = platform_of(text)
+    if plan["platform"] is None:
+        offered = sorted({p for m in [plan["primary"], *plan["with"]] if m
+                          for p in (load(m).get("platforms") or {})})
+        plan["ask_platform"] = ["custom", *offered] if offered else []
     order = [plan["primary"], *plan["with"], *plan["context"]]
     matches.sort(key=lambda m: order.index(m["id"]) if m["id"] in order else len(order))
     tier, reason = "pro", "default — no tier wording in the prompt"
@@ -209,7 +243,11 @@ def cmd_detect(args: argparse.Namespace) -> int:
         plan = result["plan"]
         if plan["primary"]:
             flags = "".join(f" --with {w}" for w in plan["with"]) + "".join(f" --context {c}" for c in plan["context"])
+            flags += f" --platform {plan['platform']}" if plan.get("platform") else ""
             print(f"[blueprint] plan: expand {plan['primary']}{flags}")
+        if plan.get("ask_platform"):
+            print(f"[blueprint] platform open — ask the user once: {' | '.join(plan['ask_platform'])} "
+                  "(no answer / headless: custom)")
         print(f"[blueprint] tier: {result['tier']} ({result['tier_reason']})")
     return 0 if result["matches"] else 1
 
@@ -237,9 +275,11 @@ def cmd_show(args: argparse.Namespace) -> int:
 
 # ─── expand ───────────────────────────────────────────────────────────────────
 
-def merged_modules(bp: dict[str, Any], tier: str, exclude: dict[str, str], taken: set[str]) -> list[dict[str, Any]]:
-    """Modules of bp in the tier, minus excluded ones and ids another blueprint already supplies (auth …)."""
-    return [m for m in bp["modules"] if in_tier(m, tier) and m["id"] not in exclude and m["id"] not in taken]
+def merged_modules(bp: dict[str, Any], tier: str, exclude: dict[str, str], taken: set[str],
+                   platform: str | None = None) -> list[dict[str, Any]]:
+    """Modules of bp in the tier (plus its platform modules), minus excluded ones and ids already supplied."""
+    return [m for m in bp["modules"] + platform_modules(bp, platform)
+            if in_tier(m, tier) and m["id"] not in exclude and m["id"] not in taken]
 
 
 def unique(items: list[Any], key) -> list[Any]:
@@ -253,12 +293,13 @@ def unique(items: list[Any], key) -> list[Any]:
 
 
 def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name: str | None,
-           with_bps: list[dict[str, Any]] | None = None, context_bps: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+           with_bps: list[dict[str, Any]] | None = None, context_bps: list[dict[str, Any]] | None = None,
+           platform: str | None = None) -> dict[str, Any]:
     with_bps, context_bps = with_bps or [], context_bps or []
     parts: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
     taken: set[str] = set()
     for b in [bp, *with_bps]:
-        mods = merged_modules(b, tier, exclude if b is bp else {}, taken)
+        mods = merged_modules(b, tier, exclude if b is bp else {}, taken, platform)
         taken |= {m["id"] for m in mods}
         parts.append((b, mods))
     modules = [m for _, mods in parts for m in mods]
@@ -289,7 +330,7 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
     videos = [v for t in upto(tier) for v in bp.get("media", {}).get(t, [])]
     if videos:
         extra["media"] = {"videos": videos, "raw_dir": "assets/raw"}
-    return {
+    draft = {
         "project_name": project_name or bp["id"].upper(),
         "app_type": bp.get("app_type", "web-app"),
         "build_targets": bp.get("build_targets", ["web"]),
@@ -323,6 +364,39 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
         "acceptance_criteria": criteria,
         **extra,
     }
+    if platform == "wordpress":
+        wordpressify(draft, [bp, *with_bps])
+    elif platform == "custom":
+        draft["blueprint"]["platform"] = "custom"
+    return draft
+
+
+def wordpressify(draft: dict[str, Any], sources: list[dict[str, Any]]) -> None:
+    """The same product on WordPress: block theme + site plugin, WordPress paths, roles and logins."""
+    def wp_path(path: str) -> str:
+        return WP_PATHS.get(path, path)
+    slug = slugify(str(draft["project_name"]))
+    third = [p for b in sources for p in ((b.get("platforms") or {}).get("wordpress") or {}).get("third_party_plugins", [])]
+    draft["blueprint"]["platform"] = "wordpress"
+    draft["tech_stack"] = {"cms": "wordpress", "frontend": "WordPress block theme (Full Site Editing) + custom blocks (@wordpress/scripts)",
+                           "backend": "WordPress (PHP 8.1+), site plugin for post types, blocks and settings",
+                           "database": "MySQL/MariaDB in production · SQLite in the gate", "testing": "Playwright"}
+    draft["wordpress"] = {"version": "6.8", "theme": slug, "plugins": [f"{slug}-core"], "third_party_plugins": third,
+                          "plugin_budget": 6, "seed": "wordpress/seed.php", "build": "npm run build"}
+    draft["pages"] = [wp_path(p) for p in draft["pages"]]
+    for c in draft["acceptance_criteria"]:
+        if c.get("start"):
+            c["start"] = wp_path(c["start"])
+    demo = draft["demo"]
+    demo["login_path"] = "/wp-login.php"
+    demo["seed_command"] = None
+    for acct in demo["accounts"]:
+        acct["wp_role"] = WP_ROLES.get(acct["role"], "subscriber")
+    if not any(a["wp_role"] == "administrator" for a in demo["accounts"]):
+        demo["accounts"].insert(0, {"role": "admin", "wp_role": "administrator", "email": "admin@demo.example", "password": "Demo1234!"})
+    draft["non_functional"] = draft["non_functional"] + [
+        "WordPress: only escaped output, nonces on every form, $wpdb->prepare for SQL, ABSPATH guard in every plugin file",
+        "WordPress: no third-party requests without consent (emoji script, Gravatar, Google Fonts, embeds)"]
 
 
 def parse_excludes(values: list[str]) -> dict[str, str]:
@@ -344,7 +418,7 @@ def cmd_expand(args: argparse.Namespace) -> int:
         return 2
     with_bps = [load(i) for i in args.with_ if i != bp["id"]]
     context_bps = [load(i) for i in args.context if i != bp["id"]]
-    draft = expand(bp, args.tier, exclude, args.project_name, with_bps, context_bps)
+    draft = expand(bp, args.tier, exclude, args.project_name, with_bps, context_bps, args.platform)
     out = json.dumps(draft, indent=2, ensure_ascii=False) + "\n"
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -382,7 +456,7 @@ def check(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     taken: set[str] = set()
     plan = []
     for b in blueprints:
-        mods = [m for m in b["modules"] if in_tier(m, tier) and m["id"] not in taken]
+        mods = [m for m in b["modules"] + platform_modules(b, ref.get("platform")) if in_tier(m, tier) and m["id"] not in taken]
         taken |= {m["id"] for m in mods}
         plan += [(b, m) for m in mods]
     for owner, module in plan:
@@ -487,6 +561,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="also build this blueprint's modules (e.g. phone-assistant next to medical-practice)")
     p.add_argument("--context", action="append", default=[], metavar="ID",
                    help="take only look, duties and integrations from this (industry) blueprint")
+    p.add_argument("--platform", choices=sorted(PLATFORM_WORDS), help="build it on this platform (wordpress)")
     p.add_argument("--out", help="write the draft spec here (default: stdout)")
     p.set_defaults(func=cmd_expand)
 

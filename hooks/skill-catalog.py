@@ -70,6 +70,8 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "cross-agent-sync":        {"phases": [1, 7], "when": "always", "use": "load shared learnings, promote confirmed ones"},
     "oc-frontend-design":      {"phases": [2], "when": "web", "use": "layout, typography, spacing rules"},
     "oc-ui-ux":                {"phases": [2], "when": "web", "use": "UX patterns and accessibility"},
+    "wordpress-builder":       {"phases": [2, 4, 6], "when": "web", "requires": "wordpress", "use": "WordPress site: block theme from the design brief, site plugin, patterns, privacy, security, WooCommerce (hooks/wp-gate.py)"},
+    "emil":                    {"phases": [2, 6], "when": "web", "use": "Emil Kowalski's design engineering: polish, animation, native feel on phones, worst-case data (/emil)"},
     "21st-components":         {"phases": [2, 3], "when": "web", "use": "community UI sections before custom code"},
     "app-icon-generator":      {"phases": [2], "when": "mobile", "use": "app icons in every iOS/Android size"},
     "game-engine-selector":    {"phases": [2], "when": "game", "use": "choose Godot / Three.js / Phaser"},

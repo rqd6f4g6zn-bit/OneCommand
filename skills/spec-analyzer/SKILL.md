@@ -33,6 +33,12 @@ The user's raw project prompt (passed as $ARGUMENTS or from context).
    Use web search when available; otherwise write from domain knowledge and list every uncertain fact in
    `to_verify`. `blueprint.py check` fails until the brief is complete. A thin brief builds a thin product.
 
+   When the orchestrator passes `PLATFORM=wordpress` (the user chose it), expand with `--platform wordpress`;
+   `PLATFORM=custom` or nothing → no platform flag (custom code) and record `"platform": "custom"` in
+   `spec.blueprint`. The detect plan names the platform when the prompt does ("WordPress", "WooCommerce", "Gutenberg" →
+   `--platform wordpress`): pass it to expand — the draft then carries the `wordpress` section, WordPress paths,
+   roles and the WordPress modules (theme, editor experience, privacy, security, performance, operations).
+
    On a match, expand it (`blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json`) and build the spec **on top of that draft**: keep every module and every criterion (`source` tag), add what the prompt asks for beyond it, adapt the wording. Only modules the user explicitly does not want may be left out — via `--exclude "<module>=<the user's reason>"`.
 
 2. **Analyze the prompt** — Extract:

@@ -110,6 +110,9 @@ Use the `onecommand-spec-analyzer` skill with the project prompt. For known syst
 python3 "$HOME/.codex/skills/onecommand/hooks/blueprint.py" detect --prompt "<user prompt>"
 # on a match: … blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json
 # build the spec on top of the draft, then: … blueprint.py check --spec .onecommand-spec.json
+# platform open (detect: "platform open — ask the user once"): ask custom code (Next.js) or WordPress; no answer → custom
+# WordPress in the prompt: detect prints --platform wordpress → expand with it; build per skills/wordpress-builder;
+# the gate hands over to hooks/wp-gate.py (real WordPress on PHP + SQLite)
 # no match: fill domain_brief (blueprint.py brief) — check fails without it; start the design brief from
 # spec.design_direction / domain_brief.design
 ```

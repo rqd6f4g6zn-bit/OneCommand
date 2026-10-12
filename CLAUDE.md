@@ -6,7 +6,7 @@ OneCommand is a Claude Code plugin that builds complete, production-ready softwa
 
 ```
 .claude-plugin/plugin.json   # Plugin manifest
-commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update, /oc-skills)
+commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update, /oc-skills, /emil)
 skills/                      # Reusable skills invoked by agents and commands
 agents/                      # Specialized agents for each build phase
 hooks/                       # hooks.json (SessionStart auto-update) + build scripts (see below)
@@ -21,6 +21,7 @@ docs/superpowers/            # Design specs and implementation plans
 - `/oc-resume` — Resume an interrupted build from the last completed phase
 - `/oc-doctor` — Diagnose the installation (registry, commands, brain, Codex)
 - `/oc-skills [topic]` — The skill library: every bundled and installed skill, searchable
+- `/emil <task>` — Emil Kowalski's design-engineering skills (polish, animation, native feel, worst-case data)
 - `/oc-update` — Install the latest release now (`check`, `status`, `off`, `on`)
 
 ## Workflow Overview
@@ -50,7 +51,12 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
 - `hooks/ui-tour.py` (stage `tour`): demo seed, production start with fresh secrets, every page as every
   `demo.accounts` login, screenshots + `.onecommand/tour/review.md`; `review-status` must pass before delivery.
   Its design audit (`DESIGN_JS`: shipped fonts, code values, WCAG contrast, table lines, sidebar) adds
-  measured findings that stay open until a re-run no longer finds them.
+  measured findings that stay open until a re-run no longer finds them. It also reports every request to a
+  third-party host (GDPR; allow-list `spec.allowed_third_parties`) and skips CMS back offices (/wp-admin).
+- `hooks/wp-gate.py`: quality-gate.sh hands specs with a `wordpress` section to it — PHP lint, WordPress security
+  rules (escaping, nonces, prepared SQL, ABSPATH guard, no remote fonts/CDNs, plugin budget), the real site on PHP's
+  built-in server + SQLite (core via git, cached in ~/.onecommand/cache/wordpress), acceptance tests, UI tour.
+  `serve` starts the site locally. Skill: `wordpress-builder`.
 - `hooks/ml-gate.py`: quality-gate.sh hands specs with build target `ml` to it — install, lint, tests,
   smoke training, metric ≥ `ml.metric.smoke_min`, model card, `POST /predict`. Same result.json.
 - `hooks/dataset.py build|check|stats`: the user's own raw files → cleaned, PII-scrubbed, deduplicated,
