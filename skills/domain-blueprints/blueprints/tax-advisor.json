@@ -1,0 +1,188 @@
+{
+  "id": "tax-advisor",
+  "name": "Steuerberatungskanzlei",
+  "kind": "industry",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["steuerberater", "steuerberaterin", "steuerberatung", "steuerberatungskanzlei", "steuerberaterkanzlei", "steuerberatungsgesellschaft", "steuerkanzlei", "steuerbüro", "buchhaltungsbüro", "lohnbüro", "belegaustausch", "kanzleisoftware für steuerberater", "tax advisor", "tax consultant", "tax advisory firm", "accounting firm"],
+  "summary": "Kanzleisoftware für Steuerberater: Mandanten mit Mandatsumfang, Belegaustausch mit Texterkennung und Rückfragen, Fristenkalender inkl. Dauerfristverlängerung, Monatsabschluss-Checklisten, Honorar nach StBVV und ein Mandantenportal — unter Wahrung der Verschwiegenheit.",
+  "design": {"personality": ["seriös", "präzise", "diskret"], "typefaces": {"display": "Source Serif 4", "text": "IBM Plex Sans"}, "palette": "tiefes Petrol als Kanzleifarbe auf warmem Papierweiß, Ampelfarben ausschließlich für Fristen (grün > 14 Tage, gelb ≤ 14, rot ≤ 3 oder überfällig), sonst ruhige Grautöne", "density": "compact", "signature_ideas": ["Fristen-Ampel je Mandant mit Resttagen statt nur Datum", "Monatsabschluss-Matrix Mandanten × Monate, jede Zelle zeigt den Fortschritt der Checkliste", "Belegstatus als schmale Spur: Hochgeladen → Erkannt → Rückfrage → Geprüft → Exportiert"], "references": ["DATEV Unternehmen online", "Candis", "Linear"], "avoid": ["Stockfotos mit Taschenrechner, Brille und Steuerformular", "verspielte Illustrationen und Emojis", "Ampelfarben als Dekoration ohne Fristbezug", "Behörden-Grau mit Tabellen ohne Hierarchie"]},
+  "roles": [
+    {"id": "admin", "name": "Kanzleiinhaber (Berufsträger)", "can": "alles: Mandanten, Benutzer, Honorar, Freigaben, Einstellungen, Auswertungen"},
+    {"id": "advisor", "name": "Steuerberater (angestellt)", "can": "zugeordnete Mandanten, Freigabe von Erklärungen als Berufsträger, Bescheidprüfung, Honorar", "tier": "pro"},
+    {"id": "clerk", "name": "Steuerfachangestellte", "can": "Belege, Rückfragen, Fristen und Monatsabschluss der zugeordneten Mandanten; keine Freigabe als Berufsträger"},
+    {"id": "client", "name": "Mandant", "can": "eigene Belege hochladen, Rückfragen beantworten, Fristen und freigegebene Dokumente sehen, Erklärungen freigeben"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "passwordHash", "role", "clientId", "totpEnabled", "secrecyPledgeSignedAt", "active"], "tier": "mvp"},
+    {"name": "Client", "fields": ["clientNumber", "name", "legalForm(soleProprietor|partnership|gmbh|ug|kg|private)", "taxNumber", "vatId", "taxOffice", "fiscalYearStart", "profitMethod(balanceSheet|cashBasis)", "vatPeriod(monthly|quarterly|annual|none)", "permanentExtension", "specialPrepayment", "assignedClerkId", "datevConsultantNumber", "datevClientNumber", "status(onboarding|active|ended)", "mandateEndedAt"], "tier": "mvp"},
+    {"name": "Mandate", "fields": ["clientId", "service(bookkeeping|payroll|annualAccounts|incomeTax)", "since", "until", "responsibleUserId"], "tier": "mvp"},
+    {"name": "Document", "fields": ["clientId", "fileName", "fileHash", "mimeType", "period", "docType(incomingInvoice|outgoingInvoice|bankStatement|receipt|payroll|taxNotice|other)", "eInvoiceFormat(none|xrechnung|zugferd)", "status(uploaded|recognized|query|checked|exported)", "ocrAmount", "ocrDate", "ocrVendor", "ocrInvoiceNumber", "ocrConfidence", "sharedWithClient", "uploadedBy", "uploadedAt", "retentionUntil"], "tier": "mvp"},
+    {"name": "Query", "fields": ["clientId", "documentId", "question", "answer", "status(open|answered|closed)", "askedBy", "answeredAt", "dueDate"], "tier": "mvp"},
+    {"name": "Deadline", "fields": ["clientId", "kind(vatReturn|payrollTaxReturn|socialSecurityStatement|incomeTaxReturn|corporateTaxReturn|tradeTaxReturn|annualAccounts|objection|other)", "period", "legalDueDate", "dueDate", "extended", "status(open|done)", "doneBy", "doneAt"], "tier": "mvp"},
+    {"name": "ChecklistTemplate", "fields": ["service", "title", "position"], "tier": "mvp"},
+    {"name": "MonthlyClose", "fields": ["clientId", "month", "status(open|inProgress|done)"], "tier": "mvp"},
+    {"name": "ChecklistItem", "fields": ["monthlyCloseId", "title", "done", "doneBy", "doneAt"], "tier": "mvp"},
+    {"name": "FeeTable", "fields": ["table(A|B|C|D|E)", "validFrom", "rows"], "tier": "pro"},
+    {"name": "TimeEntry", "fields": ["userId", "clientId", "service", "date", "minutes", "description", "billed"], "tier": "pro"},
+    {"name": "FeeInvoice", "fields": ["clientId", "number", "date", "net", "vat", "gross", "status(draft|sent|paid)", "pdfUrl"], "tier": "pro"},
+    {"name": "FeeItem", "fields": ["invoiceId", "regulation", "table", "objectValue", "tenthRate", "minutes", "amount", "expenses"], "tier": "pro"},
+    {"name": "Filing", "fields": ["clientId", "kind", "period", "status(prepared|awaitingClient|clientApproved|released|transmitted|assessed)", "pdfUrl", "clientApprovedAt", "releasedBy", "releasedAt", "transferTicket"], "tier": "pro"},
+    {"name": "TaxNotice", "fields": ["clientId", "filingId", "noticeDate", "deemedNotificationDate", "objectionDeadline", "declaredTax", "assessedTax", "deviation", "status(inReview|accepted|objection)"], "tier": "pro"},
+    {"name": "KycRecord", "fields": ["clientId", "identifiedAt", "identifiedBy", "idDocumentType", "beneficialOwners", "transparencyRegisterChecked", "pep", "riskLevel(low|medium|high)", "nextReviewAt", "keepUntil"], "tier": "pro"},
+    {"name": "DatevExport", "fields": ["clientId", "period", "kind(bookingBatch|masterData|documents)", "fileName", "documentCount", "createdBy", "createdAt"], "tier": "pro"},
+    {"name": "PayrollInput", "fields": ["clientId", "month", "employeeName", "kind(hours|sickLeave|newHire|exit|bonus)", "value", "note", "status(submitted|processed)"], "tier": "enterprise"},
+    {"name": "ElsterTransmission", "fields": ["filingId", "testMode", "transferTicket", "protocolUrl", "sentAt", "status(sent|rejected)"], "tier": "enterprise"},
+    {"name": "RetentionRule", "fields": ["docType", "years", "legalBasis"], "tier": "enterprise"},
+    {"name": "AuditLog", "fields": ["userId", "clientId", "action", "entity", "entityId", "at", "ip"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung & Rollen", "tier": "mvp",
+     "features": ["Login für Kanzleimitarbeiter mit 2-Faktor-Anmeldung", "Eigener Portal-Zugang je Mandant (mehrere Ansprechpartner)", "Rollen Kanzleiinhaber, Steuerfachangestellte, Mandant", "Verschwiegenheitsverpflichtung je Mitarbeiter hinterlegt"],
+     "criteria": [
+       {"title": "Unauthenticated access to /dashboard redirects to /login", "verification": "e2e", "start": "/dashboard", "requires_auth": false, "steps": ["Open /dashboard without a session"], "expected": ["URL is /login"]},
+       {"title": "A client login cannot read another client's documents", "verification": "api", "steps": ["Log in as the Mandant of 'Bäckerei Krume GmbH'", "GET the document list of 'Müller Bau GmbH'"], "expected": ["Response is 403 or 404", "No document of 'Müller Bau GmbH' is in the response"]}
+     ]},
+    {"id": "clients", "name": "Mandanten & Mandatsumfang", "tier": "mvp",
+     "features": ["Mandantenstamm: Mandantennummer, Rechtsform, Steuernummer, USt-IdNr., Finanzamt, Wirtschaftsjahr, Gewinnermittlungsart", "Mandatsumfang je Mandant: FiBu, Lohn, Jahresabschluss, ESt — mit Beginn, Ende und Verantwortlichem", "Voranmeldungszeitraum (monatlich, vierteljährlich, jährlich) und Dauerfristverlängerung", "DATEV-Berater- und Mandantennummer", "Filter nach Mandatsumfang, Sachbearbeiter und Status"],
+     "criteria": [
+       {"title": "A new client with scope 'FiBu' and 'Lohn' is listed with both badges and keeps them after reload", "verification": "e2e", "start": "/clients", "requires_auth": true, "steps": ["Click 'Mandant anlegen'", "Enter 'Bäckerei Krume GmbH', Rechtsform 'GmbH', Voranmeldung 'monatlich'", "Tick 'FiBu' and 'Lohn'", "Click 'Speichern'", "Filter Mandatsumfang 'Lohn' and reload"], "expected": ["The list shows 'Bäckerei Krume GmbH' with badges 'FiBu' and 'Lohn'", "After reload the filter 'Lohn' is still set and the client is listed"]},
+       {"title": "A client number can only be used once", "verification": "api", "steps": ["POST a client with Mandantennummer 10045", "POST a second client with Mandantennummer 10045"], "expected": ["First returns 201", "Second returns 409"]}
+     ]},
+    {"id": "documents", "name": "Belegaustausch", "tier": "mvp",
+     "features": ["Upload durch Mandant oder Kanzlei: PDF, Foto vom Handy, E-Rechnung (XRechnung, ZUGFeRD)", "Zuordnung zu Monat und Belegart", "Texterkennung: Betrag, Datum, Rechnungsnummer, Lieferant mit Erkennungsgüte", "Belegstatus Hochgeladen → Erkannt → Rückfrage → Geprüft → Exportiert", "E-Rechnung: XML bleibt das Original, Sichtansicht daneben", "Belege nach Upload unveränderbar (Hash), Belegeingang je Sachbearbeiter"],
+     "criteria": [
+       {"title": "A receipt uploaded in the portal appears in the firm's document inbox with status 'Hochgeladen'", "verification": "e2e", "start": "/portal/documents", "requires_auth": true, "steps": ["Log in as the Mandant of 'Bäckerei Krume GmbH'", "Upload 'rechnung-mai.pdf' for 'Mai 2026'", "Log in as Steuerfachangestellte and open /documents"], "expected": ["A row 'rechnung-mai.pdf' · 'Bäckerei Krume GmbH' · 'Mai 2026' is listed", "The row shows status 'Hochgeladen'"]},
+       {"title": "Text recognition sets status 'Erkannt' with amount and date", "verification": "api", "steps": ["Upload a PDF invoice containing 'Gesamtbetrag 119,00 EUR' and 'Rechnungsdatum 12.05.2026'", "Run the recognition job (test mode)", "GET the document"], "expected": ["Status label is 'Erkannt'", "Recognised amount is 119.00 and date is 2026-05-12"]}
+     ]},
+    {"id": "queries", "name": "Rückfragen", "tier": "mvp",
+     "features": ["Rückfrage zu einem Beleg oder allgemein zum Monat", "Mandant antwortet im Portal, auch mit Nachreichen eines Belegs", "Beleg steht auf 'Rückfrage', bis die Rückfrage geschlossen ist", "Benachrichtigung per E-Mail nur mit Portal-Link, ohne steuerliche Inhalte", "Liste offener Rückfragen je Mandant mit Alter in Tagen"],
+     "criteria": [
+       {"title": "A query on a document reaches the client portal and the answer returns to the firm", "verification": "e2e", "start": "/documents", "requires_auth": true, "steps": ["Open 'rechnung-mai.pdf' and click 'Rückfrage stellen'", "Type 'Bitte Anlass und Teilnehmer der Bewirtung nennen' and click 'Senden'", "Log in as the Mandant, open /portal/queries, answer 'Kundentermin mit Fa. Weber, 2 Personen' and click 'Antwort senden'", "Log in as Steuerfachangestellte and open /queries"], "expected": ["The portal listed the question under 'Offene Rückfragen'", "In /queries the query shows status 'Beantwortet' and the answer text", "'rechnung-mai.pdf' shows status 'Rückfrage' until the query is closed"]},
+       {"title": "Query notification e-mail contains a portal link but not the question text", "verification": "api", "steps": ["Create a query 'Bitte Anlass und Teilnehmer der Bewirtung nennen' for 'Bäckerei Krume GmbH'", "Read the outbox"], "expected": ["One mail to the client contact with a link to /portal/queries", "The mail body does not contain 'Bewirtung' or any amount"]}
+     ]},
+    {"id": "deadlines", "name": "Fristenkalender", "tier": "mvp",
+     "features": ["Fristen werden aus Mandatsumfang und Voranmeldungszeitraum erzeugt: UStVA, Lohnsteuer-Anmeldung, SV-Beitragsnachweis, Jahreserklärungen, Jahresabschluss", "Dauerfristverlängerung verschiebt UStVA um einen Monat, Sondervorauszahlung wird angezeigt", "Wochenende und Feiertag verschieben auf den nächsten Werktag (§ 108 Abs. 3 AO)", "Abgabefristen mit Berater je Veranlagungsjahr hinterlegt (inkl. Übergangsfristen)", "Ansicht nach Mandant, Sachbearbeiter und Zeitraum; Resttage mit Ampel"],
+     "criteria": [
+       {"title": "VAT pre-return deadlines move by one month with Dauerfristverlängerung and to the next working day on weekends", "verification": "api", "steps": ["Client with monthly Voranmeldung, no Dauerfristverlängerung: generate deadlines for 2026", "Enable 'Dauerfristverlängerung' and generate again"], "expected": ["Without extension: UStVA 'März 2026' due 10.04.2026, UStVA 'September 2026' due 12.10.2026 (10.10. is a Saturday)", "With extension: UStVA 'März 2026' due 11.05.2026 (10.05. is a Sunday)", "Lohnsteuer-Anmeldung 'März 2026' stays due 10.04.2026"]},
+       {"title": "Marking a deadline done keeps it 'Erledigt' after reload and lowers the dashboard count", "verification": "e2e", "start": "/deadlines", "requires_auth": true, "steps": ["Filter 'Nächste 14 Tage'", "Click 'Erledigt' on the UStVA of 'Bäckerei Krume GmbH'", "Reload, then open /dashboard"], "expected": ["The row shows 'Erledigt' with name and date after reload", "'Fristen (nächste 14 Tage)' on /dashboard is one lower than before"]}
+     ]},
+    {"id": "monthly-close", "name": "Monatsabschluss je Mandant", "tier": "mvp",
+     "features": ["Checkliste je Mandant und Monat, erzeugt aus Vorlagen je Mandatsumfang", "FiBu: Belege vollständig, Bank abgestimmt, Buchungen erfasst, UStVA übermittelt, BWA versendet", "Lohn: Änderungen erfasst, Abrechnung erstellt, Lohnsteuer-Anmeldung und SV-Beitragsnachweis übermittelt", "Matrix Mandanten × Monate mit Fortschritt je Zelle", "Erledigt-Haken mit Name und Zeitpunkt"],
+     "criteria": [
+       {"title": "The checklist for a month follows the client's mandate scope", "verification": "e2e", "start": "/monthly-close", "requires_auth": true, "steps": ["Select month 'Mai 2026'"], "expected": ["'Bäckerei Krume GmbH' (FiBu + Lohn) shows tasks 'Belege vollständig', 'Bank abgestimmt', 'UStVA übermittelt', 'Lohnabrechnung erstellt', 'Lohnsteuer-Anmeldung übermittelt'", "A client with only 'Jahresabschluss' has no row for 'Mai 2026'"]},
+       {"title": "Ticking every task marks the month 'Abgeschlossen'", "verification": "e2e", "start": "/monthly-close", "requires_auth": true, "steps": ["Open 'Bäckerei Krume GmbH' / 'Mai 2026'", "Tick every task", "Reload"], "expected": ["The matrix cell shows 'Abgeschlossen'", "Each task shows who ticked it and when"]}
+     ]},
+    {"id": "client-portal", "name": "Mandantenportal", "tier": "mvp",
+     "features": ["Startseite mit offenen Rückfragen, nächsten Fristen und neuen Dokumenten", "Belege hochladen per Drag & Drop oder Handykamera", "Dokumente der Kanzlei (BWA, Lohnabrechnungen, Bescheide) herunterladen", "Nur eigene Daten; mehrere Firmen eines Mandanten umschaltbar"],
+     "criteria": [
+       {"title": "The portal home shows only the client's own data", "verification": "e2e", "start": "/portal", "requires_auth": true, "steps": ["Log in as the Mandant of 'Bäckerei Krume GmbH'"], "expected": ["The heading shows 'Bäckerei Krume GmbH'", "Sections 'Offene Rückfragen', 'Nächste Fristen' and 'Dokumente der Kanzlei' are visible", "The name 'Müller Bau GmbH' does not appear"]},
+       {"title": "A document shared by the firm can be downloaded in the portal", "verification": "e2e", "start": "/portal/documents", "requires_auth": true, "steps": ["As Steuerfachangestellte upload 'BWA Mai 2026.pdf' for 'Bäckerei Krume GmbH' with 'Für Mandant freigeben'", "Log in as the Mandant and open /portal/documents", "Click 'BWA Mai 2026.pdf'"], "expected": ["'BWA Mai 2026.pdf' is listed under 'Von der Kanzlei'", "The download returns HTTP 200 with content type application/pdf"]}
+     ]},
+    {"id": "fees", "name": "Honorar nach StBVV", "tier": "pro",
+     "features": ["Gebührenrechner: Tätigkeit mit Vorschrift, Tabelle A–E, Gegenstandswert, Zehntelsatz im zulässigen Rahmen, Mittelgebühr als Vorschlag", "Zeitgebühr je angefangene halbe Stunde (§ 13 StBVV) aus der Zeiterfassung", "Pauschalvergütung und Vergütungsvereinbarung in Textform hinterlegen", "Honorarrechnung mit allen Angaben nach § 9 StBVV und § 14 UStG, fortlaufende Nummer", "Auslagen (Post, Telekommunikation) und Umsatzsteuer", "Gebührentabellen versioniert mit Gültigkeitsdatum"],
+     "criteria": [
+       {"title": "Doubling the tenth rate doubles the fee in the calculator", "verification": "e2e", "start": "/fees", "requires_auth": true, "steps": ["Choose 'Einkommensteuererklärung (§ 24 Abs. 1 Nr. 1 StBVV)'", "Enter Gegenstandswert 50.000 € and Zehntelsatz 3/10, note the amount", "Change Zehntelsatz to 6/10"], "expected": ["'Tabelle A (Beratungstabelle)' and the range '1/10 – 6/10' are shown", "The amount at 6/10 is exactly twice the amount at 3/10"]},
+       {"title": "The fee invoice lists the details required by § 9 StBVV", "verification": "e2e", "start": "/fees", "requires_auth": true, "steps": ["Add the position from the calculator to a new invoice for 'Familie Sommer'", "Click 'Rechnung erstellen' and open the PDF"], "expected": ["The PDF contains 'Gegenstandswert', '§ 24 Abs. 1 Nr. 1 StBVV', 'Tabelle A', '3/10', 'Auslagen' and 'Umsatzsteuer'", "The invoice number is the next number of the series"]}
+     ]},
+    {"id": "filings", "name": "Erklärungen & Freigaben", "tier": "pro",
+     "features": ["Status je Erklärung: Vorbereitet → Beim Mandanten zur Freigabe → Vom Mandanten freigegeben → Freigabe Berufsträger → Übermittelt → Bescheid eingegangen", "Mandant gibt Erklärung im Portal frei (PDF-Vorschau)", "Freigabe nur durch Berufsträger (Vier-Augen-Prinzip)", "Transferticket der Übermittlung hinterlegen", "Erledigte Erklärung schließt die Frist im Fristenkalender"],
+     "criteria": [
+       {"title": "Client approval in the portal and the advisor's release make a return ready for transmission", "verification": "e2e", "start": "/filings", "requires_auth": true, "steps": ["As Steuerfachangestellte set 'ESt 2025' of 'Familie Sommer' to 'Beim Mandanten zur Freigabe' with the PDF attached", "As Mandant open /portal/approvals and click 'Steuererklärung freigeben'", "As Steuerberater open /filings and click 'Freigabe Berufsträger'"], "expected": ["Status shows 'Freigegeben – bereit zur Übermittlung'", "The history lists both approvals with name and time"]},
+       {"title": "A return cannot be marked transmitted without the client's approval", "verification": "api", "steps": ["Create 'ESt 2025' for 'Familie Sommer' with status 'Vorbereitet'", "PATCH its status to 'Übermittelt'"], "expected": ["Response is 409 with message 'Freigabe des Mandanten fehlt'", "Status is still 'Vorbereitet' after a new GET"]}
+     ]},
+    {"id": "notices", "name": "Bescheidprüfung & Einspruchsfristen", "tier": "pro",
+     "features": ["Bescheid erfassen mit Bescheiddatum und Zugangsart", "Bekanntgabe nach § 122 Abs. 2 AO berechnen (vier Tage nach Aufgabe zur Post)", "Einspruchsfrist ein Monat nach Bekanntgabe (§ 355 AO), Verschiebung auf Werktag", "Abweichung erklärte vs. festgesetzte Steuer mit Status 'Prüfen'", "Einspruchsfrist landet automatisch im Fristenkalender"],
+     "criteria": [
+       {"title": "Entering a tax notice computes notification date and objection deadline", "verification": "e2e", "start": "/notices", "requires_auth": true, "steps": ["Click 'Bescheid erfassen' for 'ESt 2025' of 'Familie Sommer'", "Enter Bescheiddatum 02.03.2026, Zugang 'per Post'", "Click 'Speichern' and open /deadlines"], "expected": ["'Bekanntgabe 06.03.2026' is shown", "'Einspruchsfrist bis 07.04.2026' is shown (06.04.2026 is Ostermontag)", "/deadlines lists 'Einspruchsfrist ESt 2025 – Familie Sommer'"]},
+       {"title": "A deviation between return and notice is flagged", "verification": "e2e", "start": "/notices", "requires_auth": true, "steps": ["Record a notice with erklärte Steuer 3.900,00 € and festgesetzte Steuer 4.200,00 €"], "expected": ["'Abweichung 300,00 €' is shown", "The notice has status 'Prüfen'"]}
+     ]},
+    {"id": "datev-export", "name": "DATEV-Export", "tier": "pro",
+     "features": ["Buchungsvorschläge aus erkannten Belegen als Buchungsstapel im DATEV-Format (EXTF, CSV, Windows-1252)", "Debitoren/Kreditoren-Stammdaten im DATEV-Format", "Belege als ZIP, Dateiname = Belegfeld 1", "Bereits exportierte Belege werden nicht doppelt exportiert", "Exportprotokoll je Mandant und Monat"],
+     "criteria": [
+       {"title": "The booking batch export is a DATEV-Format file with EXTF header", "verification": "api", "steps": ["Export 'Buchungsstapel' for 'Bäckerei Krume GmbH', 'Mai 2026'"], "expected": ["The file name ends with .csv and the file is Windows-1252 encoded", "The first line starts with '\"EXTF\";700;21;\"Buchungsstapel\"' and contains the Berater- and Mandantennummer of the client"]},
+       {"title": "Exported documents are marked and not exported twice", "verification": "e2e", "start": "/datev-export", "requires_auth": true, "steps": ["Export 'Mai 2026' for 'Bäckerei Krume GmbH'", "Export 'Mai 2026' again"], "expected": ["Documents of May show status 'Exportiert' in /documents", "The second export shows 'Keine neuen Belege'"]}
+     ]},
+    {"id": "gwg", "name": "Geldwäsche-Prävention (GwG)", "tier": "pro",
+     "features": ["Identifizierung vor Mandatsbeginn: Ausweisart, Nummer, geprüft von, am", "Wirtschaftlich Berechtigte und Transparenzregister-Abgleich", "Risikoeinstufung gering, mittel, hoch mit Wiedervorlage", "PEP-Abfrage", "Aufbewahrung der Aufzeichnungen fünf Jahre ab Ende des Kalenderjahres der Mandatsbeendigung"],
+     "criteria": [
+       {"title": "A client cannot be set active before identification is recorded", "verification": "e2e", "start": "/clients", "requires_auth": true, "steps": ["Create client 'Nordlicht Handels UG'", "Click 'Mandat aktivieren'", "Record identification (Personalausweis, wirtschaftlich Berechtigter, Risiko 'gering') in /gwg", "Click 'Mandat aktivieren' again"], "expected": ["The first attempt shows 'GwG-Identifizierung fehlt'", "After identification the client shows status 'Aktiv'"]},
+       {"title": "GwG records are kept until five years after the end of the year the mandate ended", "verification": "api", "steps": ["End the mandate of 'Nordlicht Handels UG' on 30.06.2026", "GET its KYC record"], "expected": ["The record shows 'Aufbewahren bis 31.12.2031'"]}
+     ]},
+    {"id": "reports", "name": "Kanzlei-Auswertungen", "tier": "pro",
+     "features": ["Monatsabschluss-Quote je Sachbearbeiter", "Nicht abgerechnete Leistungen je Mandant", "Realisierungsgrad (abgerechnet / Wert der erfassten Zeit)", "Offene Rückfragen nach Alter", "Export als CSV"],
+     "criteria": [
+       {"title": "Dashboard and reports show the same 'Monatsabschluss erledigt (Vormonat)'", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Seed 4 FiBu clients for the previous month, 3 with a complete checklist", "Open /dashboard, then /reports"], "expected": ["Both pages show 'Monatsabschluss erledigt (Vormonat)' with 75 %"]}
+     ]},
+    {"id": "elster", "name": "ELSTER-Übermittlung (ERiC)", "tier": "enterprise",
+     "features": ["Übermittlung von UStVA und Lohnsteuer-Anmeldung über die ERiC-Bibliothek (Hersteller-ID erforderlich)", "Testmerker für Probeübermittlungen", "Transferticket und Übermittlungsprotokoll (PDF) am Vorgang", "Nur freigegebene Erklärungen sind übermittelbar", "Ohne eingerichtete ERiC-Bibliothek: Export als PDF und Hinweis auf manuelle Übermittlung"],
+     "criteria": [
+       {"title": "Without ERiC configured the send button is disabled with a hint", "verification": "e2e", "start": "/elster", "requires_auth": true, "steps": ["Open a released UStVA 'Mai 2026' with no ERiC configuration"], "expected": ["Button 'An ELSTER senden' is disabled", "Hint 'ELSTER-Übermittlung nicht eingerichtet (ERiC-Bibliothek und Hersteller-ID erforderlich)' is visible"]},
+       {"title": "Transmission of a return without advisor release is refused", "verification": "api", "steps": ["POST a transmission for a UStVA with status 'Vom Mandanten freigegeben'"], "expected": ["Response is 409 with message 'Freigabe Berufsträger fehlt'", "No transmission record is created"]}
+     ]},
+    {"id": "payroll-inputs", "name": "Lohn-Vorerfassung durch Mandanten", "tier": "enterprise",
+     "features": ["Mandant meldet monatlich Stunden, Krankheit, Einmalzahlungen, Ein- und Austritte im Portal", "Personalfragebogen für Neueinstellungen online", "Stichtag je Mandant, danach nur über die Kanzlei", "Lohnbüro sieht Eingänge je Monat mit Status"],
+     "criteria": [
+       {"title": "A payroll change submitted in the portal reaches the payroll office", "verification": "e2e", "start": "/portal/payroll", "requires_auth": true, "steps": ["As Mandant enter 'Krankheit 04.05.–08.05.2026' for 'Lisa Brandt' in 'Mai 2026' and click 'Einreichen'", "As Steuerfachangestellte open /payroll-inputs"], "expected": ["The entry is listed for 'Bäckerei Krume GmbH' / 'Mai 2026' with status 'Eingereicht'"]},
+       {"title": "Changes after the cut-off day are refused", "verification": "api", "steps": ["Set the cut-off day to the 15th", "POST a change for 'Mai 2026' dated 16.05.2026"], "expected": ["Response is 409 with message 'Stichtag überschritten – bitte Kanzlei kontaktieren'"]}
+     ]},
+    {"id": "retention", "name": "Aufbewahrung & Löschkonzept", "tier": "enterprise",
+     "features": ["Aufbewahrungsfristen je Belegart (10 / 8 / 6 Jahre, § 147 AO) ab Ende des Kalenderjahres", "Löschsperre vor Fristablauf", "Löschvorschläge nach Fristablauf mit Bestätigung durch den Kanzleiinhaber", "Löschprotokoll ohne Inhalt der gelöschten Daten"],
+     "criteria": [
+       {"title": "Deleting a booking document before its retention ends is refused", "verification": "api", "steps": ["Upload an incoming invoice dated 12.05.2026", "DELETE the document"], "expected": ["Response is 409 with message 'Aufbewahrungspflicht bis 31.12.2034'", "The document is still listed after a new GET"]},
+       {"title": "Documents past their retention appear as deletion proposals", "verification": "e2e", "start": "/settings/retention", "requires_auth": true, "steps": ["Seed a document whose retention ended yesterday", "Open 'Löschvorschläge' and click 'Löschen bestätigen'"], "expected": ["The document is listed before confirmation", "After confirmation the protocol shows 'Gelöscht nach Ablauf der Aufbewahrungsfrist'"]}
+     ]},
+    {"id": "permissions-audit", "name": "Mandantenberechtigungen & Zugriffsprotokoll", "tier": "enterprise",
+     "features": ["Sachbearbeiter sehen nur zugeordnete Mandanten", "Zugriffsprotokoll: wer hat wann welchen Mandanten geöffnet, exportiert, gelöscht", "Protokoll unveränderbar und filterbar", "Single Sign-on für Kanzleimitarbeiter (Microsoft Entra ID)"],
+     "criteria": [
+       {"title": "A clerk not assigned to a client is refused access", "verification": "api", "steps": ["Log in as Steuerfachangestellte assigned only to 'Bäckerei Krume GmbH'", "GET client 'Müller Bau GmbH'"], "expected": ["Response is 403"]},
+       {"title": "Opening a client is recorded in the access log", "verification": "e2e", "start": "/audit-log", "requires_auth": true, "steps": ["As Steuerfachangestellte open 'Bäckerei Krume GmbH'", "As Kanzleiinhaber open /audit-log"], "expected": ["An entry 'Mandant geöffnet' with user name, client and time is listed", "The entry has no delete action"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "deadlines_next_14_days", "tier": "mvp", "label": "Fristen (nächste 14 Tage)", "unit": "Anzahl", "definition": "offene Fristen der Mandanten, die der Nutzer sehen darf, mit Fälligkeit (nach Verschiebung auf den Werktag) von heute bis heute + 14 Tage", "period": "nächste 14 Tage", "shown_on": ["/dashboard", "/deadlines"]},
+    {"id": "open_queries", "tier": "mvp", "label": "Offene Rückfragen (aktuell)", "unit": "Anzahl", "definition": "Rückfragen mit Status offen oder beantwortet, aber nicht geschlossen, der sichtbaren Mandanten", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/queries"]},
+    {"id": "monthly_close_rate", "tier": "pro", "label": "Monatsabschluss erledigt (Vormonat)", "unit": "%", "definition": "Anteil der Mandanten mit Mandatsumfang FiBu, deren Checkliste für den Vormonat vollständig abgehakt ist", "period": "Vormonat", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "unbilled_fees", "tier": "pro", "label": "Nicht abgerechnete Leistungen (aktuell)", "unit": "EUR", "definition": "Summe der Zeitgebühren erfasster, noch nicht abgerechneter Zeiten plus berechneter, nicht abgerechneter Wertgebühren", "period": "aktuell (kein Zeitraum)", "shown_on": ["/reports", "/fees"]},
+    {"id": "realization_rate", "tier": "pro", "label": "Realisierungsgrad (dieses Jahr)", "unit": "%", "definition": "abgerechnetes Honorar / Wert der erfassten Zeiten zum hinterlegten Stundensatz, beides im laufenden Kalenderjahr", "period": "dieses Jahr", "shown_on": ["/reports"]}
+  ],
+  "compliance": [
+    {"rule": "Verschwiegenheit: Mandantendaten nur für berechtigte Kanzleimitarbeiter und den jeweiligen Mandanten sichtbar; E-Mails enthalten keine steuerlichen Inhalte, nur einen Portal-Link", "source": "§ 57 Abs. 1 StBerG; § 203 Abs. 1 Nr. 3 StGB", "tier": "mvp"},
+    {"rule": "Mitarbeiter schriftlich zur Verschwiegenheit verpflichten (Nachweis je Benutzer)", "source": "§ 62 StBerG", "tier": "mvp"},
+    {"rule": "Externe Dienstleister (Hosting, Texterkennung, E-Mail) nur mit Verschwiegenheitsverpflichtung in Textform einsetzen", "source": "§ 62a StBerG; § 203 Abs. 3 und 4 StGB", "tier": "mvp"},
+    {"rule": "Die Kanzlei verarbeitet Mandantendaten weisungsfrei als Verantwortlicher; mit dem Software-Anbieter ist ein Auftragsverarbeitungsvertrag nötig", "source": "§ 11 Abs. 2 StBerG; Art. 28 DSGVO", "tier": "mvp"},
+    {"rule": "Technische und organisatorische Maßnahmen: Verschlüsselung, 2-Faktor-Anmeldung, Hosting in der EU", "source": "Art. 32 DSGVO", "tier": "mvp"},
+    {"rule": "Belege unveränderbar und nachvollziehbar speichern; jede Änderung protokolliert", "source": "§ 146 Abs. 4 AO; GoBD (BMF-Schreiben)", "tier": "mvp"},
+    {"rule": "Aufbewahrung: Bücher und Abschlüsse 10 Jahre, Buchungsbelege 8 Jahre, Handels- und Geschäftsbriefe 6 Jahre, jeweils ab Ende des Kalenderjahres", "source": "§ 147 Abs. 3 und 4 AO", "tier": "mvp"},
+    {"rule": "E-Rechnungen: der strukturierte Datensatz (XRechnung, ZUGFeRD-XML) ist das Original und wird aufbewahrt", "source": "§ 14 UStG; § 147 AO", "tier": "mvp"},
+    {"rule": "UStVA bis zum 10. Tag nach Ablauf des Voranmeldungszeitraums; Dauerfristverlängerung um einen Monat, bei monatlicher Abgabe mit Sondervorauszahlung", "source": "§ 18 Abs. 1 UStG; §§ 46–48 UStDV", "tier": "mvp"},
+    {"rule": "Lohnsteuer-Anmeldung bis zum 10. Tag nach Ablauf des Anmeldungszeitraums (keine Dauerfristverlängerung)", "source": "§ 41a Abs. 1 EStG", "tier": "mvp"},
+    {"rule": "Fristende an Samstag, Sonntag oder Feiertag verschiebt sich auf den nächsten Werktag", "source": "§ 108 Abs. 3 AO", "tier": "mvp"},
+    {"rule": "Verlängerte Abgabefristen für beratene Steuerpflichtige je Veranlagungsjahr hinterlegen", "source": "§ 149 Abs. 3 AO; Art. 97 § 36 EGAO", "tier": "mvp"},
+    {"rule": "Einspruchsfrist ein Monat ab Bekanntgabe; Bekanntgabe bei Postversand vier Tage nach Aufgabe zur Post", "source": "§ 355 Abs. 1 AO; § 122 Abs. 2 AO", "tier": "pro"},
+    {"rule": "Honorar nur aufgrund einer mitgeteilten Berechnung mit Gegenstandswert, Gebührenvorschrift, Zehntelsatz, Auslagen und Umsatzsteuer", "source": "§ 9 StBVV", "tier": "pro"},
+    {"rule": "Vergütungsvereinbarungen in Textform festhalten", "source": "§ 4 StBVV", "tier": "pro"},
+    {"rule": "Handakten über die Tätigkeit führen und nach Mandatsende aufbewahren", "source": "§ 66 StBerG", "tier": "pro"},
+    {"rule": "Mandanten vor Mandatsbeginn identifizieren, wirtschaftlich Berechtigte feststellen und Risiko einstufen", "source": "§ 2 Abs. 1 Nr. 12 GwG; §§ 10–12 GwG", "tier": "pro"},
+    {"rule": "GwG-Aufzeichnungen fünf Jahre ab Ende des Kalenderjahres der Mandatsbeendigung aufbewahren, danach löschen", "source": "§ 8 Abs. 4 GwG", "tier": "pro"},
+    {"rule": "Löschkonzept: personenbezogene Daten nach Ablauf aller Aufbewahrungspflichten löschen", "source": "Art. 17 DSGVO; Art. 5 Abs. 1 lit. e DSGVO", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["E-Mail über SMTP eines EU-Anbieters mit AV-Vertrag", "Texterkennung lokal (Tesseract) oder über EU-Dienst mit Verschwiegenheitsverpflichtung nach § 62a StBerG", "Kontoumsätze über PSD2/FinTS-Dienst (z. B. finAPI) mit Einwilligung des Mandanten", "ELSTER über die ERiC-Bibliothek — nur mit registrierter Hersteller-ID im ELSTER-Entwicklerportal, Zertifikat der Kanzlei und jährlichem ERiC-Update; Belegabruf zusätzlich nur mit Vollmacht in der Vollmachtsdatenbank", "Microsoft Entra ID für Single Sign-on"],
+    "export_only": ["DATEV Kanzlei-Rechnungswesen — Buchungsstapel und Stammdaten im DATEV-Format (EXTF-CSV) zum Import", "DATEV LODAS / Lohn und Gehalt — Bewegungsdaten als ASCII-Importdatei", "Belege als ZIP mit Dateinamen = Belegfeld 1", "Fristen als iCal-Datei (ohne Mandantennamen im Termintitel)"],
+    "not_possible": ["DATEV-Online-Schnittstellen (Unternehmen online, Belegbilderservice, Rechnungswesen-API) — nur mit DATEV-Marktplatz-Partnerschaft und Freigabe durch DATEV; ohne sie bleibt es beim Datei-Export", "ELSTER ohne ERiC — es gibt keine offene REST-API; Übermittlung sonst manuell über Mein ELSTER", "goAML (FIU) Verdachtsmeldungen — nur über das Webportal der FIU, manuell"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Belege unveränderbar: SHA-256-Hash bei Upload, Löschen vor Fristablauf wird abgelehnt"},
+    {"tier": "mvp", "text": "Alle Fristen in Europe/Berlin; Feiertage am Sitz des Finanzamts (bundesweit + Land) für die Werktag-Verschiebung"},
+    {"tier": "mvp", "text": "Hosting in der EU, Verschlüsselung at rest und in transit, 2-Faktor-Anmeldung für Kanzleimitarbeiter"},
+    {"tier": "mvp", "text": "E-Mails und Push-Texte enthalten keine Steuerdaten, Beträge oder Belegnamen — nur Hinweis und Portal-Link"},
+    {"tier": "mvp", "text": "Uploads bis 25 MB (PDF, JPG, PNG, HEIC, XML), Upload vom Handy mit Kamera"},
+    {"tier": "mvp", "text": "Kein Standard-Secret: ohne AUTH_SECRET (mind. 32 Zeichen) startet der Server nicht"},
+    {"tier": "pro", "text": "StBVV-Gebührentabellen und Abgabefristen als versionierte Daten mit Gültigkeitsdatum, nicht im Code"},
+    {"tier": "pro", "text": "Alle Listen paginiert und serverseitig gefiltert"},
+    {"tier": "enterprise", "text": "Zugriffsprotokoll append-only, Aufbewahrung nach Kanzleivorgabe"}
+  ],
+  "production_dependencies": {"mvp": ["email", "storage"], "pro": ["email", "storage"], "enterprise": ["email", "storage", "oauth"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/clients", "/clients/[id]", "/documents", "/queries", "/deadlines", "/monthly-close", "/portal", "/portal/documents", "/portal/queries", "/settings/users"], "pro": ["/fees", "/fees/invoices/[id]", "/filings", "/notices", "/datev-export", "/gwg", "/reports", "/portal/approvals"], "enterprise": ["/elster", "/payroll-inputs", "/portal/payroll", "/settings/retention", "/audit-log"]}
+}

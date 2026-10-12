@@ -20,6 +20,11 @@ check    Verify a spec still covers its blueprint: every module of the tier is a
          feature (or explicitly excluded with a reason), every blueprint
          criterion is still present (matched by its "source" tag) and every
          blueprint metric is still defined.
+         Without a blueprint, the spec must carry a domain_brief instead
+         (business apps): roles, processes linked to features, legal rules,
+         deadlines, integrations, glossary and a design direction — so an
+         unknown domain (notary, tax office, …) is researched, not guessed.
+brief    Print an empty domain_brief to fill in (no blueprint matched).
 
 Exit codes: 0 ok · 1 check failed / nothing detected · 2 usage error
 """
@@ -41,7 +46,7 @@ TIERS = ("mvp", "pro", "enterprise")
 TIER_WORDS = {
     "enterprise": ["höchstem niveau", "höchsten niveau", "höchstes niveau", "hoechstem niveau", "höstem", "hösterm",
                    "enterprise", "konzern", "wie salesforce", "wie hubspot", "wie sap", "alle funktionen",
-                   "auf max", "maximal", "top-niveau", "top niveau", "high-end", "mandantenfähig", "mandanten",
+                   "auf max", "maximal", "top-niveau", "top niveau", "high-end", "mandantenfähig", "multi-mandanten",
                    "skalierbar für", "profi-niveau", "auf profi", "100k", "100 k", "100.000", "premium",
                    "agenturniveau", "agentur-niveau", "award", "awwwards", "luxus"],
     # Not plain "einfach": "einfach zu bedienen" describes usability, not scope.
@@ -65,6 +70,76 @@ def all_blueprints() -> list[dict[str, Any]]:
     return [load(p.stem) for p in sorted(BLUEPRINT_DIR.glob("*.json"))]
 
 
+DENSITIES = ("compact", "comfortable", "spacious")
+NO_BRIEF_APP_TYPES = ("game", "os", "ml")
+
+
+def design_problems(design: Any, where: str) -> list[str]:
+    """A design direction seeds the build's design brief (skills/oc-frontend-design)."""
+    if not isinstance(design, dict):
+        return [f"{where}: design direction missing (personality, typefaces, palette, density, signature_ideas, references, avoid)"]
+    errors = []
+    if not (isinstance(design.get("personality"), list) and len(design["personality"]) >= 3):
+        errors.append(f"{where}.personality: three adjectives")
+    faces = design.get("typefaces")
+    if not (isinstance(faces, dict) and str(faces.get("display", "")).strip() and str(faces.get("text", "")).strip()):
+        errors.append(f"{where}.typefaces: display and text face")
+    if not str(design.get("palette", "")).strip():
+        errors.append(f"{where}.palette: brand hue and mood")
+    if design.get("density") not in DENSITIES:
+        errors.append(f"{where}.density: one of {', '.join(DENSITIES)}")
+    for key, minimum in (("signature_ideas", 1), ("references", 2), ("avoid", 1)):
+        if not (isinstance(design.get(key), list) and len(design[key]) >= minimum):
+            errors.append(f"{where}.{key}: at least {minimum}")
+    return errors
+
+
+def brief_problems(spec: dict[str, Any]) -> list[str]:
+    brief = spec.get("domain_brief")
+    if not isinstance(brief, dict):
+        return ["no blueprint matched and the spec has no domain_brief — research the domain first "
+                "(blueprint.py brief prints the template): roles, processes, legal rules, deadlines, "
+                "integrations, glossary, design"]
+    errors: list[str] = []
+    features = set(spec.get("features") or [])
+    criteria = [c for c in spec.get("acceptance_criteria") or [] if isinstance(c, dict)]
+    if not str(brief.get("domain", "")).strip():
+        errors.append("domain_brief.domain: name the domain (e.g. 'Notariat')")
+    roles = brief.get("roles") or []
+    if len(roles) < 2 or not all(isinstance(r, dict) and r.get("name") and r.get("can") for r in roles):
+        errors.append("domain_brief.roles: at least 2 roles with name and what they can do")
+    processes = brief.get("processes") or []
+    if len(processes) < 3:
+        errors.append("domain_brief.processes: at least 3 core processes of the domain")
+    for i, proc in enumerate(processes):
+        if not isinstance(proc, dict) or not proc.get("name") or len(proc.get("steps") or []) < 3:
+            errors.append(f"domain_brief.processes[{i}]: name and at least 3 steps")
+            continue
+        feature = proc.get("feature")
+        if feature not in features:
+            errors.append(f"process '{proc['name']}': feature '{feature}' is not in spec.features — every process is built")
+        elif not any(c.get("feature") == feature and c.get("priority", "must") == "must" for c in criteria):
+            errors.append(f"process '{proc['name']}': feature '{feature}' has no must-criterion")
+    rules = brief.get("rules")
+    if not isinstance(rules, list) or (not rules and not str(brief.get("rules_none_reason", "")).strip()):
+        errors.append("domain_brief.rules: legal/regulatory duties with their source (§ …), or rules_none_reason")
+    else:
+        for i, r in enumerate(rules):
+            if not (isinstance(r, dict) and r.get("rule") and r.get("source")):
+                errors.append(f"domain_brief.rules[{i}]: rule and source")
+    if not isinstance(brief.get("deadlines"), list):
+        errors.append("domain_brief.deadlines: list (empty when the domain has none)")
+    integ = brief.get("integrations")
+    if not (isinstance(integ, dict) and all(isinstance(integ.get(k), list) for k in ("connectable", "export_only", "not_possible"))):
+        errors.append("domain_brief.integrations: connectable, export_only and not_possible lists — say what the "
+                      "app cannot connect to (closed official systems) instead of pretending")
+    glossary = brief.get("glossary") or []
+    if len(glossary) < 5:
+        errors.append("domain_brief.glossary: at least 5 domain terms with meaning (UI wording uses them)")
+    errors += design_problems(brief.get("design"), "domain_brief.design")
+    return errors
+
+
 def upto(tier: str) -> tuple[str, ...]:
     return TIERS[: TIERS.index(tier) + 1]
 
@@ -79,21 +154,47 @@ def norm(text: str) -> str:
 
 # ─── detect ───────────────────────────────────────────────────────────────────
 
+# Words that ask for "the software of a business" — then an industry blueprint leads ("Software für unser
+# Notariat"); without them a product blueprint leads and the industry adds context ("Webseite für unser
+# Restaurant" is a website with a restaurant's look and duties, not a kitchen display).
+SYSTEM_WORDS = ("software", "verwaltung", "system", "programm", "app", "plattform", "lösung", "branchensoftware",
+                "komplettlösung", "alles")
+
+
+def kind(bp: dict[str, Any]) -> str:
+    return bp.get("kind", "product")
+
+
 def detect(prompt: str) -> dict[str, Any]:
     text = f" {norm(prompt)} "
     matches = []
     for bp in all_blueprints():
         hits = [a for a in bp["aliases"] if re.search(rf"(?<![a-zäöüß]){re.escape(a.lower())}(?![a-zäöüß])", text)]
         if hits:
-            matches.append({"id": bp["id"], "name": bp["name"], "score": len(hits), "matched": hits})
-    matches.sort(key=lambda m: m["score"], reverse=True)
+            matches.append({"id": bp["id"], "name": bp["name"], "kind": kind(bp), "score": len(hits), "matched": hits})
+    matches.sort(key=lambda m: -m["score"])
+    products = [m for m in matches if m["kind"] == "product"]
+    industries = [m for m in matches if m["kind"] == "industry"]
+    system_word = any(re.search(rf"(?<![a-zäöüß]){w}(?![a-zäöüß])", text) for w in SYSTEM_WORDS)
+    plan: dict[str, Any] = {"primary": None, "with": [], "context": []}
+    if industries and (system_word or not products):
+        plan.update(primary=industries[0]["id"], with_=None)
+        plan["with"] = [m["id"] for m in products[:2]]          # extra product modules (e.g. Telefon-KI)
+        plan["context"] = [m["id"] for m in industries[1:2]]
+    elif products:
+        plan["primary"] = products[0]["id"]
+        plan["with"] = [m["id"] for m in products[1:2]]
+        plan["context"] = [m["id"] for m in industries[:1]]     # look, duties, terms of the industry
+    plan.pop("with_", None)
+    order = [plan["primary"], *plan["with"], *plan["context"]]
+    matches.sort(key=lambda m: order.index(m["id"]) if m["id"] in order else len(order))
     tier, reason = "pro", "default — no tier wording in the prompt"
     for candidate in ("enterprise", "mvp"):
         words = [w for w in TIER_WORDS[candidate] if w in text]
         if words:
             tier, reason = candidate, f"prompt says: {', '.join(words)}"
             break
-    return {"matches": matches, "tier": tier, "tier_reason": reason}
+    return {"matches": matches, "plan": plan, "tier": tier, "tier_reason": reason}
 
 
 def cmd_detect(args: argparse.Namespace) -> int:
@@ -104,7 +205,11 @@ def cmd_detect(args: argparse.Namespace) -> int:
         if not result["matches"]:
             print("[blueprint] no blueprint matches — spec-analyzer derives features from the prompt alone")
         for m in result["matches"]:
-            print(f"[blueprint] {m['id']} ({m['name']}) — matched: {', '.join(m['matched'])}")
+            print(f"[blueprint] {m['id']} ({m['name']}, {m['kind']}) — matched: {', '.join(m['matched'])}")
+        plan = result["plan"]
+        if plan["primary"]:
+            flags = "".join(f" --with {w}" for w in plan["with"]) + "".join(f" --context {c}" for c in plan["context"])
+            print(f"[blueprint] plan: expand {plan['primary']}{flags}")
         print(f"[blueprint] tier: {result['tier']} ({result['tier_reason']})")
     return 0 if result["matches"] else 1
 
@@ -132,18 +237,47 @@ def cmd_show(args: argparse.Namespace) -> int:
 
 # ─── expand ───────────────────────────────────────────────────────────────────
 
-def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name: str | None) -> dict[str, Any]:
-    modules = [m for m in bp["modules"] if in_tier(m, tier) and m["id"] not in exclude]
+def merged_modules(bp: dict[str, Any], tier: str, exclude: dict[str, str], taken: set[str]) -> list[dict[str, Any]]:
+    """Modules of bp in the tier, minus excluded ones and ids another blueprint already supplies (auth …)."""
+    return [m for m in bp["modules"] if in_tier(m, tier) and m["id"] not in exclude and m["id"] not in taken]
+
+
+def unique(items: list[Any], key) -> list[Any]:
+    seen, out = set(), []
+    for item in items:
+        k = key(item)
+        if k not in seen:
+            seen.add(k)
+            out.append(item)
+    return out
+
+
+def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name: str | None,
+           with_bps: list[dict[str, Any]] | None = None, context_bps: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    with_bps, context_bps = with_bps or [], context_bps or []
+    parts: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
+    taken: set[str] = set()
+    for b in [bp, *with_bps]:
+        mods = merged_modules(b, tier, exclude if b is bp else {}, taken)
+        taken |= {m["id"] for m in mods}
+        parts.append((b, mods))
+    modules = [m for _, mods in parts for m in mods]
     criteria = []
-    for m in modules:
-        for i, c in enumerate(m["criteria"]):
-            crit = {"id": f"AC-{len(criteria) + 1:03d}", "feature": m["id"], "priority": c.get("priority", "must"),
-                    "source": f"blueprint:{bp['id']}/{m['id']}/{i}"}
-            crit.update({k: v for k, v in c.items() if k != "priority"})
-            criteria.append(crit)
-    pages = [p for t in upto(tier) for p in bp.get("pages", {}).get(t, [])]
-    roles = [r for r in bp.get("roles", []) if in_tier(r, tier)]
-    metrics = [{k: v for k, v in m.items() if k != "tier"} for m in bp.get("metrics", []) if in_tier(m, tier)]
+    for b, mods in parts:
+        for m in mods:
+            for i, c in enumerate(m["criteria"]):
+                crit = {"id": f"AC-{len(criteria) + 1:03d}", "feature": m["id"], "priority": c.get("priority", "must"),
+                        "source": f"blueprint:{b['id']}/{m['id']}/{i}"}
+                crit.update({k: v for k, v in c.items() if k != "priority"})
+                criteria.append(crit)
+    sources = [bp, *with_bps]
+    pages = unique([p for b in sources for t in upto(tier) for p in b.get("pages", {}).get(t, [])], key=lambda p: p)
+    roles = unique([r for b in sources for r in b.get("roles", []) if in_tier(r, tier)], key=lambda r: r["id"])
+    metrics = unique([{k: v for k, v in m.items() if k != "tier"} for b in sources for m in b.get("metrics", [])
+                      if in_tier(m, tier)], key=lambda m: m["id"])
+    # The industry decides the look and the duties, also when a product blueprint leads.
+    industry = next((b for b in [bp, *with_bps, *context_bps] if kind(b) == "industry"), bp)
+    entities = unique([e for b in sources for e in b.get("entities", []) if in_tier(e, tier)], key=lambda e: e["name"])
     login = next((p for p in pages if "login" in p), None)
     extra: dict[str, Any] = {}
     if bp.get("performance_budget", {}).get(tier):
@@ -160,14 +294,16 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
         "app_type": bp.get("app_type", "web-app"),
         "build_targets": bp.get("build_targets", ["web"]),
         "ui_language": bp.get("ui_language", "en"),
-        "blueprint": {"id": bp["id"], "version": bp.get("version", 1), "tier": tier, "excluded_modules": exclude},
+        "blueprint": {"id": bp["id"], "version": bp.get("version", 1), "tier": tier, "excluded_modules": exclude,
+                      "with": [b["id"] for b in with_bps], "context": [b["id"] for b in context_bps]},
         "features": [m["id"] for m in modules],
         "module_features": {m["id"]: m["features"] for m in modules},
         "pages": pages,
-        "db_schema": [e["name"] for e in bp.get("entities", []) if in_tier(e, tier)],
-        "entities": [e for e in bp.get("entities", []) if in_tier(e, tier)],
+        "db_schema": [e["name"] for e in entities],
+        "entities": entities,
         "roles": roles,
-        "non_functional": [n["text"] for n in bp.get("non_functional", []) if in_tier(n, tier)],
+        "non_functional": unique([n["text"] for b in sources for n in b.get("non_functional", []) if in_tier(n, tier)],
+                                 key=lambda t: t),
         "metrics": metrics,
         # One demo login per role; the full demo seed gives each of them data on every page (ui-tour checks it).
         "demo": {
@@ -175,7 +311,15 @@ def expand(bp: dict[str, Any], tier: str, exclude: dict[str, str], project_name:
             "login_path": login,
             "accounts": [{"role": r["id"], "email": f"{r['id']}@demo.example", "password": "Demo1234!"} for r in roles],
         },
-        "production_dependencies": bp.get("production_dependencies", {}).get(tier, []),
+        "production_dependencies": unique([d for b in sources for d in b.get("production_dependencies", {}).get(tier, [])],
+                                          key=lambda d: d),
+        # Seeds .onecommand/design.md (oc-frontend-design): adapt to the customer's brand, do not copy blindly.
+        "design_direction": industry.get("design") or bp.get("design"),
+        "compliance": unique([{k: v for k, v in r.items() if k != "tier"} for b in [*sources, *context_bps]
+                              for r in b.get("compliance", []) if in_tier(r, tier)], key=lambda r: r["rule"]),
+        "integrations": {k: unique([x for b in [*sources, *context_bps] for x in (b.get("integrations") or {}).get(k, [])],
+                                   key=lambda x: x)
+                         for k in ("connectable", "export_only", "not_possible")},
         "acceptance_criteria": criteria,
         **extra,
     }
@@ -198,7 +342,9 @@ def cmd_expand(args: argparse.Namespace) -> int:
     if unknown:
         print(f"[blueprint] unknown module(s) to exclude: {', '.join(unknown)}", file=sys.stderr)
         return 2
-    draft = expand(bp, args.tier, exclude, args.project_name)
+    with_bps = [load(i) for i in args.with_ if i != bp["id"]]
+    context_bps = [load(i) for i in args.context if i != bp["id"]]
+    draft = expand(bp, args.tier, exclude, args.project_name, with_bps, context_bps)
     out = json.dumps(draft, indent=2, ensure_ascii=False) + "\n"
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -217,7 +363,10 @@ def check(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     notes: list[str] = []
     ref = spec.get("blueprint")
     if not ref:
-        return errors, ["spec has no blueprint — nothing to check"]
+        targets = set(spec.get("build_targets") or [])
+        if spec.get("app_type") in NO_BRIEF_APP_TYPES or (targets and targets <= {"ml"}):
+            return errors, ["spec has no blueprint — game/os/ml builds need no domain brief"]
+        return brief_problems(spec), ["spec has no blueprint — checked its domain_brief"]
     bp = load(ref["id"])
     tier = ref.get("tier", "pro")
     if tier not in TIERS:
@@ -229,7 +378,14 @@ def check(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     features = set(spec.get("features") or [])
     criteria = spec.get("acceptance_criteria") or []
     sources = {c.get("source") for c in criteria if isinstance(c, dict)}
-    for module in (m for m in bp["modules"] if in_tier(m, tier)):
+    blueprints = [bp] + [load(i) for i in ref.get("with") or []]
+    taken: set[str] = set()
+    plan = []
+    for b in blueprints:
+        mods = [m for m in b["modules"] if in_tier(m, tier) and m["id"] not in taken]
+        taken |= {m["id"] for m in mods}
+        plan += [(b, m) for m in mods]
+    for owner, module in plan:
         mid = module["id"]
         if mid in excluded:
             if not str(excluded[mid]).strip():
@@ -242,14 +398,14 @@ def check(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
                           f"— add it or exclude it with a reason")
             continue
         for i, _ in enumerate(module["criteria"]):
-            source = f"blueprint:{bp['id']}/{mid}/{i}"
+            source = f"blueprint:{owner['id']}/{mid}/{i}"
             if source not in sources:
                 errors.append(f"criterion {source} ({module['criteria'][i]['title'][:70]}) was dropped "
                               f"— keep it (wording may change, the 'source' tag must stay)")
         if not any(c.get("feature") == mid and c.get("priority") == "must" for c in criteria if isinstance(c, dict)):
             errors.append(f"module '{mid}' has no must-criterion")
     have = {m.get("id") for m in spec.get("metrics") or [] if isinstance(m, dict)}
-    for metric in (m for m in bp.get("metrics", []) if in_tier(m, tier)):
+    for metric in unique([m for b in blueprints for m in b.get("metrics", []) if in_tier(m, tier)], key=lambda m: m["id"]):
         if metric["id"] not in have:
             errors.append(f"metric '{metric['id']}' ({metric['label']}) was dropped from spec.metrics — keep its "
                           f"definition and period so every page computes and labels it the same way")
@@ -271,9 +427,37 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"[blueprint] spec does NOT cover its blueprint — {len(errors)} problem(s)")
         return 1
     ref = spec.get("blueprint")
+    if not ref and spec.get("domain_brief"):
+        print(f"[blueprint] domain brief complete — {spec['domain_brief'].get('domain')}: "
+              f"{len(spec['domain_brief'].get('processes') or [])} processes, "
+              f"{len(spec['domain_brief'].get('rules') or [])} rules")
     if ref:
         print(f"[blueprint] spec covers {ref['id']} ({ref.get('tier')}) — {len(spec.get('features') or [])} modules, "
               f"{len(spec.get('acceptance_criteria') or [])} criteria")
+    return 0
+
+
+BRIEF_TEMPLATE = {
+    "domain": "<Branche, z. B. Notariat>",
+    "sources": ["<what the brief rests on: laws, professional rules, the customer's own words>"],
+    "roles": [{"id": "<id>", "name": "<Rolle>", "can": "<was sie darf und tut>"}],
+    "processes": [{"name": "<Kernprozess>", "feature": "<feature id in spec.features>",
+                   "steps": ["<Schritt 1>", "<Schritt 2>", "<Schritt 3>"]}],
+    "rules": [{"rule": "<Pflicht, die die Software erzwingen oder unterstützen muss>", "source": "<§ … Gesetz / Berufsordnung>"}],
+    "deadlines": [{"what": "<Frist>", "when": "<Dauer / Auslöser>", "source": "<§ …>"}],
+    "integrations": {"connectable": ["<Dienst mit offener API>"], "export_only": ["<System, das nur Export/Import erlaubt>"],
+                     "not_possible": ["<geschlossenes System — Grund>"]},
+    "glossary": [{"term": "<Fachbegriff>", "meaning": "<Bedeutung>"}],
+    "to_verify": ["<Annahme, die der Kunde bestätigen muss>"],
+    "design": {"personality": ["<adj>", "<adj>", "<adj>"], "typefaces": {"display": "<face>", "text": "<face>"},
+               "palette": "<Markenton + Stimmung>", "density": "compact|comfortable|spacious",
+               "signature_ideas": ["<Wiedererkennungsmerkmal mit Bedeutung>"], "references": ["<Produkt>", "<Produkt>"],
+               "avoid": ["<was in dieser Branche billig oder unseriös wirkt>"]},
+}
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    print(json.dumps({"domain_brief": BRIEF_TEMPLATE}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -299,8 +483,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--project-name")
     p.add_argument("--exclude", action="append", default=[], metavar="MODULE=REASON",
                    help="leave a module out (the user asked for it); the reason is kept in the spec")
+    p.add_argument("--with", dest="with_", action="append", default=[], metavar="ID",
+                   help="also build this blueprint's modules (e.g. phone-assistant next to medical-practice)")
+    p.add_argument("--context", action="append", default=[], metavar="ID",
+                   help="take only look, duties and integrations from this (industry) blueprint")
     p.add_argument("--out", help="write the draft spec here (default: stdout)")
     p.set_defaults(func=cmd_expand)
+
+    sub.add_parser("brief", help="print an empty domain_brief (no blueprint matched)").set_defaults(func=cmd_brief)
 
     p = sub.add_parser("check")
     p.add_argument("--spec", default=".onecommand-spec.json")

@@ -1,6 +1,7 @@
 {
   "id": "crm",
   "name": "CRM (Customer Relationship Management)",
+  "kind": "product",
   "version": 3,
   "ui_language": "de",
   "aliases": [
@@ -21,6 +22,7 @@
     "pipedrive"
   ],
   "summary": "Zentrale Verwaltung von Kontakten, Firmen und Verkaufschancen mit Pipeline, Aktivitäten, Aufgaben und Auswertungen für ein Vertriebsteam.",
+  "design": {"personality": ["präzise", "zielstrebig", "souverän"], "typefaces": {"display": "Inter Display", "text": "Inter"}, "palette": "kühles Blau-Violett als Marke, Grün nur für gewonnene Deals, neutrale Grautöne mit Blaustich", "density": "compact", "signature_ideas": ["Pipeline-Board mit Wertsumme je Phase als Farbband", "Deal-Gesundheit als kleiner Ring an jedem Deal"], "references": ["Attio", "HubSpot", "Linear"], "avoid": ["bunte Kacheln ohne Bedeutung", "Excel-Look mit Gitterlinien überall"]},
   "roles": [
     {
       "id": "admin",

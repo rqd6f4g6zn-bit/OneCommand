@@ -147,3 +147,12 @@ def test_diffusion_template_compiles_and_is_from_scratch():
     for cfg in ("smoke", "cpu", "default", "video-smoke", "video-cpu", "video-default"):
         assert (template / "configs" / f"{cfg}.yaml").is_file()
 
+
+
+@pytest.mark.parametrize("marker", ["call-sim.py", "voice-agent", "ml-builder", "video-producer", "<Say>"])
+def test_codex_skill_covers_every_build_type(marker):
+    """The Codex orchestrator must not fall behind the Claude Code one for special build types."""
+    codex = (REPO / ".codex-plugin" / "skills" / "onecommand" / "SKILL.md").read_text(encoding="utf-8")
+    claude = (REPO / "commands" / "onecommand.md").read_text(encoding="utf-8")
+    assert marker in claude, f"{marker} missing in commands/onecommand.md"
+    assert marker in codex, f"{marker} missing in the Codex skill"

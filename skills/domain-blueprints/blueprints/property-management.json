@@ -1,0 +1,190 @@
+{
+  "id": "property-management",
+  "name": "Hausverwaltung (WEG- und Mietverwaltung)",
+  "kind": "industry",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["hausverwaltung", "hausverwalter", "hausverwaltungssoftware", "immobilienverwaltung", "mietverwaltung", "mieterverwaltung", "weg-verwaltung", "weg verwaltung", "wohnungseigentümergemeinschaft", "eigentümergemeinschaft", "sondereigentumsverwaltung", "property management", "property manager", "nebenkostenabrechnung", "betriebskostenabrechnung", "eigentümerversammlung", "hausgeld", "casavi", "immoware24"],
+  "summary": "Objekte, Einheiten, Eigentümer und Mieter mit Mietverträgen, Sollstellung, offenen Posten, Betriebs- und Heizkostenabrechnung, Schadensmeldungen, Eigentümerversammlung mit Beschluss-Sammlung, Wirtschaftsplan und Jahresabrechnung nach WEG sowie Portal für Mieter und Eigentümer.",
+  "design": {"personality": ["sachlich", "verlässlich", "ordnend"], "typefaces": {"display": "Manrope", "text": "IBM Plex Sans (tabellarische Ziffern)"}, "palette": "gedecktes Petrol als Marke, warme Sandtöne für Objekte, Rot nur für Rückstände und ablaufende Fristen", "density": "compact", "signature_ideas": ["Objekt-Kachel als Hausfassade aus Einheiten: jede Einheit gefärbt nach vermietet, Leerstand oder Rückstand", "Fristen-Leiste je Objekt: Abrechnungsfrist (§ 556 BGB), Einladungsfrist und Prüftermine als Countdown"], "references": ["casavi", "Immoware24", "Haufe axera"], "avoid": ["Kontoauszugs-Tabellen ohne Hervorhebung von Rückständen", "Stockfotos von Hochhäusern", "verspielte Icons neben Mahnungen und Beschlüssen"]},
+  "roles": [
+    {"id": "admin", "name": "Verwalter (Geschäftsführung)", "can": "alle Objekte, Benutzer, Bankkonten, Abrechnungen und Einstellungen"},
+    {"id": "manager", "name": "Objektbetreuer", "can": "zugewiesene Objekte: Stammdaten, Verträge, Schadensmeldungen, Versammlungen"},
+    {"id": "accountant", "name": "Buchhaltung", "can": "Sollstellung, Zahlungen, offene Posten, Abrechnungen und Exporte aller Objekte", "tier": "pro"},
+    {"id": "owner", "name": "Eigentümer", "can": "im Portal: eigene Einheiten, Hausgeld, Beschluss-Sammlung, Protokolle und Abrechnungen", "tier": "pro"},
+    {"id": "tenant", "name": "Mieter", "can": "im Portal: eigene Dokumente, Mieterkonto, Schadensmeldungen", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "passwordHash", "role", "propertyIds", "personId", "active"], "tier": "mvp"},
+    {"name": "Property", "fields": ["name", "street", "zip", "city", "managementType(weg|rental)", "constructionYear", "totalShares", "totalLivingAreaSqm", "heatingType", "managerId", "managementStart"], "tier": "mvp"},
+    {"name": "Unit", "fields": ["propertyId", "number", "type(apartment|commercial|parking|other)", "floor", "livingAreaSqm", "heatedAreaSqm", "coOwnershipShare", "ownerId", "rentable"], "tier": "mvp"},
+    {"name": "Owner", "fields": ["name", "email", "phone", "postalAddress", "iban", "sepaMandateRef", "sepaMandateDate", "portalAccess"], "tier": "mvp"},
+    {"name": "Tenant", "fields": ["name", "email", "phone", "postalAddress", "iban", "persons", "portalAccess"], "tier": "mvp"},
+    {"name": "Lease", "fields": ["unitId", "tenantIds", "startDate", "endDate", "netColdRent", "operatingCostAdvance", "heatingCostAdvance", "deposit", "depositType(cash|account|guarantee)", "rentType(fixed|index|graduated)", "status(active|terminated|ended)"], "tier": "mvp"},
+    {"name": "Charge", "fields": ["leaseId", "ownerId", "unitId", "period", "component(rent|operating_costs|heating|house_money|other)", "amount", "dueDate", "openAmount"], "tier": "mvp"},
+    {"name": "Payment", "fields": ["bankAccountId", "bookingDate", "amount", "payerName", "payerIban", "purpose", "chargeIds", "status(unmatched|matched|partial)"], "tier": "mvp"},
+    {"name": "Contractor", "fields": ["name", "trade", "email", "phone", "iban", "hourlyRate"], "tier": "mvp"},
+    {"name": "Ticket", "fields": ["number", "propertyId", "unitId", "reportedById", "category", "description", "photos", "priority(low|normal|urgent)", "status(new|commissioned|in_progress|done|rejected)", "createdAt"], "tier": "mvp"},
+    {"name": "WorkOrder", "fields": ["ticketId", "contractorId", "number", "description", "costLimit", "dueDate", "invoiceAmount", "status(sent|accepted|done|invoiced)"], "tier": "mvp"},
+    {"name": "BankAccount", "fields": ["propertyId", "iban", "purpose(trust|reserve|rent)", "provider", "lastSyncAt"], "tier": "mvp"},
+    {"name": "CostItem", "fields": ["propertyId", "year", "costType", "amount", "allocationKey(area|units|persons|consumption|shares)", "apportionable", "householdServicesShare"], "tier": "pro"},
+    {"name": "UtilityStatement", "fields": ["leaseId", "periodStart", "periodEnd", "totalCosts", "advancesPaid", "balance", "deadline", "sentAt", "status(draft|sent|objected)"], "tier": "pro"},
+    {"name": "Meter", "fields": ["unitId", "meterType(heat|hot_water|cold_water|electricity|gas)", "meterNumber", "remoteReadable", "calibrationValidUntil"], "tier": "pro"},
+    {"name": "MeterReading", "fields": ["meterId", "readingDate", "value", "source(manual|service_provider|remote)"], "tier": "pro"},
+    {"name": "Meeting", "fields": ["propertyId", "date", "location", "onlineParticipation", "agenda", "invitationSentAt", "status(planned|invited|held|minutes_sent)", "chairId", "minutesPdf"], "tier": "pro"},
+    {"name": "Resolution", "fields": ["propertyId", "meetingId", "number", "agendaItem", "wording", "votingMode(heads|shares|units)", "votesYes", "votesNo", "abstentions", "result(accepted|rejected)", "entryDate", "annotations"], "tier": "pro"},
+    {"name": "EconomicPlan", "fields": ["propertyId", "year", "items", "reserveContribution", "resolutionId", "status(draft|resolved)"], "tier": "pro"},
+    {"name": "AnnualStatement", "fields": ["propertyId", "year", "totalCosts", "reserveBalanceStart", "reserveBalanceEnd", "assetReport", "status(draft|resolved)"], "tier": "pro"},
+    {"name": "Document", "fields": ["propertyId", "unitId", "audience(internal|owners|tenant|owner)", "personId", "category", "file", "publishedAt"], "tier": "pro"},
+    {"name": "RentAdjustment", "fields": ["leaseId", "kind(comparative|index|graduated|modernisation)", "oldRent", "newRent", "indexBase", "indexNew", "declarationDate", "effectiveDate", "status(draft|sent|agreed)"], "tier": "enterprise"},
+    {"name": "OwnerStatement", "fields": ["ownerId", "unitId", "period", "rentReceived", "expenses", "managementFee", "payout", "paidAt"], "tier": "enterprise"},
+    {"name": "Inspection", "fields": ["propertyId", "subject", "intervalMonths", "lastDone", "nextDue", "contractorId", "legalBasis"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung & Objektrechte", "tier": "mvp",
+     "features": ["Login für Verwaltung, Eigentümer und Mieter", "Objektbetreuer sehen nur die ihnen zugewiesenen Objekte", "Benutzerverwaltung durch den Verwalter"],
+     "criteria": [
+       {"title": "Unauthenticated access to /dashboard redirects to /login", "verification": "e2e", "start": "/dashboard", "requires_auth": false, "steps": ["Open /dashboard without a session"], "expected": ["URL is /login"]},
+       {"title": "A property manager only reaches the properties assigned to them", "verification": "api", "steps": ["Log in as Objektbetreuer assigned only to 'Lindenstraße 12'", "GET /api/properties", "GET /api/properties/<id of 'Hafenblick 3'>"], "expected": ["The list contains 'Lindenstraße 12' and not 'Hafenblick 3'", "The second request returns 403"]}
+     ]},
+    {"id": "properties", "name": "Objekte & Einheiten", "tier": "mvp",
+     "features": ["Objekte mit Verwaltungsart WEG oder Mietverwaltung", "Einheiten mit Wohnfläche, beheizter Fläche und Miteigentumsanteilen", "Kontrolle: Summe der Miteigentumsanteile", "Objektakte mit Eigentümern, Mietern, Verträgen und Konten"],
+     "criteria": [
+       {"title": "A WEG property shows the sum of co-ownership shares and warns until it is complete", "verification": "e2e", "start": "/properties", "requires_auth": true, "steps": ["Create Objekt 'Lindenstraße 12' with Verwaltungsart 'WEG'", "Add unit 'WE 01' with 400/1.000 and unit 'WE 02' with 350/1.000 Miteigentumsanteilen", "Open the Objekt", "Add unit 'WE 03' with 250/1.000 and reload"], "expected": ["Before 'WE 03': text 'Miteigentumsanteile: 750 / 1.000' and the warning 'Summe der Miteigentumsanteile ist nicht 1.000 / 1.000' are visible", "After reload: 'Miteigentumsanteile: 1.000 / 1.000' is visible and the warning is gone"]}
+     ]},
+    {"id": "people", "name": "Eigentümer & Mieter", "tier": "mvp",
+     "features": ["Eigentümer mit Bankverbindung und SEPA-Lastschriftmandat", "Mieter mit Personenzahl (für Umlage nach Personen)", "Historie je Einheit: frühere Eigentümer und Mieter", "Löschung personenbezogener Daten nach Ablauf der Aufbewahrungsfristen"],
+     "criteria": [
+       {"title": "Owner page lists all units of the owner with their shares", "verification": "e2e", "start": "/owners", "requires_auth": true, "steps": ["Create Eigentümer 'Dr. Petra Kühn' with a valid IBAN", "Assign 'WE 01' and 'WE 02' of 'Lindenstraße 12'", "Open the Eigentümer"], "expected": ["'WE 01' and 'WE 02' are listed", "Text 'Summe MEA: 750 / 1.000' is visible"]},
+       {"title": "An invalid IBAN is rejected", "verification": "api", "steps": ["POST an owner with IBAN 'DE00 1234 5678 9012 3456 78'"], "expected": ["Response is 422 with the message 'IBAN ist ungültig'"]}
+     ]},
+    {"id": "leases", "name": "Mietverträge & Sollstellung", "tier": "mvp",
+     "features": ["Mietvertrag mit Nettokaltmiete, Betriebs- und Heizkostenvorauszahlung, Kaution", "Monatliche Sollstellung automatisch je Mietvertrag", "Kaution höchstens drei Nettokaltmieten, getrennt angelegt", "Kündigung und Mieterwechsel mit zeitanteiliger Sollstellung"],
+     "criteria": [
+       {"title": "A lease shows the total rent and creates the monthly charge", "verification": "e2e", "start": "/leases", "requires_auth": true, "steps": ["Create a Mietvertrag for 'WE 01' from the first of next month: Nettokaltmiete 850 €, Betriebskostenvorauszahlung 180 €, Heizkostenvorauszahlung 90 €, Kaution 2.550 €", "Open the Mietvertrag, tab 'Sollstellung'"], "expected": ["Text 'Gesamtmiete: 1.120,00 €' is visible", "The first month is listed with 1.120,00 € split into 850,00 € / 180,00 € / 90,00 €"]},
+       {"title": "A deposit above three net cold rents is rejected", "verification": "api", "steps": ["POST a lease with Nettokaltmiete 850 € and Kaution 3.000 €"], "expected": ["Response is 422 with the message 'Die Kaution darf höchstens drei Nettokaltmieten betragen (§ 551 BGB)'"]}
+     ]},
+    {"id": "payments", "name": "Zahlungseingang & offene Posten", "tier": "mvp",
+     "features": ["Kontoauszug-Import (CAMT.053, CSV)", "Automatische Zuordnung über IBAN und Verwendungszweck, manuelle Zuordnung für den Rest", "Offene-Posten-Liste je Objekt, Mieter und Eigentümer", "Zahlungserinnerung und Mahnung mit Verzugszinsen", "Buchungen werden storniert, nie gelöscht"],
+     "criteria": [
+       {"title": "An imported bank payment is matched to the open charge", "verification": "e2e", "start": "/payments", "requires_auth": true, "steps": ["Upload a CAMT.053 file with 1.120,00 € from Jana Becker's IBAN, Verwendungszweck 'Miete WE 01'", "Open /open-items"], "expected": ["The payment shows Status 'Zugeordnet'", "'Jana Becker' has no open item for that month"]},
+       {"title": "A partial payment leaves an open item that survives a reload", "verification": "e2e", "start": "/payments", "requires_auth": true, "steps": ["Upload a CAMT.053 file with 920,00 € from Jana Becker's IBAN", "Open /open-items and reload"], "expected": ["The payment shows Status 'Teilweise zugeordnet'", "Row 'Jana Becker · WE 01 · 200,00 €' is listed after reload"]}
+     ]},
+    {"id": "tickets", "name": "Schadensmeldungen & Handwerker", "tier": "mvp",
+     "features": ["Schadensmeldung mit Fotos, Einheit, Dringlichkeit", "Handwerkerauftrag per E-Mail mit Auftragsnummer und Kostenrahmen", "Status von 'Neu' bis 'Erledigt' mit Verlauf", "Handwerkerkartei mit Gewerk"],
+     "criteria": [
+       {"title": "A damage report is commissioned to a contractor by e-mail", "verification": "e2e", "start": "/tickets", "requires_auth": true, "steps": ["Create Schadensmeldung 'Wasserfleck an der Decke' for 'WE 02' with a photo", "Click 'Handwerker beauftragen', choose 'Sanitär Schulz GmbH', Kostenrahmen 500 €", "Click 'Auftrag senden'"], "expected": ["The Schadensmeldung shows Status 'Beauftragt'", "Outbox contains a mail to Sanitär Schulz GmbH with the Auftragsnummer, the address 'Lindenstraße 12' and 'Kostenrahmen: 500,00 €'"]}
+     ]},
+    {"id": "dashboard", "name": "Übersicht", "tier": "mvp",
+     "features": ["Offene Posten, Mieteingang, offene Schadensmeldungen", "Anstehende Fristen je Objekt"],
+     "criteria": [
+       {"title": "Dashboard and open-items list show the same open amount", "verification": "e2e", "start": "/dashboard", "requires_auth": true, "steps": ["Seed: charge 1.120,00 € due this month, payment 920,00 € this month", "Open /dashboard", "Open /open-items"], "expected": ["Tile 'Offene Posten (aktuell)' shows 200,00 €", "Tile 'Mieteingang (dieser Monat)' shows 920,00 €", "/open-items shows the total 200,00 €"]}
+     ]},
+    {"id": "utility-statements", "name": "Betriebskostenabrechnung", "tier": "pro",
+     "features": ["Kostenarten nach § 2 BetrKV, nicht umlagefähige Kosten getrennt", "Umlageschlüssel: Wohnfläche, Einheiten, Personen, Verbrauch", "Zeitanteilige Umlage bei Mieterwechsel, Leerstand trägt der Vermieter", "Abrechnungsfrist 12 Monate nach Ende des Abrechnungszeitraums mit Warnung", "Ausweis haushaltsnaher Dienstleistungen (§ 35a EStG)", "Anpassung der Vorauszahlungen nach Abrechnung", "Serienversand als PDF"],
+     "criteria": [
+       {"title": "Costs are apportioned by living area and time share of the tenancy", "verification": "api", "steps": ["Objekt with 600 m² Wohnfläche; 'WE 01' 60 m² rented from 01.07. to 31.12. of the year", "Grundsteuer of that year 6.000 € with key 'Wohnfläche'", "Generate the Betriebskostenabrechnung for 'WE 01'"], "expected": ["The Grundsteuer line for 'WE 01' is 300,00 €", "The remaining 300,00 € for the vacant half year are assigned to the landlord"]},
+       {"title": "Statement shows the statutory deadline and keeps non-apportionable costs out", "verification": "e2e", "start": "/utility-statements", "requires_auth": true, "steps": ["Create the Abrechnung for last year for 'Lindenstraße 12'", "Add cost 'Verwaltungskosten 2.400 €'", "Open the statement of 'WE 01'"], "expected": ["Text 'Abrechnungsfrist: 31.12.' of this year is visible", "'Verwaltungskosten' is listed under 'Nicht umlagefähig' and does not appear in the tenant's statement", "The statement shows the section 'Haushaltsnahe Dienstleistungen (§ 35a EStG)'"]}
+     ]},
+    {"id": "heating-costs", "name": "Heizkostenabrechnung (HeizkostenV)", "tier": "pro",
+     "features": ["Verteilung 50–70 % nach Verbrauch, Rest nach beheizter Fläche", "Zählerstände manuell, per Import vom Messdienst oder fernablesbar", "Monatliche Verbrauchsinformation bei fernablesbaren Zählern", "Hinweis auf Kürzungsrecht 15 % ohne verbrauchsabhängige Abrechnung", "CO₂-Kostenaufteilung Vermieter/Mieter nach Stufenmodell"],
+     "criteria": [
+       {"title": "Heating costs are split 70 % by consumption and 30 % by heated area", "verification": "api", "steps": ["Heizkosten 10.000 €, Verteilung 70 % Verbrauch / 30 % Fläche", "'WE 01': 60 of 600 m² heated area, 1.500 of 10.000 consumption units", "Generate the heating statement"], "expected": ["'WE 01' is charged 1.350,00 € (1.050,00 € consumption + 300,00 € area)"]},
+       {"title": "A consumption share outside 50–70 % is rejected", "verification": "e2e", "start": "/heating", "requires_auth": true, "steps": ["Open the heating settings of 'Lindenstraße 12'", "Set Verbrauchsanteil to 40 % and click 'Speichern'", "Reload"], "expected": ["Error 'Der Verbrauchsanteil muss zwischen 50 % und 70 % liegen (§ 7 HeizkostenV)' is visible", "After reload the previous value is shown"]}
+     ]},
+    {"id": "owner-meetings", "name": "Eigentümerversammlung", "tier": "pro",
+     "features": ["Tagesordnung mit Beschlussvorschlägen", "Einladung in Textform an alle Eigentümer, Frist drei Wochen", "Präsenz-, Hybrid- oder Online-Teilnahme, Vollmachten", "Abstimmung nach Köpfen, Miteigentumsanteilen oder Einheiten", "Protokoll (Niederschrift) mit Beschlüssen als PDF"],
+     "criteria": [
+       {"title": "An invitation inside three weeks is flagged; a valid invitation reaches every owner", "verification": "e2e", "start": "/meetings", "requires_auth": true, "steps": ["Plan a Versammlung for 'Lindenstraße 12' in 14 days with 'TOP 1 Dachsanierung'", "Click 'Einladung versenden'", "Change the date to 22 days ahead and click 'Einladung versenden'"], "expected": ["First attempt: warning 'Einladungsfrist von drei Wochen unterschritten (§ 24 Abs. 4 WEG)' is visible", "Second attempt: outbox contains one invitation per Eigentümer with the Tagesordnung as PDF", "The Versammlung shows Status 'Eingeladen'"]},
+       {"title": "Minutes are generated from the recorded votes", "verification": "e2e", "start": "/meetings", "requires_auth": true, "steps": ["Open the held Versammlung", "For 'TOP 1' choose 'Nach Miteigentumsanteilen' and record Ja 600, Nein 250, Enthaltung 150", "Click 'Protokoll erstellen'"], "expected": ["Text 'TOP 1: Beschluss angenommen' is visible", "Download 'Protokoll' delivers a PDF that contains 'Dachsanierung'"]}
+     ]},
+    {"id": "resolutions", "name": "Beschluss-Sammlung (§ 24 Abs. 7 WEG)", "tier": "pro",
+     "features": ["Fortlaufend nummerierte Einträge mit Wortlaut, Ort und Datum der Versammlung", "Eintragung unverzüglich nach der Versammlung, Eintragungsdatum", "Vermerke zu Anfechtung und Aufhebung statt Löschung", "Einsicht für Eigentümer im Portal"],
+     "criteria": [
+       {"title": "A resolution from the meeting is entered with a consecutive number and entry date", "verification": "e2e", "start": "/resolutions", "requires_auth": true, "steps": ["Close the Versammlung with the accepted 'TOP 1 Dachsanierung'", "Open /resolutions"], "expected": ["Entry 'Nr. 1' shows the wording 'Dachsanierung', the date of the Versammlung and 'Eingetragen am' with today's date"]},
+       {"title": "Resolutions cannot be deleted, only annotated", "verification": "api", "steps": ["DELETE /api/resolutions/<id>", "PATCH the resolution with the Vermerk 'Angefochten, Az. 12 C 345/26'", "GET the resolution"], "expected": ["DELETE returns 405", "PATCH returns 200", "GET returns the original wording and the Vermerk with its date"]}
+     ]},
+    {"id": "weg-accounts", "name": "Wirtschaftsplan & Jahresabrechnung (§ 28 WEG)", "tier": "pro",
+     "features": ["Wirtschaftsplan mit Kostenpositionen und Zuführung zur Erhaltungsrücklage", "Hausgeld je Einheit nach Verteilungsschlüssel, Sollstellung und SEPA-Lastschrift", "Jahresabrechnung mit Einzelabrechnungen: Nachschuss oder Guthaben je Einheit", "Vermögensbericht mit Stand der Erhaltungsrücklage", "Beschluss über Plan und Abrechnung mit Verweis in die Beschluss-Sammlung"],
+     "criteria": [
+       {"title": "The economic plan sets the monthly house money by co-ownership share", "verification": "api", "steps": ["Wirtschaftsplan next year: Kosten 36.000 €, Zuführung Erhaltungsrücklage 12.000 €, key 'Miteigentumsanteile'", "'WE 01' holds 400/1.000", "GET the Hausgeld of 'WE 01'"], "expected": ["Monthly Hausgeld of 'WE 01' is 1.600,00 €"]},
+       {"title": "The annual statement shows the reserve and the individual statements", "verification": "e2e", "start": "/weg-accounts", "requires_auth": true, "steps": ["Create the Jahresabrechnung for last year for 'Lindenstraße 12'", "Open 'Vermögensbericht'", "Open 'Einzelabrechnung WE 01'"], "expected": ["'Erhaltungsrücklage' is shown with its balance on 31.12. of last year", "'Einzelabrechnung WE 01' shows either 'Nachschuss' or 'Guthaben' with an amount"]}
+     ]},
+    {"id": "portal", "name": "Mieter- & Eigentümerportal mit Dokumenten", "tier": "pro",
+     "features": ["Dokumente je Objekt, Einheit oder Person freigeben", "Mieter: Mieterkonto, Abrechnungen, Schadensmeldung mit Fotos", "Eigentümer: Hausgeld, Beschluss-Sammlung, Protokolle, Abrechnungen", "Benachrichtigung per E-Mail bei neuem Dokument"],
+     "criteria": [
+       {"title": "A tenant sees only their own documents and reports damage through the portal", "verification": "e2e", "start": "/portal", "requires_auth": true, "steps": ["Log in as Mieter Jana Becker ('WE 01')", "Open /portal/documents", "Open /portal/tickets and report 'Heizung bleibt kalt'", "Log in as Objektbetreuer and open /tickets"], "expected": ["The Betriebskostenabrechnung of 'WE 01' is listed; no document of 'WE 02' is listed", "/tickets lists 'Heizung bleibt kalt' with Status 'Neu' and 'Gemeldet über Portal'"]},
+       {"title": "A tenant cannot fetch another tenant's document", "verification": "api", "steps": ["As Mieter of 'WE 01', GET /api/documents/<id of a document of 'WE 02'>"], "expected": ["Response is 403"]}
+     ]},
+    {"id": "banking", "name": "Bankanbindung (FinTS/PSD2) & SEPA", "tier": "enterprise",
+     "features": ["Konten je Objekt über FinTS/PSD2-Anbieter verbinden, täglicher Abruf", "Treuhand- und Rücklagenkonten getrennt", "SEPA-Lastschrift (pain.008) für Hausgeld und Miete", "SEPA-Überweisung (pain.001) für Handwerkerrechnungen mit Freigabe"],
+     "criteria": [
+       {"title": "Account sync imports each transaction once and matches known payers", "verification": "api", "steps": ["Connect a sandbox account through the provider (test mode)", "Trigger the sync twice"], "expected": ["Each transaction exists once", "The payment from Jana Becker's IBAN shows Status 'Zugeordnet'"]},
+       {"title": "The direct debit file contains one entry per owner with mandate data", "verification": "api", "steps": ["POST /api/sepa/direct-debit for next month's Hausgeld of 'Lindenstraße 12'"], "expected": ["Response is a pain.008 XML file", "It contains one transaction per Eigentümer with mandate reference, mandate date and the creditor id"]}
+     ]},
+    {"id": "datev-export", "name": "DATEV-Export", "tier": "enterprise",
+     "features": ["Buchungsstapel im DATEV-Format je Objekt und Zeitraum", "Kontenzuordnung je Kostenart einstellbar"],
+     "criteria": [
+       {"title": "The DATEV export delivers a booking batch", "verification": "api", "steps": ["GET /api/exports/datev for 'Lindenstraße 12' and last month"], "expected": ["Response is 200 with Content-Type text/csv", "The first line starts with 'EXTF'", "Every payment of that month appears as one booking row"]}
+     ]},
+    {"id": "rent-adjustments", "name": "Mieterhöhung & Indexmiete", "tier": "enterprise",
+     "features": ["Mieterhöhung bis zur ortsüblichen Vergleichsmiete mit Kappungsgrenze", "Indexmiete nach Verbraucherpreisindex", "Staffelmiete mit Stufen", "Erhöhungsschreiben als PDF, Wirksamkeitsdatum"],
+     "criteria": [
+       {"title": "A rent increase above the cap is blocked", "verification": "e2e", "start": "/rent-adjustments", "requires_auth": true, "steps": ["Start a Mieterhöhung for 'WE 01' from 850 € to 1.050 € (no increase in the last three years, Kappungsgrenze 20 %)", "Click 'Erhöhungsschreiben erstellen'"], "expected": ["Error 'Kappungsgrenze von 20 % in drei Jahren überschritten (§ 558 Abs. 3 BGB)' is visible", "Text 'Höchstens zulässig: 1.020,00 €' is visible"]},
+       {"title": "An index rent follows the consumer price index", "verification": "api", "steps": ["Indexmiete 850 € on VPI 117,0; current VPI 122,85", "POST an index adjustment declared today"], "expected": ["New rent is 892,50 €", "Effective date is the first day of the month after next"]}
+     ]},
+    {"id": "owner-statements", "name": "Eigentümerabrechnung (Mietverwaltung)", "tier": "enterprise",
+     "features": ["Monatliche Abrechnung je Eigentümer: Mieteingang, Ausgaben, Verwaltergebühr", "Auszahlung per SEPA-Überweisung", "Jahresübersicht für die Steuererklärung (Anlage V) als PDF"],
+     "criteria": [
+       {"title": "The owner statement computes the payout", "verification": "e2e", "start": "/owner-statements", "requires_auth": true, "steps": ["Last month: rent received 1.120 € for the owner's unit, Verwaltergebühr 30 €, Handwerkerrechnung 250 €", "Create the Eigentümerabrechnung for last month"], "expected": ["Text 'Auszahlung an Eigentümer: 840,00 €' is visible", "The Eigentümer sees the same statement in /portal/documents"]}
+     ]},
+    {"id": "maintenance", "name": "Wartung & Verkehrssicherung", "tier": "enterprise",
+     "features": ["Prüffristen: Aufzug, Rauchwarnmelder, Trinkwasser, Heizung, Spielplatz", "Wiederkehrende Aufträge an Handwerker", "Nachweise als Dokumente am Objekt"],
+     "criteria": [
+       {"title": "Inspections due soon appear in the deadline list", "verification": "e2e", "start": "/maintenance", "requires_auth": true, "steps": ["Add Prüfung 'Aufzug Hauptprüfung' every 24 months, last done 23 months ago", "Open /maintenance"], "expected": ["'Aufzug Hauptprüfung' is listed under 'Fällig in den nächsten 60 Tagen' with its due date"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "open_items", "tier": "mvp", "label": "Offene Posten (aktuell)", "unit": "EUR", "definition": "Summe aller Sollstellungen mit Fälligkeit bis heute abzüglich der ihnen zugeordneten Zahlungen, über alle Objekte, die der Nutzer sehen darf", "period": "aktuell (Fälligkeit bis heute)", "shown_on": ["/dashboard", "/open-items"]},
+    {"id": "rent_received_month", "tier": "mvp", "label": "Mieteingang (dieser Monat)", "unit": "EUR", "definition": "Summe der Zahlungseingänge mit Buchungsdatum im laufenden Kalendermonat, die Mietverträgen zugeordnet sind", "period": "Dieser Monat", "shown_on": ["/dashboard"]},
+    {"id": "vacancy_rate", "tier": "pro", "label": "Leerstandsquote (heute)", "unit": "%", "definition": "vermietbare Einheiten der Mietverwaltung ohne aktiven Mietvertrag am heutigen Tag / alle vermietbaren Einheiten der Mietverwaltung", "period": "Stichtag heute", "shown_on": ["/dashboard", "/properties"]},
+    {"id": "statements_due", "tier": "pro", "label": "Fällige Abrechnungen (nächste 90 Tage)", "unit": "Anzahl", "definition": "nicht versendete Betriebskostenabrechnungen, deren Frist nach § 556 Abs. 3 BGB in den nächsten 90 Tagen endet oder abgelaufen ist", "period": "heute bis heute + 90 Tage", "shown_on": ["/dashboard", "/utility-statements"]}
+  ],
+  "compliance": [
+    {"rule": "Kaution höchstens drei Nettokaltmieten, getrennt vom Vermögen des Vermieters anlegen", "source": "§ 551 BGB", "tier": "mvp"},
+    {"rule": "Bücher und Abrechnungen 10 Jahre, Buchungsbelege 8 Jahre aufbewahren (seit BEG IV, 2025); Korrektur nur per Storno", "source": "§ 147 Abs. 3 AO; GoBD", "tier": "mvp"},
+    {"rule": "Personenbezogene Daten von Mietern und Eigentümern nur zweckgebunden verarbeiten und nach Ablauf der Aufbewahrungsfristen löschen", "source": "Art. 5, 6 und 17 DSGVO", "tier": "mvp"},
+    {"rule": "Betriebskostenabrechnung spätestens 12 Monate nach Ende des Abrechnungszeitraums zustellen, danach keine Nachforderung", "source": "§ 556 Abs. 3 BGB", "tier": "pro"},
+    {"rule": "Nur Betriebskosten im Sinne der BetrKV umlegen; Verwaltungs- und Instandhaltungskosten sind nicht umlagefähig", "source": "§ 556 Abs. 1 BGB; §§ 1, 2 BetrKV", "tier": "pro"},
+    {"rule": "Heiz- und Warmwasserkosten zu mindestens 50 % und höchstens 70 % nach Verbrauch verteilen", "source": "§§ 7, 8 HeizkostenV", "tier": "pro"},
+    {"rule": "Monatliche Verbrauchsinformation an Nutzer bei fernablesbaren Zählern", "source": "§ 6a HeizkostenV", "tier": "pro"},
+    {"rule": "Mieter darf bei nicht verbrauchsabhängiger Abrechnung um 15 % kürzen — Hinweis in der Abrechnung", "source": "§ 12 HeizkostenV", "tier": "pro"},
+    {"rule": "CO₂-Kosten bei Wohngebäuden nach Stufenmodell zwischen Vermieter und Mieter aufteilen", "source": "Kohlendioxidkostenaufteilungsgesetz (CO2KostAufG)", "tier": "pro"},
+    {"rule": "Aufwendungen für haushaltsnahe Dienstleistungen und Handwerkerleistungen in der Abrechnung ausweisen", "source": "§ 35a EStG", "tier": "pro"},
+    {"rule": "Einladung zur Eigentümerversammlung in Textform mit mindestens drei Wochen Frist", "source": "§ 24 Abs. 4 WEG", "tier": "pro"},
+    {"rule": "Niederschrift über die in der Versammlung gefassten Beschlüsse", "source": "§ 24 Abs. 6 WEG", "tier": "pro"},
+    {"rule": "Beschluss-Sammlung führen: fortlaufend nummeriert, unverzüglich eingetragen, Anfechtung und Aufhebung vermerkt", "source": "§ 24 Abs. 7 und 8 WEG", "tier": "pro"},
+    {"rule": "Wirtschaftsplan, Jahresabrechnung und Vermögensbericht für die Gemeinschaft aufstellen", "source": "§ 28 WEG", "tier": "pro"},
+    {"rule": "Eigentümer haben Einsicht in die Verwaltungsunterlagen", "source": "§ 18 Abs. 4 WEG", "tier": "pro"},
+    {"rule": "Mieterhöhung auf die Vergleichsmiete: Kappungsgrenze 20 % (in angespannten Märkten 15 %) in drei Jahren", "source": "§ 558 Abs. 3 BGB", "tier": "enterprise"},
+    {"rule": "Indexmiete nach Verbraucherpreisindex, Erhöhung in Textform, wirksam ab dem übernächsten Monat", "source": "§ 557b BGB", "tier": "enterprise"},
+    {"rule": "Rauchwarnmelder einbauen und warten lassen — Pflichten nach Landesrecht", "source": "Landesbauordnungen der Länder", "tier": "enterprise"},
+    {"rule": "Trinkwasser-Untersuchung auf Legionellen bei Großanlagen", "source": "Trinkwasserverordnung (TrinkwV)", "tier": "enterprise"},
+    {"rule": "Aufzugsanlagen wiederkehrend prüfen lassen", "source": "Betriebssicherheitsverordnung (BetrSichV)", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["Bankkonten über FinTS/PSD2-Anbieter (z. B. finAPI) — Umsätze abrufen, Zahlungen vorbereiten", "E-Mail-Versand (SMTP) für Einladungen, Abrechnungen und Handwerkeraufträge", "Kalender (Google, Microsoft 365) für Versammlungen und Prüftermine"],
+    "export_only": ["DATEV — Buchungsstapel (EXTF-CSV) für den Steuerberater", "SEPA-Dateien pain.001/pain.008 zum Upload ins Online-Banking", "Kontoauszüge CAMT.053/CSV als Import", "Messdienstleister (Techem, ista, Brunata, Minol) — Ablesewerte und Heizkostenergebnisse als Datei (ARGE HeiWaKo)", "Abrechnungen, Protokolle und Beschluss-Sammlung als PDF"],
+    "not_possible": ["Grundbuch — Abruf nur für berechtigte Stellen über das Grundbuchabrufverfahren; Auszüge werden als PDF hochgeladen", "Kommunale Mietspiegel — keine einheitliche Schnittstelle; die Vergleichsmiete wird erfasst und belegt", "Messdienst-Portale ohne Partnervertrag — keine offene API, nur Dateiaustausch"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Beträge in Cent gespeichert, Anzeige im deutschen Format (1.120,00 €)"},
+    {"tier": "mvp", "text": "Buchungen, Sollstellungen und versendete Abrechnungen sind unveränderlich; Korrekturen erzeugen Storno und Neubuchung"},
+    {"tier": "mvp", "text": "Jede Abfrage ist auf die Objekte der Rolle beschränkt; Mieter und Eigentümer sehen nur eigene Einheiten"},
+    {"tier": "pro", "text": "Dokumente verschlüsselt gespeichert, Downloads nur über signierte, ablaufende Links"},
+    {"tier": "pro", "text": "Serienversand von Abrechnungen für 200 Einheiten ohne Zeitüberschreitung (Hintergrundjob mit Fortschritt)"},
+    {"tier": "enterprise", "text": "Änderungsprotokoll für Stammdaten, Beschlüsse und Bankdaten (wer, wann, alt/neu)"}
+  ],
+  "production_dependencies": {"mvp": ["email", "storage"], "pro": ["email", "storage"], "enterprise": ["email", "storage", "oauth"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/properties", "/properties/[id]", "/units/[id]", "/owners", "/owners/[id]", "/tenants", "/tenants/[id]", "/leases", "/leases/[id]", "/payments", "/open-items", "/tickets", "/tickets/[id]", "/contractors", "/settings/users"], "pro": ["/utility-statements", "/utility-statements/[id]", "/heating", "/meetings", "/meetings/[id]", "/resolutions", "/weg-accounts", "/documents", "/portal", "/portal/documents", "/portal/tickets"], "enterprise": ["/banking", "/exports/datev", "/rent-adjustments", "/owner-statements", "/maintenance"]}
+}

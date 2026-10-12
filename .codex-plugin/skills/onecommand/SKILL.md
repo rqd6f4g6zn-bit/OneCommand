@@ -110,6 +110,8 @@ Use the `onecommand-spec-analyzer` skill with the project prompt. For known syst
 python3 "$HOME/.codex/skills/onecommand/hooks/blueprint.py" detect --prompt "<user prompt>"
 # on a match: … blueprint.py expand <id> --tier <tier> --out .onecommand/blueprint-spec.json
 # build the spec on top of the draft, then: … blueprint.py check --spec .onecommand-spec.json
+# no match: fill domain_brief (blueprint.py brief) — check fails without it; start the design brief from
+# spec.design_direction / domain_brief.design
 ```
 Then use the `onecommand-stack-detector` skill.
 
@@ -127,11 +129,29 @@ python3 "$OC_ROOT/hooks/ui-tour.py" validate --spec .onecommand-spec.json       
 ```
 Exit 1 → fix the reported criteria / contract / demo section and validate again.
 
+Special build types — check the spec and follow the matching skill as well:
+```bash
+python3 -c "
+import json; s=json.load(open('.onecommand-spec.json'))
+print('ML:', 'ml' in s.get('build_targets', []), '· VOICE:', 'voice' in s, '· VIDEOS:', bool((s.get('media') or {}).get('videos')))
+"
+```
+- **ML: True** (train a model): follow the `ml-builder` skill (data pipeline, from-scratch templates when
+  `ml.from_scratch`, `dataset.py`). The quality gate hands the project to `hooks/ml-gate.py` itself.
+- **VOICE: True** (phone assistant): follow the `voice-agent` skill and write `voice/scenarios/*.json` — one
+  test call per intent plus the handover, every turn checking content. Then:
+  ```bash
+  python3 "$OC_ROOT/hooks/call-sim.py" validate --project-dir .
+  ```
+  It must pass before Phase 2 ends. It also fails on TwiML `<Say>` and robotic speech engines.
+- **VIDEOS: True** (premium website): follow the `video-producer` skill, then check the result with
+  `python3 "$OC_ROOT/hooks/video.py" check`.
+
 **Skill plan — consider every available skill** (bundled and user-installed):
 ```bash
 python3 "$OC_ROOT/hooks/skill-catalog.py" scan --oc-root "$OC_ROOT" --home "$HOME"
 ```
-For every external skill listed, write a decision (phases + use, or reason) to `.onecommand/skill-plan.json`, then `python3 "$OC_ROOT/hooks/skill-catalog.py" check` until it passes. Before each later phase, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase <N>` and apply every listed skill.
+For every external skill listed, write a decision (phases + use, or reason) to `.onecommand/skill-plan.json`, then `python3 "$OC_ROOT/hooks/skill-catalog.py" check` until it passes. Before each later phase, run `python3 "$OC_ROOT/hooks/skill-catalog.py" for-phase <N>` and load every listed skill with the `read` command it prints — that prints the SKILL.md and records the load; a plain file read is not recorded. Apply what you loaded. The phase checkpoint (`checkpoint.py phase N`) is refused while `skill-catalog.py check-read N` fails.
 
 ---
 
@@ -154,9 +174,23 @@ print('BUILD_MOBILE:', 'mobile' in targets)
 "
 ```
 
+**Phone assistant** (spec has `voice`): follow the `voice-agent` skill in the backend. That means:
+- one dialogue engine behind the telephony webhooks and `POST /api/voice/simulate`,
+- conversation memory (last intent, topic, order and phone numbers),
+- `smalltalk` and `complaint` intents,
+- caller recognition with a second factor before any change,
+- one neural voice for every sentence (`POST /api/voice/tts`, never TwiML `<Say>`), and `POST /api/voice/stt`,
+- the setup wizard "Rufnummer verbinden" (call forwarding of the existing number, new number or SIP, credentials in
+  the UI, connection test, automatic webhook, test call) with `GET /api/voice/setup/status`.
+
 **Frontend** — Generate all pages and components using the `onecommand-spec-analyzer` skill output:
 - Read spec pages list, generate each as a complete Next.js page
 - Use Tailwind CSS + shadcn/ui components
+- Design brief first (`.onecommand/design.md`: personality, typefaces, brand palette, signature element);
+  fonts self-hosted (`@fontsource-variable/*` or `next/font/local`) — never a bare system font stack
+- Labels for every enum (no `order_status`/`callback` on screen, no monospace for labels); sidebar
+  background on the full-height column; table row lines on the row, not `last:border-b-0` on cells;
+  text contrast WCAG AA
 - Mobile-first, with loading states, error states, empty states on every page
 - Generate `lib/api.ts` with typed functions for every API route in the spec
 
@@ -258,8 +292,19 @@ bash "$OC_ROOT/hooks/quality-gate.sh" --stage tour; echo "GATE_EXIT=$?"
 ```
 Then open every screenshot listed in `.onecommand/tour/review.md`, tick it, write findings as `  - ✗ …`
 lines (numbers that differ between pages, labels without their period, empty views for a demo login,
-broken layout), fix them, re-run the tour. Done when
+broken layout, a screen that looks generated rather than designed), fix them, re-run the tour. The tour's
+design audit (system fonts, code values, contrast, broken row lines, short sidebar) lists measured
+findings under "Design audit" — they stay open until a re-run no longer finds them. Done when
 `python3 "$OC_ROOT/hooks/ui-tour.py" review-status` exits 0.
+
+With a `voice` section, the same stage plays every test call plus four built-in calls:
+- small talk ("Hallo?") must be answered, not "nicht verstanden";
+- a complaint must be recognised;
+- a follow-up ("Wann kommt es denn genau?") must not ask for the order number again;
+- a known caller who asks to change the address must be verified first.
+
+With voice credentials, it also saves audio samples and runs the pronunciation round trip. Results are in
+`.onecommand/calls/report.md`.
 
 **If GATE_EXIT is not 0**, read `.onecommand/gate/errors.txt` and use the `self-healer` skill with it. Re-run the same stage. Max 5 healing rounds per stage. Fix the application, never weaken tests or edit `acceptance_criteria`. Finish with `--stage all` after any change in Stage B.
 

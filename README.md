@@ -138,6 +138,28 @@ your call transcripts. `hooks/call-sim.py` plays scripted test calls in the gate
 an AI, understand every intent, answer briefly and correctly, hand over when asked and stay within the latency
 budget.
 
+**A real voice, not a robot.** Every sentence is spoken by one neural voice (ElevenLabs or Azure Neural HD).
+That includes the handover and DTMF replies, so callers never hear Twilio's built-in voice. Small talk such as
+"Hallo?" is answered instead of "nicht verstanden". The assistant remembers the conversation, so "Wann kommt es
+denn?" after an order number works. Complaints are recognised and become a ticket or a handover. Callers are recognised by their number. Address, payment or
+cancellation changes still need a second factor (postcode, customer number or code), because a number can be faked. Before go-live, the gate saves every reply as an audio
+sample for listening. Owners connect their number themselves in the setup wizard. They can keep the existing number with call
+forwarding, take a new number or connect a SIP line. The wizard has a connection test, sets the webhook
+automatically and offers a test call. A pronunciation test lets the speech recogniser write back what the voice
+said. Company names, numbers and umlauts must be recognised, or the build fails.
+
+For an **own brand voice**, the build delivers a recording script and guide. `dataset.py --task speech` checks
+the recordings: sample rate, clipping, silence, and whether each transcript fits its clip. Every source needs a
+recorded licence, and own recordings need the speaker's consent. YouTube and other platform content is rejected;
+for a base model, use licensed corpora such as Common Voice or Multilingual LibriSpeech instead. It then reports
+the hours of audio and which voice paths they support:
+
+| Voice path | Hours of recordings |
+|---|---|
+| Voice clone at the provider | from 0.5 h |
+| Own fine-tuned model on your server | from 1 h, 3 h for production quality |
+| Training from scratch | from 24 h; with less audio the voice sounds robotic |
+
 ## Premium Websites, Videos Included
 
 "Webseite im 100k-Preissegment" selects the enterprise tier of the `website` blueprint: design system,
@@ -157,9 +179,13 @@ python3 hooks/video.py check public/videos                   # formats, faststar
 
 ## Knows the Domain
 
-Short prompts are enough for common business systems. OneCommand ships domain blueprints for
-**CRM, online shop, appointment booking, helpdesk, project management, invoicing and corporate/premium websites** — what a
-professional expects from each, as modules with concrete acceptance criteria:
+Short prompts are enough. OneCommand ships 18 domain blueprints — **products** (CRM, online shop, appointment
+booking, helpdesk, project management, invoicing, AI phone assistant, corporate/premium website, recruiting,
+warehouse) and **industries** (notary, law firm, tax advisor, medical practice, property management, real-estate
+agency, trades, restaurant). Each holds what a professional in that field expects: modules with acceptance criteria,
+legal duties with their source, honest integrations (what an app cannot connect to) and a design direction for the
+industry. "Software für unser Notariat" or "Webseite für unser Restaurant" is a complete brief. For any other
+industry the spec must carry a researched domain brief before the build starts.
 
 | Prompt says | Tier | Example: CRM |
 |---|---|---|
@@ -222,6 +248,7 @@ and without it the CLI stops waiting after 600 s. `bench/run.py` sets it.
 | `/oc-save` | Save build state so `/clear` is safe at any moment |
 | `/oc-resume` | Continue an interrupted build from the last phase |
 | `/oc-doctor` | Diagnose the installation and print exact fixes |
+| `/oc-skills [topic]` | Skill library: every bundled and installed skill, searchable by topic |
 | `/oc-update` | Install the latest OneCommand now (also happens automatically) |
 
 Builds are written to `~/Desktop/<ProjectName>` — never into the plugin folder. If the current

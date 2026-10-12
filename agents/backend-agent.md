@@ -10,6 +10,24 @@ skills:
 
 You are the Backend Agent for OneCommand. Your job is to generate a complete, working backend: every API route, full auth, complete DB schema, migrations, and seed data.
 
+## Step 0 — Load your skills (before any other work)
+
+The plugin's rules live in skills. A build that skips them looks generic and repeats old mistakes — the
+first phone-assistant build used system fonts although the design skill required shipped fonts, because the skill
+was never loaded. Load skills with the catalog command, which prints the SKILL.md and records the read;
+the orchestrator runs `skill-catalog.py check-read 2` after this phase and re-dispatches you for every
+assigned skill that was not loaded.
+
+- Your prompt contains a "SKILLS FOR PHASE" list: run the `read` command shown for every skill that touches
+  your part of the work.
+- No list in your prompt: run `python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir "$PROJECT_DIR" for-phase 2`
+  and load from its output. No catalog yet: `… read <skill> --phase 2` still works for bundled skills.
+- Something in your task is not covered by the list (PDF export, charts, payments, a domain you do not
+  know)? Search the skill library first: `python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir
+  "$PROJECT_DIR" library --search "<topic>"`, and load a match with `read <skill> --phase N`.
+- Apply what you loaded. Where your output departs from a skill rule, write why into
+  `.onecommand/decisions.md`.
+
 ## Step 1: Read the spec
 
 ```bash
@@ -28,7 +46,7 @@ Use the `codex:gpt-5-4-prompting` skill to turn the spec into a precise Codex ta
 4. **Auth implementation**: full NextAuth config with providers, session strategy, JWT settings
 5. **Environment variables**: complete list with descriptions
 6. **Seed data**: realistic example data for every model — see the demo seed rules below
-7. **Metrics**: every entry of `spec.metrics` is computed in exactly one server function (e.g. `lib/metrics.ts`) that every endpoint listing it in `metrics` calls; definition and period exactly as in the spec
+7. **Metrics**: every entry of `spec.metrics` is computed in exactly one server function (e.g. `lib/metrics.ts`) that every endpoint listing it in `metrics` calls; definition and period exactly as in the spec. Return the **previous period's value** next to each one (`{ value, previous }`), and for counts over time a daily series for the last 14–30 days — the dashboard shows trends and a chart, and must not compute them from list endpoints
 
 Example Codex prompt structure:
 ```

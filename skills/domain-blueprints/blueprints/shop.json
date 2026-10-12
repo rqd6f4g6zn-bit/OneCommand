@@ -1,10 +1,12 @@
 {
   "id": "shop",
   "name": "Online-Shop (E-Commerce)",
+  "kind": "product",
   "version": 2,
   "ui_language": "de",
   "aliases": ["shop", "online-shop", "onlineshop", "webshop", "e-commerce", "ecommerce", "store", "warenkorb", "produktkatalog", "shopify", "woocommerce", "verkaufsplattform"],
   "summary": "Produktkatalog, Warenkorb, Checkout mit Zahlung, Kundenkonto und Bestellverwaltung für einen Händler.",
+  "design": {"personality": ["einladend", "hochwertig", "klar"], "typefaces": {"display": "aus der Marke (Serif für Manufaktur, Grotesk für Technik)", "text": "Inter oder DM Sans"}, "palette": "aus dem Produkt abgeleitet (Kaffee: Röstbraun + Creme), Akzent nur für Kaufen-Button", "density": "spacious", "signature_ideas": ["große, einheitlich freigestellte Produktfotos", "Warenkorb-Leiste, die beim Hinzufügen kurz aufleuchtet"], "references": ["Aesop", "Shopify Dawn", "Allbirds"], "avoid": ["Rabatt-Banner überall", "mehr als ein Akzentton", "Stockfotos"]},
   "roles": [
     {"id": "admin", "name": "Shop-Admin", "can": "Produkte, Bestellungen, Kunden, Einstellungen"},
     {"id": "customer", "name": "Kunde", "can": "einkaufen, eigene Bestellungen sehen"},

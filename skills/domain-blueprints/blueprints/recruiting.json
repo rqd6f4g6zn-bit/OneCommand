@@ -1,0 +1,178 @@
+{
+  "id": "recruiting",
+  "name": "Bewerbermanagement (Recruiting)",
+  "kind": "product",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["bewerbermanagement", "bewerbermanagementsystem", "bewerbungsmanagement", "bewerberverwaltung", "bewerbungen verwalten", "bewerbungsportal", "recruiting", "recruiting-software", "recruitingsoftware", "recruiting-tool", "applicant tracking", "ats", "karriereseite", "stellenausschreibungen", "personalgewinnung", "talent-pool", "softgarden", "d.vinci"],
+  "summary": "Stellenanzeigen mit Karriereseite und Multiposting, Bewerbungsformular mit Unterlagen, Pipeline je Stelle, Team-Bewertung, Interviewplanung, Kommunikation mit Vorlagen, Absagen und Talent-Pool – mit DSGVO-Löschfristen, AGG-Prüfung und Betriebsratsbeteiligung.",
+  "design": {"personality": ["menschlich", "fair", "klar"], "typefaces": {"display": "Bricolage Grotesque", "text": "Source Sans 3"}, "palette": "warmes Petrol als Marke auf viel Weiß, Bewertungen in einer ruhigen Grün-bis-Rot-Skala, Fristen in Bernstein, Kandidaten neutral ohne Farbcodierung", "density": "comfortable", "signature_ideas": ["Pipeline je Stelle mit Verweildauer-Punkt an jeder Karte – zeigt, wer zu lange auf Antwort wartet", "Scorecard-Balken je Kriterium, erst nach Abgabe der eigenen Bewertung sichtbar – gegen den Ankereffekt", "Löschfrist als kleiner Countdown an jeder abgesagten Bewerbung"], "references": ["Personio Recruiting", "softgarden", "Greenhouse"], "avoid": ["Stockfotos lachender Business-Menschen", "Sterne-Bewertung ohne Kriterien", "Bewerberfotos groß im Fokus der Liste"]},
+  "roles": [
+    {"id": "admin", "name": "HR-Administrator", "can": "alles inkl. Benutzer, Vorlagen, Phasen, Löschfristen und Einstellungen"},
+    {"id": "recruiter", "name": "Recruiter", "can": "Stellen anlegen und veröffentlichen, alle Bewerbungen bearbeiten, kommunizieren, absagen"},
+    {"id": "hiring_manager", "name": "Fachbereich (Hiring Manager)", "can": "Bewerbungen der eigenen Stellen sehen, bewerten, Phasen ändern, Interviews planen"},
+    {"id": "interviewer", "name": "Interviewer", "can": "nur zugewiesene Bewerbungen sehen und eigene Scorecard abgeben", "tier": "pro"},
+    {"id": "works_council", "name": "Betriebsrat", "can": "Anhörungen nach § 99 BetrVG mit Bewerbungsunterlagen einsehen, zustimmen oder verweigern; nichts ändern", "tier": "pro"}
+  ],
+  "entities": [
+    {"name": "Job", "fields": ["title", "slug", "department", "location", "employmentType(full_time|part_time|internship|apprenticeship|mini_job)", "workplace(onsite|hybrid|remote)", "tasks", "profile", "benefits", "salaryMin", "salaryMax", "hiringManagerId", "internalOnly", "status(draft|published|paused|closed)", "publishedAt", "closedAt"], "tier": "mvp"},
+    {"name": "Candidate", "fields": ["firstName", "lastName", "email", "phone", "createdAt"], "tier": "mvp"},
+    {"name": "Application", "fields": ["jobId", "candidateId", "stageId", "status(active|hired|rejected|withdrawn)", "source", "coverLetter", "appliedAt", "rejectedAt", "rejectionReason", "deletionDueAt", "legalHold", "legalHoldReason"], "tier": "mvp"},
+    {"name": "Document", "fields": ["applicationId", "kind(cv|cover_letter|certificate|other)", "fileName", "mimeType", "sizeBytes", "storageKey"], "tier": "mvp"},
+    {"name": "PipelineStage", "fields": ["jobId", "name", "position", "kind(new|screening|interview|offer|hired)"], "tier": "mvp"},
+    {"name": "Activity", "fields": ["applicationId", "authorId", "type(note|email|stage_change|rejection|rating|system)", "body", "createdAt"], "tier": "mvp"},
+    {"name": "EmailTemplate", "fields": ["name", "kind(confirmation|invitation|rejection|offer|custom)", "subject", "body", "sendDelayHours"], "tier": "mvp"},
+    {"name": "DeletionLog", "fields": ["deletedAt", "jobTitle", "reason(retention_expired|candidate_request|consent_withdrawn)", "documentCount"], "tier": "mvp"},
+    {"name": "Scorecard", "fields": ["jobId", "criteria", "scaleMax"], "tier": "pro"},
+    {"name": "ScorecardRating", "fields": ["applicationId", "interviewerId", "scores", "recommendation(strong_yes|yes|no|strong_no)", "comment", "submittedAt"], "tier": "pro"},
+    {"name": "Interview", "fields": ["applicationId", "type(onsite|video|phone)", "start", "end", "interviewerIds", "location", "videoUrl", "proposedSlots", "bookingToken", "status(proposed|confirmed|cancelled|done)"], "tier": "pro"},
+    {"name": "TalentPoolConsent", "fields": ["candidateId", "grantedAt", "expiresAt", "consentTextVersion", "withdrawToken", "withdrawnAt", "tags"], "tier": "pro"},
+    {"name": "JobChannel", "fields": ["jobId", "channel(career_site|google_jobs|indeed|ba_jobboerse|stepstone|linkedin)", "status(active|ended)", "startsAt", "endsAt", "costCents", "trackingSource"], "tier": "pro"},
+    {"name": "WorksCouncilRequest", "fields": ["jobId", "applicationId", "sentAt", "deadlineAt", "status(pending|approved|refused|deemed_approved)", "reason", "answeredAt"], "tier": "pro"},
+    {"name": "Requisition", "fields": ["title", "department", "reason(new|replacement)", "budget", "startDate", "requestedById", "approvals", "status(requested|approved|rejected)"], "tier": "enterprise"},
+    {"name": "Offer", "fields": ["applicationId", "templateId", "salary", "startDate", "probationMonths", "status(draft|pending_approval|sent|accepted|declined)", "pdfKey", "token"], "tier": "enterprise"},
+    {"name": "Company", "fields": ["name", "slug", "logo", "brandColor", "privacyNoticeUrl", "retentionMonths"], "tier": "enterprise"},
+    {"name": "AuditLog", "fields": ["userId", "action", "entity", "entityId", "createdAt"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung, Rollen & Übersicht", "tier": "mvp",
+     "features": ["Login für HR, Recruiter und Fachbereich; Bewerber brauchen kein Konto", "Hiring Manager sieht nur Bewerbungen seiner Stellen", "Dashboard: offene Stellen, neue Bewerbungen, anstehende Löschungen, eigene offene Aufgaben"],
+     "criteria": [
+       {"title": "Unauthenticated access to /dashboard redirects to /login", "verification": "e2e", "start": "/dashboard", "requires_auth": false, "steps": ["Open /dashboard without a session"], "expected": ["URL is /login"]},
+       {"title": "A hiring manager cannot read applications or documents of another manager's job", "verification": "api", "steps": ["Log in as the hiring manager of 'Lagerist (m/w/d)'", "GET an application of 'Buchhalter (m/w/d)', which belongs to another hiring manager", "GET its CV download"], "expected": ["Both requests return 403"]}
+     ]},
+    {"id": "jobs", "name": "Stellenanzeigen", "tier": "mvp",
+     "features": ["Stelle mit Titel, Abteilung, Standort, Arbeitszeitmodell, Aufgaben, Profil, Benefits, Gehaltsspanne", "Status Entwurf → Veröffentlicht → Pausiert → Geschlossen", "Interne Ausschreibung vor der externen (nur für Mitarbeiter sichtbar)", "AGG-Prüfung beim Veröffentlichen: '(m/w/d)' im Titel, Hinweise auf Alter, Geschlecht, Herkunft, Religion, Behinderung im Text", "Stelle duplizieren als Vorlage", "Verantwortlicher Hiring Manager je Stelle"],
+     "criteria": [
+       {"title": "Published job appears on the career page and disappears when closed", "verification": "e2e", "start": "/jobs/new", "requires_auth": true, "steps": ["Create job 'Lagerist (m/w/d)', Standort 'Hamburg', Arbeitszeit 'Vollzeit'", "Click 'Veröffentlichen'", "Open /careers", "Set the job to 'Geschlossen'", "Reload /careers"], "expected": ["After publishing, /careers lists 'Lagerist (m/w/d)' with 'Hamburg' and 'Vollzeit'", "After closing, 'Lagerist (m/w/d)' is no longer listed"]},
+       {"title": "Publishing a job with discriminating wording shows an AGG warning", "verification": "e2e", "start": "/jobs/new", "requires_auth": true, "steps": ["Create job 'Lagerist' without '(m/w/d)' and a description containing 'junges, dynamisches Team' and 'Muttersprache Deutsch'", "Click 'Veröffentlichen'"], "expected": ["Dialog 'AGG-Hinweis' lists 'Geschlechtsangabe (m/w/d) fehlt im Titel', 'junges' and 'Muttersprache'", "After closing the dialog the job still shows Status 'Entwurf'", "Publishing anyway requires 'Trotzdem veröffentlichen' plus a reason, which appears in the job history"]}
+     ]},
+    {"id": "career-page", "name": "Karriereseite & Bewerbungsformular", "tier": "mvp",
+     "features": ["Karriereseite mit allen veröffentlichten Stellen, Filter nach Standort, Bereich und Arbeitszeit", "Bewerbungsformular ohne Konto: Vorname, Nachname, E-Mail, Telefon, Anschreiben optional, Lebenslauf und Anlagen (PDF, DOCX, JPG, PNG bis 10 MB)", "Kein Foto, Geburtsdatum oder Familienstand als Pflichtfeld", "Datenschutzhinweise für Bewerber (Art. 13 DSGVO) direkt am Formular", "Initiativbewerbung", "Eingangsbestätigung per E-Mail", "Strukturierte Daten 'JobPosting' für Google for Jobs", "Mobil in wenigen Minuten ausfüllbar, Upload direkt vom Handy"],
+     "criteria": [
+       {"title": "Candidate applies with a CV and receives a confirmation", "verification": "e2e", "start": "/careers", "requires_auth": false, "steps": ["Open job 'Lagerist (m/w/d)'", "Fill 'Vorname' Lena, 'Nachname' Berger and an e-mail address", "Upload 'lebenslauf.pdf'", "Click 'Bewerbung absenden'"], "expected": ["Page shows 'Vielen Dank für Ihre Bewerbung'", "Outbox contains a confirmation mail to Lena's address naming 'Lagerist (m/w/d)'", "Logged in as recruiter, the pipeline of 'Lagerist (m/w/d)' shows Lena Berger in 'Eingegangen' with 'lebenslauf.pdf' attached"]},
+       {"title": "Form refuses disallowed files and links the privacy notice", "verification": "e2e", "start": "/careers", "requires_auth": false, "steps": ["Open job 'Lagerist (m/w/d)'", "Upload 'setup.exe'"], "expected": ["Message 'Nur PDF, DOCX, JPG oder PNG bis 10 MB' is visible and the file is not listed", "Link 'Datenschutzhinweise für Bewerber' is visible above 'Bewerbung absenden'"]}
+     ]},
+    {"id": "pipeline", "name": "Pipeline je Stelle", "tier": "mvp",
+     "features": ["Phasen je Stelle anpassbar (Standard: Eingegangen, Vorauswahl, Interview, Angebot, Eingestellt)", "Kanban-Ansicht und Liste mit Drag & Drop", "Bewerbungsdetail mit Unterlagen-Vorschau, Notizen und Verlauf", "Verweildauer je Phase sichtbar", "Duplikaterkennung über E-Mail", "K.-o.-Fragen markieren Bewerbungen, lehnen aber nie automatisch ab (Art. 22 DSGVO)"],
+     "criteria": [
+       {"title": "Moving an application to another stage persists and is logged", "verification": "e2e", "start": "/jobs", "requires_auth": true, "steps": ["Open job 'Lagerist (m/w/d)' and its 'Pipeline'", "Drag Lena Berger from 'Eingegangen' to 'Interview'", "Reload the page", "Open Lena Berger's application"], "expected": ["Lena Berger is in column 'Interview' after reload", "Verlauf shows 'Phase geändert: Eingegangen → Interview' with user name and time"]},
+       {"title": "A second application with the same e-mail is linked to the existing candidate", "verification": "api", "steps": ["Submit applications for 'Lagerist (m/w/d)' and 'Fahrer (m/w/d)' with the same e-mail address", "GET the candidate"], "expected": ["Both applications reference the same candidate id", "The candidate response lists 2 applications"]}
+     ]},
+    {"id": "communication", "name": "Kommunikation & Vorlagen", "tier": "mvp",
+     "features": ["E-Mail-Vorlagen: Eingangsbestätigung, Einladung, Absage, Zusage, frei", "Platzhalter {{vorname}}, {{nachname}}, {{stelle}}, {{ansprechpartner}}", "Versand aus der Bewerbung, Nachricht erscheint im Verlauf", "Massenmail an mehrere Bewerber einer Stelle", "Interne Notizen getrennt von der Kandidatenkommunikation, nie im Mail-Verlauf"],
+     "criteria": [
+       {"title": "Template mail fills placeholders and is logged on the application", "verification": "e2e", "start": "/jobs", "requires_auth": true, "steps": ["Open Lena Berger's application for 'Lagerist (m/w/d)'", "Click 'E-Mail senden' and choose template 'Einladung zum Gespräch'", "Click 'Senden'"], "expected": ["Preview starts with 'Hallo Lena'", "Outbox contains the mail, its subject names 'Lagerist (m/w/d)' and it contains no '{{'", "Verlauf shows 'E-Mail gesendet: Einladung zum Gespräch'"]}
+     ]},
+    {"id": "rejection", "name": "Absagen", "tier": "mvp",
+     "features": ["Absage mit internem Grund (Pflichtfeld) und Vorlage", "Absage-Mail enthält nie den internen Grund", "Zeitversetzter Versand (z. B. nächster Werktag 9 Uhr)", "Sammelabsage beim Schließen einer Stelle", "Bewerber kann seine Bewerbung über einen Link zurückziehen"],
+     "criteria": [
+       {"title": "Rejection sets the status, sends the template without the internal reason and schedules deletion", "verification": "e2e", "start": "/jobs", "requires_auth": true, "steps": ["Open Lena Berger's application", "Click 'Absagen', internal reason 'Qualifikation passt nicht', template 'Absage', send immediately", "Click 'Absage senden'"], "expected": ["Application shows Status 'Abgelehnt'", "Outbox contains the rejection mail and its body does not contain 'Qualifikation passt nicht'", "Application shows 'Löschung am' with the date 6 months after today"]},
+       {"title": "Closing a job offers a bulk rejection of its open applications", "verification": "e2e", "start": "/jobs", "requires_auth": true, "steps": ["Job 'Fahrer (m/w/d)' has 3 open applications", "Set the job to 'Geschlossen'", "Confirm 'Offene Bewerbungen absagen (3)'"], "expected": ["Outbox contains 3 rejection mails", "All 3 applications show Status 'Abgelehnt'"]}
+     ]},
+    {"id": "retention", "name": "Löschfristen & Datenschutz", "tier": "mvp",
+     "features": ["Löschfrist nach Absage einstellbar, Standard 6 Monate (2 Monate AGG-Frist + 3 Monate Klagefrist + Zustellpuffer)", "Täglicher Löschlauf: Unterlagen und personenbezogene Daten gelöscht, Statistik anonymisiert", "Löschsperre mit Grund bei Rechtsstreit (z. B. AGG-Klage)", "Sofortige Löschung auf Wunsch des Bewerbers", "Auskunft nach Art. 15 DSGVO als Export (JSON + Dateien)", "Löschprotokoll ohne personenbezogene Daten"],
+     "criteria": [
+       {"title": "Retention job deletes rejected applications after the deadline", "verification": "api", "steps": ["Create one application rejected 6 months and 1 day ago and one rejected 5 months ago", "Trigger the retention job endpoint (test mode)"], "expected": ["GET of the older application returns 404 and its documents return 404", "GET of the 5-month-old application returns 200", "The deletion log has one new entry with job title and date and without name or e-mail"]},
+       {"title": "A legal hold stops the deletion", "verification": "e2e", "start": "/jobs", "requires_auth": true, "steps": ["Open an application rejected 7 months ago", "Click 'Löschsperre setzen' with reason 'AGG-Klage anhängig'", "Trigger the retention job (test mode) and reload the application"], "expected": ["The application still opens after the retention job", "Banner 'Löschsperre: AGG-Klage anhängig' is visible"]}
+     ]},
+    {"id": "scorecards", "name": "Bewertung durch das Team", "tier": "pro",
+     "features": ["Scorecard je Stelle mit Kriterien (z. B. Fachwissen, Kommunikation, Teamfit) und Skala 1–5", "Gesamtempfehlung: Starke Zusage, Zusage, Absage, Starke Absage", "Bewertungen anderer erst nach Abgabe der eigenen sichtbar", "Erinnerung an fehlendes Feedback 24 h nach dem Interview", "Hinweis an Kommentarfeldern: keine Angaben zu Alter, Herkunft, Religion, Familienplanung"],
+     "criteria": [
+       {"title": "Interviewer sees team ratings only after submitting their own", "verification": "e2e", "start": "/interviews", "requires_auth": true, "steps": ["Log in as an interviewer assigned to Lena Berger; another interviewer has already rated her", "Open her application", "Rate 'Fachwissen' 4 and 'Kommunikation' 3, recommendation 'Zusage'", "Click 'Bewertung abgeben'"], "expected": ["Before submitting, 'Bewertungen des Teams sichtbar nach Abgabe Ihrer eigenen' is shown instead of other ratings", "After submitting, the application shows the average per criterion and both scorecards"]}
+     ]},
+    {"id": "interviews", "name": "Interviewplanung", "tier": "pro",
+     "features": ["Interview mit Art (vor Ort, Video, Telefon), Dauer und Interviewern", "Terminvorschläge an den Bewerber, Selbstbuchung über Link", "Kalendereinladung (.ics) an Bewerber und Interviewer", "Videolink je Termin", "Umbuchen und Absagen durch den Bewerber", "Interview-Leitfaden je Stelle"],
+     "criteria": [
+       {"title": "Candidate books one of the proposed slots", "verification": "e2e", "start": "/interviews", "requires_auth": true, "steps": ["For Lena Berger click 'Interview planen', propose three slots with interviewer Tom Krause, click 'Vorschläge senden'", "Open the booking link from the outbox mail", "Choose the second slot and click 'Termin bestätigen'"], "expected": ["Booking page shows 'Ihr Termin ist bestätigt'", "/interviews lists the interview with Status 'Bestätigt' at the chosen time", "Outbox contains an .ics invitation for Lena Berger and one for Tom Krause"]},
+       {"title": "A slot that overlaps another interview of the same interviewer is refused", "verification": "api", "steps": ["Tom Krause has a confirmed interview Thursday 10:00–11:00", "Confirm a booking for another candidate Thursday 10:30 with Tom Krause"], "expected": ["Response is 409", "Tom Krause still has exactly one interview on Thursday at 10:00"]}
+     ]},
+    {"id": "talent-pool", "name": "Talent-Pool mit Einwilligung", "tier": "pro",
+     "features": ["Aufnahme nur mit eigener, nicht vorausgewählter Einwilligungs-Checkbox", "Einwilligung mit Datum, Textversion und Ablauf (Standard 24 Monate)", "Widerruf jederzeit per Link", "Suche nach Fähigkeiten, Standort und Schlagworten", "Kandidat aus dem Pool einer neuen Stelle zuordnen", "Vor Ablauf erneute Einwilligung anfragen, sonst Löschung"],
+     "criteria": [
+       {"title": "Only candidates with consent appear in the talent pool", "verification": "e2e", "start": "/talent-pool", "requires_auth": true, "steps": ["Lena Berger applied with 'In den Talent-Pool aufnehmen' checked, Max Vogel without", "Reject both applications", "Open /talent-pool"], "expected": ["Lena Berger is listed with 'Einwilligung bis' and the date 24 months after her application", "Max Vogel is not listed"]},
+       {"title": "Withdrawing consent removes the candidate from the pool", "verification": "e2e", "start": "/careers", "requires_auth": false, "steps": ["Apply with 'In den Talent-Pool aufnehmen' checked", "Open the consent link from the confirmation mail and click 'Einwilligung widerrufen'", "Log in as recruiter and open /talent-pool"], "expected": ["Page shows 'Ihre Einwilligung wurde widerrufen'", "The candidate is not listed in /talent-pool"]}
+     ]},
+    {"id": "multiposting", "name": "Multiposting & Quellen", "tier": "pro",
+     "features": ["Kanäle je Stelle: Karriereseite, Google for Jobs, Indeed-XML-Feed, Jobbörse der Bundesagentur (HR-BA-XML-Export), StepStone und LinkedIn über Partner-API falls vertraglich vorhanden, sonst Anzeige als Text und Link kopieren", "Tracking-Link je Kanal (?source=)", "Laufzeit und Kosten je Kanal", "Geschlossene Stelle verschwindet aus allen Feeds"],
+     "criteria": [
+       {"title": "The job feed contains only published jobs", "verification": "api", "steps": ["Publish 'Lagerist (m/w/d)' with channel 'Indeed' and close 'Buchhalter (m/w/d)'", "GET /api/feeds/indeed.xml"], "expected": ["Response is 200 with an XML content type", "The feed contains 'Lagerist (m/w/d)' with its apply URL and does not contain 'Buchhalter (m/w/d)'"]},
+       {"title": "An application via a tracking link records its source", "verification": "e2e", "start": "/careers", "requires_auth": false, "steps": ["Open the 'Lagerist (m/w/d)' job URL with '?source=indeed'", "Submit an application", "Log in as recruiter and open the application"], "expected": ["Application shows 'Quelle: Indeed'"]}
+     ]},
+    {"id": "works-council", "name": "Betriebsrat & Schwerbehindertenvertretung", "tier": "pro",
+     "features": ["Vor der Einstellung Anhörung des Betriebsrats (§ 99 BetrVG) mit Unterlagen aller Bewerber der Stelle", "Frist eine Woche; ohne Antwort gilt die Zustimmung als erteilt", "Zustimmung oder Verweigerung mit Gründen durch den Betriebsrat im eigenen Bereich", "'Einstellen' gesperrt bis Zustimmung oder Fristablauf", "Innerbetriebliche Ausschreibung auf Verlangen (§ 93 BetrVG)", "Schwerbehindertenvertretung über Bewerbungen schwerbehinderter Menschen informieren (§ 164 SGB IX)"],
+     "criteria": [
+       {"title": "A refusal by the Betriebsrat blocks the hire", "verification": "e2e", "start": "/works-council", "requires_auth": true, "steps": ["As recruiter click 'Betriebsrat anhören' for Lena Berger", "Log in as Betriebsrat and open /works-council", "Open the request and click 'Zustimmung verweigern' with a reason", "Log in as recruiter and open Lena Berger's application"], "expected": ["The request shows all applicants of 'Lagerist (m/w/d)' with their documents", "The application shows 'Zustimmung verweigert' and button 'Einstellen' is disabled"]},
+       {"title": "Without an answer within one week the consent counts as given", "verification": "api", "steps": ["Create a Betriebsrat request sent 8 days ago without answer", "GET the request", "Set the application to hired"], "expected": ["Status label is 'Zustimmung gilt als erteilt (Fristablauf)'", "Hiring returns 200"]}
+     ]},
+    {"id": "reports", "name": "Auswertungen", "tier": "pro",
+     "features": ["Time-to-Hire, Bewerbungen je Quelle, Conversion je Phase", "Kosten je Einstellung aus den Kanalkosten", "Filter nach Zeitraum, Stelle und Abteilung", "CSV-Export ohne personenbezogene Daten"],
+     "criteria": [
+       {"title": "Time-to-hire is the median of days from application to hire", "verification": "api", "steps": ["Seed three hires within the last 90 days taking 10, 20 and 40 days from application to hire", "GET the report metrics"], "expected": ["'Time-to-Hire (Median, letzte 90 Tage)' is 20 days"]},
+       {"title": "Dashboard and reports show the same number of open jobs", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Open /dashboard and note 'Offene Stellen'", "Open /reports"], "expected": ["'Offene Stellen' shows the same number on both pages", "'Bewerbungen je Quelle (letzte 90 Tage)' lists 'Karriereseite' and 'Indeed'"]}
+     ]},
+    {"id": "requisitions", "name": "Stellenfreigabe", "tier": "enterprise",
+     "features": ["Stellenanforderung durch den Fachbereich mit Begründung, Budget, Eintrittsdatum, Ersatz oder neu", "Mehrstufige Freigabe (Fachbereich → HR → Geschäftsführung)", "Veröffentlichen erst nach Freigabe", "Headcount-Übersicht je Abteilung"],
+     "criteria": [
+       {"title": "A job from a requisition can be published only after approval", "verification": "e2e", "start": "/requisitions", "requires_auth": true, "steps": ["As hiring manager request 'Lagerist (m/w/d)' with budget 42.000 €", "As recruiter open the resulting job draft", "As HR-Administrator click 'Freigeben'", "As recruiter reload the job"], "expected": ["Before approval 'Veröffentlichen' is disabled with hint 'Freigabe ausstehend'", "After approval the requisition shows 'Freigegeben' and 'Veröffentlichen' is enabled"]}
+     ]},
+    {"id": "offers", "name": "Vertragsangebot & Übergabe", "tier": "enterprise",
+     "features": ["Angebot aus Vorlage mit Gehalt, Eintrittsdatum, Probezeit als PDF", "Freigabe des Angebots vor dem Versand", "Annahme oder Ablehnung durch den Bewerber per Link", "Übergabe eingestellter Kandidaten an die Personalverwaltung (API oder CSV)", "Nach Einstellung: Unterlagen in die Personalakte übergeben, Bewerbungsdaten danach löschen"],
+     "criteria": [
+       {"title": "Accepted offer sets the application to hired", "verification": "e2e", "start": "/jobs", "requires_auth": true, "steps": ["Open Lena Berger's application, click 'Angebot erstellen', template 'Arbeitsvertrag Vollzeit', salary 42.000 €, click 'Zur Freigabe'", "As HR-Administrator click 'Angebot freigeben und senden'", "Open the offer link from the outbox mail and click 'Angebot annehmen'"], "expected": ["Outbox mail has the offer as PDF attachment", "Offer page shows 'Vielen Dank – Sie haben das Angebot angenommen'", "Application shows Status 'Eingestellt'"]}
+     ]},
+    {"id": "anonymous-screening", "name": "Anonymisierte Vorauswahl", "tier": "enterprise",
+     "features": ["Je Stelle einschaltbar", "Name, Foto, Geburtsdatum, Geschlecht, Nationalität und Adresse in der Vorauswahl ausgeblendet", "Aufdeckung erst ab Phase 'Interview', protokolliert"],
+     "criteria": [
+       {"title": "Identity is hidden during screening and revealed at interview stage", "verification": "e2e", "start": "/jobs", "requires_auth": true, "steps": ["Enable 'Anonyme Vorauswahl' for 'Lagerist (m/w/d)'", "As hiring manager open Lena Berger's application in 'Vorauswahl'", "Move it to 'Interview' and reload"], "expected": ["In 'Vorauswahl' the application shows 'Bewerbung #' with a number and not 'Lena Berger'", "After moving, 'Lena Berger' is visible and the Verlauf shows 'Identität aufgedeckt'"]}
+     ]},
+    {"id": "multi-company", "name": "Mehrere Gesellschaften", "tier": "enterprise",
+     "features": ["Gesellschaften oder Marken mit eigener Karriereseite, Logo, Farbe und Datenschutzhinweis", "Rechte je Gesellschaft", "Löschfrist je Gesellschaft"],
+     "criteria": [
+       {"title": "A recruiter of one company cannot read applications of another", "verification": "api", "steps": ["Log in as recruiter of 'Nordlicht Logistik GmbH'", "GET an application of 'Nordlicht Handel GmbH'"], "expected": ["Response is 403"]}
+     ]},
+    {"id": "sso-audit", "name": "SSO, Kalender-Sync, API & Audit-Log", "tier": "enterprise",
+     "features": ["SSO über OIDC (Microsoft Entra ID, Google Workspace)", "Kalender-Sync Microsoft 365 / Google für die Verfügbarkeit der Interviewer", "REST-API und Webhooks (Bewerbung eingegangen, eingestellt)", "Audit-Log aller Zugriffe auf Bewerbungsunterlagen"],
+     "criteria": [
+       {"title": "Every document download is written to the audit log", "verification": "api", "steps": ["As hiring manager download Lena Berger's 'lebenslauf.pdf'", "GET the audit log as admin", "GET the audit log as hiring manager"], "expected": ["The admin response contains an entry with user, time, action 'Dokument heruntergeladen' and the application", "The hiring manager request returns 403"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "open_jobs", "tier": "mvp", "label": "Offene Stellen", "unit": "Anzahl", "definition": "Stellen mit Status veröffentlicht oder pausiert, die der Nutzer sehen darf", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "new_applications_7d", "tier": "mvp", "label": "Neue Bewerbungen (letzte 7 Tage)", "unit": "Anzahl", "definition": "Bewerbungen mit appliedAt in den letzten 7 Tagen auf Stellen, die der Nutzer sehen darf", "period": "letzte 7 Tage", "shown_on": ["/dashboard"]},
+    {"id": "deletions_due_30d", "tier": "mvp", "label": "Anstehende Löschungen (nächste 30 Tage)", "unit": "Anzahl", "definition": "Bewerbungen ohne Löschsperre mit deletionDueAt in den nächsten 30 Tagen", "period": "nächste 30 Tage", "shown_on": ["/dashboard"]},
+    {"id": "time_to_hire", "tier": "pro", "label": "Time-to-Hire (Median, letzte 90 Tage)", "unit": "Tage", "definition": "Median der Kalendertage von appliedAt bis zum Status eingestellt, über alle Einstellungen der letzten 90 Tage", "period": "letzte 90 Tage", "shown_on": ["/reports"]},
+    {"id": "applications_by_source", "tier": "pro", "label": "Bewerbungen je Quelle (letzte 90 Tage)", "unit": "Anzahl", "definition": "Anzahl Bewerbungen der letzten 90 Tage gruppiert nach Quelle (Karriereseite, Kanal aus dem Tracking-Link, Talent-Pool, manuell)", "period": "letzte 90 Tage", "shown_on": ["/reports"]},
+    {"id": "offer_acceptance_rate", "tier": "enterprise", "label": "Annahmequote Angebote (dieses Jahr)", "unit": "%", "definition": "angenommene / (angenommene + abgelehnte) Angebote mit Antwort im laufenden Kalenderjahr", "period": "Dieses Jahr", "shown_on": ["/reports"]}
+  ],
+  "compliance": [
+    {"rule": "Bewerberdaten nur für das Bewerbungsverfahren verarbeiten; Zugriff nur für am Verfahren beteiligte Personen", "source": "Art. 6 Abs. 1 lit. b, Art. 88 DSGVO; § 26 BDSG", "tier": "mvp"},
+    {"rule": "Datenschutzhinweise für Bewerber (Zweck, Speicherdauer, Empfänger, Rechte) am Bewerbungsformular", "source": "Art. 13 DSGVO", "tier": "mvp"},
+    {"rule": "Bewerbungsdaten nach der Absage löschen; Aufbewahrung bis 6 Monate, weil Entschädigungsansprüche binnen 2 Monaten nach Zugang der Ablehnung schriftlich geltend gemacht und binnen 3 Monaten danach eingeklagt werden müssen", "source": "Art. 5 Abs. 1 lit. e, Art. 17 DSGVO; § 15 Abs. 4 AGG; § 61b Abs. 1 ArbGG", "tier": "mvp"},
+    {"rule": "Stellen nicht unter Benachteiligung wegen ethnischer Herkunft, Geschlecht, Religion/Weltanschauung, Behinderung, Alter oder sexueller Identität ausschreiben", "source": "§ 11 i. V. m. §§ 1, 7 Abs. 1 AGG", "tier": "mvp"},
+    {"rule": "Keine ausschließlich automatisierte Ablehnung; K.-o.-Fragen nur als Hinweis für einen Menschen", "source": "Art. 22 DSGVO", "tier": "mvp"},
+    {"rule": "Talent-Pool nur mit freiwilliger, nachweisbarer und jederzeit widerrufbarer Einwilligung", "source": "Art. 6 Abs. 1 lit. a, Art. 7 DSGVO", "tier": "pro"},
+    {"rule": "Betriebsrat vor jeder Einstellung unterrichten und Bewerbungsunterlagen vorlegen; Verweigerung nur binnen einer Woche schriftlich mit Gründen, sonst gilt die Zustimmung als erteilt (Unternehmen mit mehr als 20 wahlberechtigten Arbeitnehmern)", "source": "§ 99 Abs. 1 und 3 BetrVG", "tier": "pro"},
+    {"rule": "Innerbetriebliche Ausschreibung, wenn der Betriebsrat sie verlangt", "source": "§ 93 BetrVG", "tier": "pro"},
+    {"rule": "Einheitliche Bewertungskriterien (Scorecards) als Auswahlrichtlinie mit dem Betriebsrat abstimmen", "source": "§ 95 BetrVG", "tier": "pro"},
+    {"rule": "Prüfen, ob die Stelle mit schwerbehinderten Menschen besetzt werden kann; Schwerbehindertenvertretung und Betriebsrat über deren Bewerbungen unterrichten", "source": "§ 164 Abs. 1 SGB IX", "tier": "pro"},
+    {"rule": "Auftragsverarbeitungsvertrag mit Hosting-, Jobbörsen- und Videodienstleistern", "source": "Art. 28 DSGVO", "tier": "pro"},
+    {"rule": "Gehaltsspanne in der Anzeige oder vor dem Gespräch nennen; nicht nach dem bisherigen Gehalt fragen", "source": "Art. 5 Richtlinie (EU) 2023/970 (Entgelttransparenz) bzw. deren deutsche Umsetzung", "tier": "pro"}
+  ],
+  "integrations": {
+    "connectable": ["Google for Jobs (strukturierte Daten 'JobPosting' auf der Karriereseite)", "Microsoft 365 / Google Kalender (Interviewtermine, Verfügbarkeit)", "Microsoft Teams, Zoom, Google Meet (Videolinks)", "Personio-API und andere HR-Systeme mit offener API (Übergabe eingestellter Kandidaten)", "SMTP/IMAP-Postfach (Versand, Antworten im Verlauf)", "StepStone, LinkedIn (nur mit Partnervertrag über deren Partner-APIs)"],
+    "export_only": ["Indeed (XML-Feed der offenen Stellen)", "Jobbörse der Bundesagentur für Arbeit (HR-BA-XML-Datei als Kooperationspartner)", "DATEV Lohn und Gehalt / Personalakte (Stammdaten als CSV)", "Andere Jobbörsen ohne API (Anzeigentext und Bewerbungslink kopieren)"],
+    "not_possible": ["Führungszeugnis beim Bundesamt für Justiz — nur der Bewerber selbst kann es beantragen, keine Arbeitgeber-Schnittstelle", "LinkedIn-Recruiter-Postfach (InMails) — keine öffentliche API, nur für zertifizierte Partner"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Bewerbungsunterlagen verschlüsselt gespeichert; Download nur angemeldet mit Rollenprüfung, keine öffentlichen oder erratbaren Datei-URLs"},
+    {"tier": "mvp", "text": "Dateityp wird am Inhalt geprüft, nicht nur an der Endung; Dateien über 10 MB werden abgelehnt"},
+    {"tier": "mvp", "text": "Karriereseite und Formular nach WCAG 2.1 AA, ab 360 px Breite ohne horizontales Scrollen"},
+    {"tier": "mvp", "text": "Kein Standard-Secret: ohne AUTH_SECRET (mind. 32 Zeichen) startet der Server nicht"},
+    {"tier": "mvp", "text": "Hosting und Dateispeicher in der EU"},
+    {"tier": "pro", "text": "Löschlauf täglich, idempotent, mit Protokoll ohne personenbezogene Daten"},
+    {"tier": "enterprise", "text": "Audit-Log unveränderbar, 3 Jahre aufbewahrt; tägliches Backup mit getesteter Wiederherstellung"}
+  ],
+  "production_dependencies": {"mvp": ["email", "storage"], "pro": ["email", "storage"], "enterprise": ["email", "storage", "oauth"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/jobs", "/jobs/new", "/jobs/[id]", "/jobs/[id]/pipeline", "/applications/[id]", "/careers", "/careers/[slug]", "/settings/templates", "/settings/privacy", "/settings/users"], "pro": ["/interviews", "/interviews/book/[token]", "/talent-pool", "/consent/[token]", "/reports", "/works-council", "/settings/scorecards", "/settings/job-boards"], "enterprise": ["/requisitions", "/offers/[token]", "/settings/companies", "/settings/integrations", "/audit"]}
+}

@@ -1,10 +1,12 @@
 {
   "id": "invoicing",
   "name": "Rechnungen & Angebote",
+  "kind": "product",
   "version": 2,
   "ui_language": "de",
   "aliases": ["rechnung", "rechnungen", "rechnungsprogramm", "rechnungssoftware", "faktura", "fakturierung", "invoicing", "invoice", "buchhaltung light", "angebote und rechnungen", "lexoffice", "sevdesk"],
   "summary": "Kunden, Artikel, Angebote und Rechnungen mit fortlaufender Nummer, PDF, Versand, Zahlungsstatus und Mahnwesen nach deutschen Anforderungen.",
+  "design": {"personality": ["seriös", "exakt", "ordentlich"], "typefaces": {"display": "IBM Plex Sans", "text": "IBM Plex Sans (tabellarische Ziffern)"}, "palette": "dunkles Tintenblau, Status bezahlt/offen/überfällig als ruhige Pillen, Beträge rechtsbündig", "density": "compact", "signature_ideas": ["Rechnungsvorschau als echtes A4-Blatt neben dem Formular", "Fälligkeits-Zeitstrahl offener Posten"], "references": ["lexoffice", "Stripe Invoicing", "sevDesk"], "avoid": ["proportionale Ziffern in Beträgen", "verspielte Illustrationen"]},
   "roles": [
     {"id": "admin", "name": "Inhaber", "can": "alles inkl. Firmendaten und Nummernkreise"},
     {"id": "accountant", "name": "Buchhaltung", "can": "Rechnungen, Zahlungen, Exporte", "tier": "pro"}

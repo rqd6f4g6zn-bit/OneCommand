@@ -1,0 +1,188 @@
+{
+  "id": "trades",
+  "name": "Handwerkersoftware (Elektro, SHK, Maler, Tischler)",
+  "kind": "industry",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["handwerksbetrieb", "handwerk", "handwerker", "handwerkersoftware", "handwerkssoftware", "handwerker-software", "meinen handwerksbetrieb", "unseren handwerksbetrieb", "unser handwerksbetrieb", "elektrobetrieb", "elektroinstallateur", "shk-betrieb", "sanitär und heizung", "malerbetrieb", "tischlerei", "schreinerei", "aufmaß", "baustellendokumentation", "monteur-app", "tradesman", "craftsman software"],
+  "summary": "Vom Kundenanruf über Aufmaß, Angebot mit Leistungsverzeichnis, Einsatzplanung der Monteure und mobile Baustellendokumentation bis zu Abnahmeprotokoll, Abschlags- und Schlussrechnung sowie Wartungsverträgen für Elektro-, SHK-, Maler- und Tischlerbetriebe.",
+  "design": {"personality": ["robust", "klar", "zupackend"], "typefaces": {"display": "Barlow Condensed", "text": "Barlow"}, "palette": "kräftiges Signal-Orange als Marke auf Anthrazit und warmem Betongrau; Einsatz-Status in eindeutigen Farben (geplant, unterwegs, vor Ort, erledigt); hoher Kontrast, der auch draußen im Sonnenlicht lesbar bleibt", "density": "comfortable", "signature_ideas": ["Plantafel mit einer Zeile je Monteur und Einsatzbalken in Gewerk-Farben — Lücken in der Woche sind auf einen Blick sichtbar", "Monteur-Tageskarte: ein Einsatz pro Karte, 'Anfahrt starten', Foto, Stunden und Material als große Daumen-Buttons unten", "Abnahmeprotokoll mit Unterschriftslinie, Ort und Datum wie das gewohnte Papierformular"], "references": ["Plancraft", "HERO Software", "Streit V.1"], "avoid": ["Desktop-Tabellen, die auf dem Handy horizontal scrollen", "Stockfotos lächelnder Handwerker mit sauberem Helm", "blasse Pastelltöne, die auf der Baustelle im Sonnenlicht verschwinden"]},
+  "roles": [
+    {"id": "admin", "name": "Inhaber / Meister", "can": "alles inkl. Kalkulation, Stundensätze, Rechnungen, Benutzer und Firmendaten"},
+    {"id": "office", "name": "Büro", "can": "Kunden, Anfragen, Angebote, Aufträge, Einsatzplanung, Rechnungen"},
+    {"id": "technician", "name": "Monteur", "can": "eigene Einsätze: Fotos, Stundenzettel, Material, Aufmaß, Abnahme — keine Preise, keine Rechnungen"},
+    {"id": "customer", "name": "Kunde", "can": "eigene Angebote annehmen, Termine und Rechnungen einsehen, Störung melden", "tier": "enterprise"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "role", "phone", "hourlyCost", "color", "active"], "tier": "mvp"},
+    {"name": "Customer", "fields": ["customerNumber", "type(private|business)", "name", "contactPerson", "email", "phone", "billingAddress", "vatId", "performsConstructionServices", "notes"], "tier": "mvp"},
+    {"name": "Site", "fields": ["customerId", "label", "street", "zip", "city", "accessNotes", "contactOnSite"], "tier": "mvp"},
+    {"name": "Inquiry", "fields": ["customerId", "siteId", "title", "description", "source(phone|email|web|referral)", "status(new|visit_planned|quoted|declined)", "visitAt", "createdAt"], "tier": "mvp"},
+    {"name": "SurveyItem", "fields": ["inquiryId", "orderId", "room", "description", "length", "width", "height", "deductions", "formula", "quantity", "unit"], "tier": "mvp"},
+    {"name": "Quote", "fields": ["number", "customerId", "siteId", "status(draft|sent|accepted|rejected|expired)", "version", "validUntil", "netTotal", "labourTotal", "offPremises", "sentAt", "decidedAt"], "tier": "mvp"},
+    {"name": "QuoteItem", "fields": ["quoteId", "ordinal", "parentId", "kind(title|item|optional|alternative|text)", "shortText", "longText", "quantity", "unit", "labourMinutes", "materialCost", "markupPercent", "unitPrice"], "tier": "mvp"},
+    {"name": "Order", "fields": ["number", "quoteId", "customerId", "siteId", "status(new|scheduled|in_progress|completed|invoiced)", "warrantyType(building|other)", "plannedHours", "plannedMaterialCost"], "tier": "mvp"},
+    {"name": "Assignment", "fields": ["orderId", "technicianIds", "start", "end", "status(planned|en_route|on_site|done)", "notes"], "tier": "mvp"},
+    {"name": "TimeEntry", "fields": ["assignmentId", "orderId", "userId", "date", "start", "end", "breakMinutes", "travelMinutes"], "tier": "mvp"},
+    {"name": "MaterialEntry", "fields": ["orderId", "assignmentId", "articleId", "description", "quantity", "unit", "salesPrice"], "tier": "mvp"},
+    {"name": "Photo", "fields": ["orderId", "assignmentId", "fileUrl", "takenAt", "caption", "uploadedBy"], "tier": "mvp"},
+    {"name": "AcceptanceProtocol", "fields": ["orderId", "acceptedAt", "place", "defects", "reservations", "customerSignerName", "customerSignature", "technicianSignature", "pdfUrl", "warrantyUntil", "locked"], "tier": "mvp"},
+    {"name": "Invoice", "fields": ["number", "orderId", "customerId", "kind(invoice|progress|final|cancellation)", "status(draft|final|paid|cancelled)", "invoiceDate", "serviceFrom", "serviceTo", "netTotal", "vatTotal", "labourCostGross", "reverseCharge", "dueDate", "finalizedAt"], "tier": "mvp"},
+    {"name": "InvoiceItem", "fields": ["invoiceId", "ordinal", "description", "quantity", "unit", "unitPrice", "vatRate", "labourShare"], "tier": "mvp"},
+    {"name": "Article", "fields": ["supplier", "articleNumber", "ean", "shortText", "unit", "priceUnit", "listPrice", "discountGroup", "purchasePrice", "salesPrice"], "tier": "pro"},
+    {"name": "DatanormImport", "fields": ["supplier", "fileName", "version(datanorm4|datanorm5)", "created", "updated", "importedAt"], "tier": "pro"},
+    {"name": "Equipment", "fields": ["siteId", "type", "manufacturer", "model", "serialNumber", "installedOn"], "tier": "pro"},
+    {"name": "MaintenanceContract", "fields": ["customerId", "siteId", "equipmentId", "intervalMonths", "flatFee", "startDate", "noticePeriodWeeks", "nextDueDate", "status(active|cancelled)"], "tier": "pro"},
+    {"name": "Payment", "fields": ["invoiceId", "amount", "receivedAt", "method", "cashDiscount", "constructionWithholding"], "tier": "pro"},
+    {"name": "DunningNotice", "fields": ["invoiceId", "level", "fee", "interest", "sentAt"], "tier": "pro"},
+    {"name": "ExemptionCertificate", "fields": ["holder(own|subcontractor)", "subcontractorId", "certificateNumber", "taxOffice", "validFrom", "validUntil", "fileUrl"], "tier": "pro"},
+    {"name": "Qualification", "fields": ["userId", "type", "validUntil"], "tier": "enterprise"},
+    {"name": "Vehicle", "fields": ["plate", "name", "inspectionDue"], "tier": "enterprise"},
+    {"name": "Subcontractor", "fields": ["name", "trade", "address", "vatId", "email"], "tier": "enterprise"},
+    {"name": "SubcontractorInvoice", "fields": ["subcontractorId", "orderId", "invoiceNumber", "amount", "withholdingAmount", "payoutAmount", "paidAt"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung & Rollen", "tier": "mvp",
+     "features": ["Login für Inhaber, Büro und Monteure", "Monteure sehen nur Einsätze, auf die sie eingeplant sind, und keine Preise oder Kalkulation", "Benutzerverwaltung mit Rollen"],
+     "criteria": [
+       {"title": "Unauthenticated access to /dashboard redirects to /login", "verification": "e2e", "start": "/dashboard", "requires_auth": false, "steps": ["Open /dashboard without a session"], "expected": ["URL is /login"]},
+       {"title": "A technician cannot read invoices or another technician's job", "verification": "api", "steps": ["Log in as Monteur 'Jonas'", "GET the invoice list", "GET an order on which only Monteur 'Mehmet' is scheduled"], "expected": ["Invoice list returns HTTP 403", "Foreign order returns HTTP 404"]}
+     ]},
+    {"id": "inquiries", "name": "Kunden, Objekte, Anfragen & Aufmaß", "tier": "mvp",
+     "features": ["Kunden (privat oder gewerblich) mit mehreren Objekten / Baustellenadressen und Ansprechpartner vor Ort", "Anfrage-Eingang aus Telefon, E-Mail und Webformular mit Status Neu, Besichtigung geplant, Angebot erstellt, Abgesagt", "Besichtigungstermin und Fotos der Besichtigung", "Aufmaß vor Ort je Raum: Länge × Breite × Höhe, Abzüge (Fenster, Türen), Rechenweg sichtbar", "Aufmaß-Mengen mit einem Klick ins Angebot übernehmen"],
+     "criteria": [
+       {"title": "An inquiry becomes a quote with customer and site prefilled", "verification": "e2e", "start": "/inquiries", "requires_auth": true, "steps": ["Create inquiry 'Bad sanieren' for customer 'Familie Kaya' at site 'Lindenstr. 4, 50674 Köln'", "Click 'Angebot erstellen'"], "expected": ["URL matches /quotes/[id]", "Quote header shows 'Familie Kaya' and 'Lindenstr. 4, 50674 Köln'", "After reload the inquiry shows status 'Angebot erstellt'"]},
+       {"title": "Survey computes the net area with deductions and transfers it to the quote", "verification": "e2e", "start": "/inquiries", "requires_auth": true, "steps": ["Open inquiry 'Bad sanieren', tab 'Aufmaß'", "Add room 'Bad', item 'Wandfliesen': Länge 9,00 m × Höhe 2,40 m, Abzug Tür 0,80 m × 2,00 m", "Click 'In Angebot übernehmen'"], "expected": ["Survey shows '9,00 × 2,40 − 0,80 × 2,00 = 20,00 m²'", "Quote contains position 'Wandfliesen' with quantity '20,00 m²'"]}
+     ]},
+    {"id": "quotes", "name": "Angebote mit Leistungsverzeichnis", "tier": "mvp",
+     "features": ["Leistungsverzeichnis mit Titeln, Untertiteln und Ordnungszahlen (z. B. 01.0010)", "Positionen mit Kurz- und Langtext, Menge, Einheit, Einheitspreis", "Kalkulation je Position: Zeitansatz × Stundenverrechnungssatz + Material × Aufschlag, Lohnanteil getrennt", "Bedarfs- und Alternativpositionen, die nicht in die Summe eingehen", "Textbausteine und Angebotsvorlagen je Gewerk", "Angebots-PDF mit Briefbogen, Gültigkeit und Widerrufsbelehrung bei Verträgen außerhalb der Geschäftsräume", "Versionen und Nachtragsangebote", "Annahme erfassen → Auftrag"],
+     "criteria": [
+       {"title": "Optional positions are printed but not added to the quote total", "verification": "e2e", "start": "/quotes", "requires_auth": true, "steps": ["Create a quote with title '01 Fliesenarbeiten'", "Add position 'Wandfliesen' 10 m² × 50,00 €", "Add 'Bedarfsposition' 'Fugenabdichtung' 5 m × 40,00 €", "Open the PDF preview"], "expected": ["'Nettosumme 500,00 €' is shown", "'Fugenabdichtung' is marked 'Bedarfsposition' with '200,00 €' printed outside the sum", "PDF shows ordinal '01.0010' for 'Wandfliesen'"]},
+       {"title": "Unit price is computed from labour time, hourly rate and material markup", "verification": "api", "steps": ["Set Stundenverrechnungssatz 62,00 €", "Create a quote position with Zeitansatz 30 min and Material-EK 20,00 € with 25 % Aufschlag"], "expected": ["Position unit price is 56,00 €", "Position labour share is 31,00 €"]}
+     ]},
+    {"id": "scheduling", "name": "Aufträge & Einsatzplanung", "tier": "mvp",
+     "features": ["Angenommenes Angebot wird Auftrag mit allen Positionen", "Einsätze mit Datum, Uhrzeit, einem oder mehreren Monteuren", "Plantafel: Woche und Tag, eine Zeile je Monteur, Einsätze per Drag & Drop verschieben", "Überschneidungen, Urlaub und Krankheit werden markiert", "Monteur wird über neue und geänderte Einsätze benachrichtigt", "Terminbestätigung an den Kunden per E-Mail"],
+     "criteria": [
+       {"title": "A scheduled job appears in the assigned technician's mobile day list only", "verification": "e2e", "start": "/schedule", "requires_auth": true, "steps": ["Plan an assignment for order 'Bad Kaya' tomorrow 08:00–12:00 for Monteur 'Jonas'", "Log in as Jonas and open /m/today, switch to tomorrow", "Log in as Monteur 'Mehmet' and open /m/today, switch to tomorrow"], "expected": ["Jonas sees the card 'Bad Kaya · Lindenstr. 4' with '08:00–12:00'", "Mehmet does not see 'Bad Kaya'"]},
+       {"title": "An overlapping assignment is flagged before it is saved", "verification": "e2e", "start": "/schedule", "requires_auth": true, "steps": ["Jonas has 'Bad Kaya' tomorrow 08:00–12:00", "Plan another assignment for Jonas tomorrow 10:00–14:00"], "expected": ["Warning 'Überschneidung mit Bad Kaya (08:00–12:00)' is visible", "The assignment is saved only after clicking 'Trotzdem einplanen'"]}
+     ]},
+    {"id": "field-app", "name": "Mobile Baustellendokumentation", "tier": "mvp",
+     "features": ["Monteur-Ansicht für das Handy: heutige Einsätze mit Adresse, Ansprechpartner und Navigation", "Status Unterwegs, Vor Ort, Erledigt", "Fotos mit Kamera, Zeitstempel und Kommentar je Auftrag", "Stundenzettel je Einsatz: Beginn, Ende, Pause, Fahrzeit", "Materialverbrauch aus Artikelstamm oder Freitext", "Notizen und Mängel", "Alles erscheint sofort im Auftrag im Büro"],
+     "criteria": [
+       {"title": "Technician records hours, material and a photo on a phone-sized screen", "verification": "e2e", "start": "/m/today", "requires_auth": true, "steps": ["Use a 390 × 844 viewport and log in as Monteur 'Jonas'", "Open assignment 'Bad Kaya'", "'Stunden erfassen': 07:30–12:00, Pause 30 min", "'Material erfassen': 'NYM-J 3x1,5' 25 m", "Upload a photo with caption 'Leitungsführung vor dem Verputzen'", "Log in as Büro and open the order"], "expected": ["Assignment shows '4,00 h', '25 m NYM-J 3x1,5' and '1 Foto'", "The page has no horizontal scrollbar at 390 px", "Office view of the order lists the same entries under 'Baustellendokumentation'"]},
+       {"title": "Technician view shows no prices", "verification": "e2e", "start": "/m/jobs/[id]", "requires_auth": true, "steps": ["Log in as Monteur 'Jonas'", "Open the job 'Bad Kaya'"], "expected": ["No '€' amount is visible on the page", "Positions are listed with quantity and unit only"]}
+     ]},
+    {"id": "acceptance", "name": "Abnahmeprotokoll mit Unterschrift", "tier": "mvp",
+     "features": ["Abnahmeprotokoll aus dem Einsatz heraus: erbrachte Leistungen, Mängel mit Frist, Vorbehalte", "Unterschrift von Kunde und Monteur auf dem Touchscreen mit Ort, Datum und Name in Druckschrift", "PDF per E-Mail an den Kunden und am Auftrag abgelegt", "Abnahmedatum setzt Gewährleistungsende (Bauwerk 5 Jahre, sonst 2 Jahre)", "Unterschriebenes Protokoll ist unveränderbar; Nachträge als neues Dokument"],
+     "criteria": [
+       {"title": "Signed acceptance protocol is stored as PDF, mailed and locked", "verification": "e2e", "start": "/m/today", "requires_auth": true, "steps": ["Log in as Monteur 'Jonas', open 'Bad Kaya', click 'Abnahme'", "Add defect 'Silikonfuge Dusche nachbessern' with deadline 14 days", "Customer signs and enters name 'Aylin Kaya'", "Click 'Abnahme abschließen'", "Reload the page"], "expected": ["Text 'Abnahme erfolgt am' with today's date is visible", "Order has a document 'Abnahmeprotokoll' (PDF) listing the defect and both signatures", "Outbox contains a mail to the customer with the PDF attached", "After reload the protocol fields are read-only"]},
+       {"title": "Acceptance date sets the warranty end by warranty type", "verification": "api", "steps": ["Accept order A with Gewährleistungsart 'Bauwerk (5 Jahre)' on 2026-03-02", "Accept order B with Gewährleistungsart 'Sonstige Arbeiten (2 Jahre)' on 2026-03-02"], "expected": ["Order A shows Gewährleistung bis 2031-03-02", "Order B shows Gewährleistung bis 2028-03-02"]}
+     ]},
+    {"id": "invoicing", "name": "Rechnung, Abschlags- & Schlussrechnung", "tier": "mvp",
+     "features": ["Rechnung aus dem Auftrag: Positionen, Aufmaß-Mengen, Stunden und Material übernehmen", "Pflichtangaben nach § 14 UStG, lückenlos fortlaufende Nummern, Leistungszeitraum", "Arbeitskosten (Lohnanteil) für Privatkunden getrennt ausgewiesen (§ 35a EStG)", "Hinweis auf zweijährige Aufbewahrungspflicht bei Privatkunden für Arbeiten am Grundstück", "Abschlagsrechnungen nach Baufortschritt (Prozent oder Betrag)", "Schlussrechnung zieht alle Abschläge mit ihrer Umsatzsteuer ab", "Festschreiben, danach nur Storno", "PDF und Versand per E-Mail"],
+     "criteria": [
+       {"title": "Final invoice deducts the progress invoices with their VAT", "verification": "e2e", "start": "/orders", "requires_auth": true, "steps": ["Order 'Bad Kaya' has 10.000,00 € net at 19 %", "Create Abschlagsrechnung 1 over 3.000,00 € net and Abschlagsrechnung 2 over 4.000,00 € net", "Click 'Schlussrechnung erstellen'"], "expected": ["'Gesamtleistung 10.000,00 € netto, 1.900,00 € USt' is shown", "'abzüglich Abschlagsrechnungen 7.000,00 € netto, 1.330,00 € USt' lists both invoice numbers", "'Restforderung 3.570,00 €' is shown"]},
+       {"title": "Invoice to a private customer shows labour costs and the retention notice and is locked after finalising", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Create an invoice for private customer 'Familie Kaya' with 8 h × 62,00 € labour and 300,00 € material", "Click 'Festschreiben'", "Try to edit a position"], "expected": ["Invoice number matches 'RE-2026-0001' or the next free number", "'Enthaltene Arbeitskosten' shows 590,24 € incl. USt", "Text 'zwei Jahre aufzubewahren' is printed on the PDF", "Positions are read-only and a PUT on the invoice returns HTTP 409"]}
+     ]},
+    {"id": "articles", "name": "Artikelstamm & Datanorm-Import", "tier": "pro",
+     "features": ["Artikel mit Großhändler, Artikelnummer, EAN, Einheit, Preiseinheit, Listenpreis, Rabattgruppe, EK und VK", "Datanorm 4 und 5 importieren, Preisänderungen aktualisieren statt duplizieren", "Rabattgruppen je Großhändler", "Leistungen / Lohnpositionen mit Zeitansatz", "Artikelsuche in Angebot und Materialerfassung"],
+     "criteria": [
+       {"title": "Datanorm import creates articles and a re-import updates prices", "verification": "e2e", "start": "/articles/import", "requires_auth": true, "steps": ["Enter discount group 'K1' with 40 % for supplier 'Elektro-Großhandel Nord'", "Upload the test fixture 'datanorm4-sample.001' with 3 articles", "Upload the fixture 'datanorm4-update.001' with a new list price for 'NYM-J 3x1,5'"], "expected": ["First import shows 'Import abgeschlossen: 3 neu, 0 aktualisiert'", "'NYM-J 3x1,5' shows Listenpreis '120,00 € / 100 m' and EK '72,00 € / 100 m'", "Second import shows '0 neu, 1 aktualisiert' and the article list still has 3 entries"]}
+     ]},
+    {"id": "gaeb", "name": "GAEB-Leistungsverzeichnisse", "tier": "pro",
+     "features": ["GAEB DA XML X83 (Angebotsaufforderung) importieren: Titel, Ordnungszahlen, Kurz- und Langtexte, Mengen", "Angebot kalkulieren und als X84 (Angebotsabgabe) exportieren", "Prüfung auf fehlende Einheitspreise vor dem Export"],
+     "criteria": [
+       {"title": "GAEB X83 import builds the bill of quantities and X84 export carries the prices", "verification": "e2e", "start": "/gaeb", "requires_auth": true, "steps": ["Upload the test fixture 'lv-bad.x83' (2 titles, 5 positions)", "Enter unit prices for all 5 positions", "Click 'Als GAEB X84 exportieren'"], "expected": ["The quote shows titles '01 Rohinstallation' and '02 Fliesen' and 5 positions with ordinals from '01.0010'", "Long texts of the positions are visible", "A .x84 file is downloaded whose XML contains the 5 entered unit prices", "Export with a missing unit price shows 'Einheitspreis fehlt in 1 Position'"]}
+     ]},
+    {"id": "maintenance", "name": "Wartungsverträge & Wiedervorlage", "tier": "pro",
+     "features": ["Anlagen je Objekt (z. B. Gasbrennwert-Therme, Wärmepumpe, Elektroanlage) mit Hersteller, Typ, Seriennummer, Einbaudatum", "Wartungsvertrag mit Intervall, Pauschale, Laufzeit und Kündigungsfrist", "Wiedervorlage-Liste fälliger Wartungen", "Wartungsauftrag mit einem Klick, Terminvorschlag an den Kunden per E-Mail", "Prüfprotokolle (z. B. E-Check nach DGUV Vorschrift 3) mit nächster Prüffrist", "Jährliche Rechnung der Wartungspauschale"],
+     "criteria": [
+       {"title": "Due maintenance appears in the follow-up list and the next due date moves after completion", "verification": "e2e", "start": "/maintenance", "requires_auth": true, "steps": ["Contract 'Gasbrennwert-Therme Kaya' has interval 12 months and next due date in 20 days", "Open /maintenance", "Click 'Wartungsauftrag anlegen'", "Complete the created order today"], "expected": ["Contract is listed under 'Fällig in den nächsten 30 Tagen'", "An order 'Wartung Gasbrennwert-Therme' is created for the contract's site", "After completion the contract shows the next due date 12 months after today"]},
+       {"title": "Reminder job proposes a date once, four weeks before due", "verification": "api", "steps": ["Contract due in 28 days", "Trigger the maintenance reminder job endpoint (test mode) twice"], "expected": ["Outbox contains exactly one mail 'Ihre Wartung ist fällig' to the customer"]}
+     ]},
+    {"id": "costing", "name": "Nachkalkulation & Auswertungen", "tier": "pro",
+     "features": ["Soll/Ist je Auftrag: kalkulierte Stunden und Material gegen Stundenzettel und Materialerfassung", "Deckungsbeitrag je Auftrag und Gewerk", "Warnung bei Überschreitung der Kalkulation", "Nicht abgerechnete Leistungen und Produktivquote der Monteure"],
+     "criteria": [
+       {"title": "Post-calculation compares planned and booked hours", "verification": "e2e", "start": "/orders", "requires_auth": true, "steps": ["Order 'Bad Kaya' is calculated with 16,0 h", "Technicians book 18,5 h on it", "Open the order tab 'Nachkalkulation'"], "expected": ["'Soll 16,0 h · Ist 18,5 h · +15,6 %' is shown", "Label 'Über Kalkulation' is visible"]},
+       {"title": "Dashboard and reports show the same 'Nicht abgerechnete Leistungen (aktuell)'", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Seed one order without final invoice: 10 h × 62,00 € booked and 150,00 € material", "Open /dashboard and /reports"], "expected": ["Both pages show 'Nicht abgerechnete Leistungen (aktuell)' with 770,00 €"]}
+     ]},
+    {"id": "construction-tax", "name": "Bauleistungen an Unternehmer: § 13b UStG & Bauabzug", "tier": "pro",
+     "features": ["Kunde als 'erbringt selbst Bauleistungen' markieren → Rechnung ohne USt mit Hinweis auf die Steuerschuldnerschaft des Leistungsempfängers", "Eigene Freistellungsbescheinigung (§ 48b EStG) mit Gültigkeit hinterlegen, Warnung 60 Tage vor Ablauf, Kopie an gewerbliche Kunden senden", "Zahlungseingang mit Bauabzug (15 %) verbuchen und als beim Finanzamt anrechenbar ausweisen"],
+     "criteria": [
+       {"title": "Invoice to a construction business uses reverse charge", "verification": "e2e", "start": "/invoices", "requires_auth": true, "steps": ["Customer 'Rohbau Weber GmbH' is marked 'erbringt selbst Bauleistungen' with USt-IdNr. 'DE123456789'", "Create an invoice over 5.000,00 € net and open the PDF"], "expected": ["'USt 0,00 €' and 'Gesamtbetrag 5.000,00 €' are shown", "Text 'Steuerschuldnerschaft des Leistungsempfängers' is printed", "Customer's USt-IdNr. 'DE123456789' is printed"]},
+       {"title": "Expired exemption certificate warns and a withheld payment is booked as construction withholding", "verification": "e2e", "start": "/settings/tax", "requires_auth": true, "steps": ["Set own Freistellungsbescheinigung valid until yesterday", "Open /dashboard", "Book payment 4.250,00 € on the 5.000,00 € invoice with 'Bauabzug 15 %'"], "expected": ["Dashboard shows 'Freistellungsbescheinigung abgelaufen'", "Invoice shows status 'Bezahlt' and '750,00 € Bauabzug (beim Finanzamt anrechenbar)'"]}
+     ]},
+    {"id": "receivables", "name": "Offene Posten & Mahnwesen", "tier": "pro",
+     "features": ["Zahlungseingänge mit Teilzahlung und Skonto", "Liste überfälliger Rechnungen", "Mahnstufen Zahlungserinnerung, 1. und 2. Mahnung mit Gebühr und Verzugszinsen", "Hinweis zum Verzugseintritt nach 30 Tagen auf Rechnungen an Verbraucher"],
+     "criteria": [
+       {"title": "Overdue invoice is listed and a payment reminder is sent", "verification": "e2e", "start": "/receivables", "requires_auth": true, "steps": ["Invoice over 1.190,00 € was due 14 days ago and is unpaid", "Open /receivables", "Click 'Zahlungserinnerung erstellen'"], "expected": ["Invoice is listed under 'Überfällig' with '14 Tage überfällig'", "Invoice shows dunning level 'Zahlungserinnerung'", "Outbox contains a mail with the reminder PDF"]},
+       {"title": "Payment within the discount period settles the invoice with cash discount", "verification": "api", "steps": ["Invoice 1.190,00 € with 2 % Skonto within 10 days", "Post a payment of 1.166,20 € on day 5"], "expected": ["Invoice status is 'Bezahlt'", "Skonto 23,80 € is recorded and open amount is 0,00 €"]}
+     ]},
+    {"id": "e-invoice-export", "name": "E-Rechnung & DATEV-Export", "tier": "enterprise",
+     "features": ["XRechnung (UBL/CII) und ZUGFeRD (PDF/A-3) erzeugen", "Leitweg-ID für öffentliche Auftraggeber", "Eingehende E-Rechnungen von Großhändlern lesen und als Beleg ablegen", "DATEV-Buchungsstapel (EXTF) je Monat, jede Rechnung genau einmal"],
+     "criteria": [
+       {"title": "XRechnung export passes the official validator", "verification": "api", "steps": ["Finalise an invoice for customer 'Stadt Köln' with Leitweg-ID '05315000-12345-67'", "Export it as XRechnung and run the KoSIT validator in test mode"], "expected": ["Validator result is 'acceptable'", "XML contains the Leitweg-ID as buyer reference"]},
+       {"title": "DATEV export contains each finalised invoice of the month once", "verification": "e2e", "start": "/exports", "requires_auth": true, "steps": ["Seed 12 finalised invoices in March 2026", "Export DATEV for March 2026 twice"], "expected": ["First CSV starts with 'EXTF' and has 12 booking rows", "Second export shows 'bereits exportiert: 12' and contains 0 new rows unless 'Erneut exportieren' is chosen"]}
+     ]},
+    {"id": "resources", "name": "Qualifikationen, Fahrzeuge & Geräte", "tier": "enterprise",
+     "features": ["Qualifikationen der Monteure (z. B. Elektrofachkraft, Gas-Eintragung, Schweißschein) mit Ablaufdatum", "Einsätze verlangen Qualifikationen; Plantafel warnt bei fehlender Qualifikation", "Fahrzeuge und Geräte mit Prüffristen, doppelte Verplanung wird markiert"],
+     "criteria": [
+       {"title": "A job that needs a qualification warns for an unqualified technician", "verification": "e2e", "start": "/schedule", "requires_auth": true, "steps": ["Order 'Zählerschrank tauschen' requires 'Elektrofachkraft'", "Mehmet has no such qualification", "Plan Mehmet on that order"], "expected": ["Warning 'Mehmet fehlt die Qualifikation Elektrofachkraft' is visible", "Planning Jonas (qualified) shows no warning"]}
+     ]},
+    {"id": "customer-portal", "name": "Kundenportal", "tier": "enterprise",
+     "features": ["Kunde sieht eigene Angebote, Termine, Abnahmeprotokolle und Rechnungen", "Angebot online annehmen mit Unterschrift und Bestätigung der Widerrufsbelehrung", "Störungsmeldung zu einer Anlage aus dem Wartungsvertrag mit Fotos"],
+     "criteria": [
+       {"title": "Customer accepts a quote online and the office sees a new order", "verification": "e2e", "start": "/portal", "requires_auth": true, "steps": ["Log in as Kunde 'Aylin Kaya'", "Open quote 'Bad sanieren'", "Tick 'Widerrufsbelehrung gelesen', sign, click 'Angebot verbindlich annehmen'", "Log in as Büro and open /orders"], "expected": ["Customer sees 'Angebot angenommen'", "Office sees a new order 'Bad sanieren' with status 'Neu'"]},
+       {"title": "Customer cannot open another customer's quote", "verification": "api", "steps": ["Log in as Kunde 'Aylin Kaya'", "GET a quote of customer 'Rohbau Weber GmbH'"], "expected": ["HTTP 404"]}
+     ]},
+    {"id": "subcontractors", "name": "Nachunternehmer & Bauabzug", "tier": "enterprise",
+     "features": ["Nachunternehmer mit Gewerk und Freistellungsbescheinigung (Nummer, Finanzamt, Gültigkeit)", "Eingangsrechnung eines Nachunternehmers ohne gültige Freistellung: 15 % Bauabzug einbehalten (Bagatellgrenze 5.000 € je Jahr beachten)", "Monatsliste für die Anmeldung bis zum 10. des Folgemonats", "Kosten der Nachunternehmer in der Nachkalkulation"],
+     "criteria": [
+       {"title": "Subcontractor invoice without a valid exemption withholds 15 %", "verification": "e2e", "start": "/subcontractors", "requires_auth": true, "steps": ["Subcontractor 'Fliesen Yilmaz' has an expired Freistellungsbescheinigung and 8.000,00 € paid this year", "Enter their invoice over 10.000,00 € (Steuerschuldnerschaft des Leistungsempfängers)", "Open the withholding list for this month"], "expected": ["Invoice shows 'Bauabzug 1.500,00 €' and 'Auszahlung 8.500,00 €'", "Withholding list shows 1.500,00 € with 'anmelden bis 10.' of next month"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "unbilled_work", "tier": "pro", "label": "Nicht abgerechnete Leistungen (aktuell)", "unit": "EUR", "definition": "Summe über Aufträge ohne Schlussrechnung: gebuchte Stunden × Stundenverrechnungssatz + erfasstes Material zum Verkaufspreis, abzüglich bereits abgerechneter Abschläge, netto", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "open_receivables", "tier": "pro", "label": "Offene Posten (aktuell)", "unit": "EUR", "definition": "Summe der offenen Bruttobeträge aller festgeschriebenen, nicht stornierten Rechnungen abzüglich Teilzahlungen, Skonto und Bauabzug", "period": "aktuell (kein Zeitraum)", "shown_on": ["/dashboard", "/receivables"]},
+    {"id": "quote_win_rate", "tier": "pro", "label": "Angebotsquote (letzte 90 Tage)", "unit": "%", "definition": "angenommene / (angenommene + abgelehnte + abgelaufene) Angebote mit Entscheidungsdatum in den letzten 90 Tagen, nach Anzahl; Nachtragsversionen zählen nicht doppelt", "period": "letzte 90 Tage", "shown_on": ["/reports"]},
+    {"id": "productive_ratio", "tier": "pro", "label": "Produktivquote Monteure (dieser Monat)", "unit": "%", "definition": "auf Aufträge gebuchte Arbeitsstunden / alle erfassten Arbeitsstunden der Monteure im laufenden Kalendermonat; Fahrzeit zählt nicht als produktiv", "period": "Dieser Monat", "shown_on": ["/reports"]}
+  ],
+  "compliance": [
+    {"rule": "Rechnungen enthalten alle Pflichtangaben: Name und Anschrift beider Parteien, Steuernummer oder USt-IdNr., fortlaufende Nummer, Leistungszeitpunkt, Menge und Art der Leistung, Entgelt und Steuer nach Steuersätzen", "source": "§ 14 Abs. 4 UStG", "tier": "mvp"},
+    {"rule": "Bei Werklieferungen und sonstigen Leistungen im Zusammenhang mit einem Grundstück an Privatpersonen: Rechnung innerhalb von sechs Monaten und Hinweis auf die zweijährige Aufbewahrungspflicht des Empfängers", "source": "§ 14 Abs. 2 Satz 1 Nr. 1 und Abs. 4 Satz 1 Nr. 9 UStG; § 14b Abs. 1 Satz 5 UStG", "tier": "mvp"},
+    {"rule": "Arbeitskosten in Rechnungen an Privatkunden getrennt ausweisen; die Steuerermäßigung für Handwerkerleistungen setzt Rechnung und unbare Zahlung voraus", "source": "§ 35a Abs. 3 und 5 EStG", "tier": "mvp"},
+    {"rule": "Schlussrechnung zieht die vereinnahmten Abschlagszahlungen und die darauf entfallende Umsatzsteuer ab", "source": "§ 14 Abs. 5 UStG", "tier": "mvp"},
+    {"rule": "Abschlagszahlungen nur in Höhe des Wertes erbrachter, vertragsgemäßer Leistungen; beim Verbraucherbauvertrag insgesamt höchstens 90 % der vereinbarten Gesamtvergütung", "source": "§ 632a BGB; § 650m Abs. 1 BGB", "tier": "mvp"},
+    {"rule": "Abnahme dokumentieren: sie macht die Vergütung fällig und startet die Verjährung der Mängelansprüche (5 Jahre bei Bauwerken, sonst 2 Jahre)", "source": "§§ 640, 641, 634a BGB", "tier": "mvp"},
+    {"rule": "Bei Verträgen, die beim Kunden zu Hause geschlossen werden, über das 14-tägige Widerrufsrecht belehren; Arbeitsbeginn vor Fristende nur auf ausdrückliches Verlangen des Kunden", "source": "§§ 312b, 312g, 355, 356 BGB; Art. 246a EGBGB", "tier": "mvp"},
+    {"rule": "Rechnungen und Buchungsbelege unveränderbar und 8 Jahre aufbewahren; Korrektur nur per Storno", "source": "§ 147 AO; § 14b UStG; GoBD", "tier": "mvp"},
+    {"rule": "Arbeitszeit der Monteure vollständig erfassen (Beginn, Ende, Pausen); Aufzeichnungen über die werktägliche Arbeitszeit von 8 Stunden hinaus mindestens 2 Jahre aufbewahren", "source": "§ 3 Abs. 2 Nr. 1 ArbSchG (BAG, Beschluss vom 13.09.2022 – 1 ABR 22/21); § 16 Abs. 2 ArbZG", "tier": "mvp"},
+    {"rule": "Kundendaten, Baustellenfotos und Zeit-/Standortdaten der Monteure nur zweckgebunden verarbeiten; keine dauerhafte GPS-Ortung; Personen auf Baustellenfotos vermeiden; Löschung nach Ablauf der Aufbewahrungsfristen", "source": "Art. 5, 6, 17 und 88 DSGVO; BDSG", "tier": "mvp"},
+    {"rule": "Bauleistungen an Unternehmer, die selbst nachhaltig Bauleistungen erbringen: Steuerschuld geht auf den Empfänger über; Rechnung ohne Umsatzsteuer mit Hinweis 'Steuerschuldnerschaft des Leistungsempfängers'", "source": "§ 13b Abs. 2 Nr. 4 und Abs. 5 UStG; § 14a Abs. 5 UStG", "tier": "pro"},
+    {"rule": "Bauabzugsteuer: unternehmerische Auftraggeber behalten 15 % ein, wenn keine gültige Freistellungsbescheinigung vorliegt — Bescheinigung hinterlegen, Ablauf überwachen, Kopie an Auftraggeber geben", "source": "§§ 48, 48b EStG", "tier": "pro"},
+    {"rule": "Verzug bei Verbrauchern 30 Tage nach Rechnungszugang nur, wenn die Rechnung darauf hinweist; Verzugszinsen 5 Prozentpunkte (Verbraucher) bzw. 9 Prozentpunkte (Unternehmer) über dem Basiszinssatz, 40 € Pauschale nur gegenüber Unternehmern", "source": "§ 286 Abs. 3 BGB; § 288 BGB", "tier": "pro"},
+    {"rule": "Wiederkehrende Prüfungen elektrischer Anlagen und Betriebsmittel mit Prüffrist und Prüfprotokoll dokumentieren", "source": "DGUV Vorschrift 3 (Unfallverhütungsvorschrift)", "tier": "pro"},
+    {"rule": "E-Rechnung an inländische Unternehmer im strukturierten Format (XRechnung oder ZUGFeRD): Empfang seit 2025 Pflicht, Versand nach Übergangsfristen bis spätestens 2028", "source": "§ 14 Abs. 1 UStG; Übergangsregelung § 27 UStG", "tier": "enterprise"},
+    {"rule": "Rechnungen an Bundesbehörden nur als XRechnung mit Leitweg-ID", "source": "E-Rechnungsverordnung (ERechV)", "tier": "enterprise"},
+    {"rule": "Als Auftraggeber von Nachunternehmern ohne Freistellungsbescheinigung 15 % einbehalten, bis zum 10. des Folgemonats anmelden und abführen; Bagatellgrenze 5.000 € im Kalenderjahr", "source": "§ 48 Abs. 2 EStG; § 48a EStG", "tier": "enterprise"},
+    {"rule": "Haftung des Auftraggebers für den Mindestlohn der Beschäftigten von Nachunternehmern", "source": "§ 13 MiLoG; § 14 AEntG", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["E-Mail-Versand (SMTP) für Angebote, Rechnungen, Abnahmeprotokolle und Terminbestätigungen", "Kalender (Google, Microsoft 365) für Einsätze der Monteure", "Karten und Navigation (OpenStreetMap/Nominatim, Google Maps) für Adresse und Route", "Großhändler-Onlineshops über IDS-Connect — Zugangsdaten je Großhändler nötig", "Kontoumsätze über FinTS/PSD2-Anbieter (z. B. finAPI) für den Zahlungsabgleich"],
+    "export_only": ["GAEB DA XML — X83 einlesen, X84 an Architekten und Ausschreibungsplattformen zurückgeben", "Datanorm 4/5 — Artikel- und Preisdaten der Großhändler als Datei", "UGL — Bestelldateien an Großhändler", "DATEV — Buchungsstapel (EXTF-CSV) für den Steuerberater", "XRechnung/ZUGFeRD-Dateien für Kunden und Rechnungseingangsportale", "Stundenzettel als CSV für das Lohnbüro"],
+    "not_possible": ["Prüfung von Freistellungsbescheinigungen beim Bundeszentralamt für Steuern — nur manuelle Online-Abfrage, keine offene API; das Prüfergebnis wird mit Datum erfasst", "Direkte ELSTER-Übermittlung der Bauabzug-Anmeldung — erfordert die ERiC-Anbindung eines registrierten Herstellers; die App liefert Liste und Beträge zum Übertragen", "Netzbetreiber-Portale zur Anmeldung von Anlagen (Netzanschluss, PV, Wärmepumpe) — je Netzbetreiber eigenes Portal ohne offene Schnittstelle", "Handwerksrolle der Handwerkskammer — kein Datenzugriff"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Monteur-Ansicht ab 360 px Breite ohne horizontales Scrollen, Tipp-Flächen mindestens 44 × 44 px, Kontrast nach WCAG AA"},
+    {"tier": "mvp", "text": "Fotos werden vor dem Upload auf höchstens 2 MB verkleinert; abgebrochene Uploads werden wiederholt, kein Foto geht verloren"},
+    {"tier": "mvp", "text": "Monteure erhalten über die API nur Einsätze, auf die sie eingeplant sind, und keine Preis- oder Kalkulationsfelder"},
+    {"tier": "mvp", "text": "Festgeschriebene Rechnungen und unterschriebene Abnahmeprotokolle sind unveränderbar; Korrektur nur per Storno bzw. neuem Dokument (GoBD)"},
+    {"tier": "mvp", "text": "Angebots- und Rechnungsnummern lückenlos fortlaufend, auch bei gleichzeitiger Erstellung"},
+    {"tier": "mvp", "text": "Beträge in Cent gespeichert, kaufmännische Rundung je Position, Anzeige im deutschen Format (1.190,00 €)"},
+    {"tier": "pro", "text": "Monteur-Ansicht offline nutzbar: Stunden, Material, Fotos und Abnahme werden lokal gespeichert und bei Netz ohne Dubletten synchronisiert"},
+    {"tier": "pro", "text": "Datanorm-Import von 100.000 Artikeln als Hintergrundjob mit Fortschrittsanzeige; Artikelsuche antwortet in unter 300 ms"},
+    {"tier": "enterprise", "text": "Änderungsprotokoll für Preise, Rechnungen, Abnahmen und Stundenzettel (wer, wann, alt/neu)"}
+  ],
+  "production_dependencies": {"mvp": ["email", "storage"], "pro": ["email", "storage", "push"], "enterprise": ["email", "storage", "push", "oauth"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/customers", "/customers/[id]", "/inquiries", "/inquiries/[id]", "/quotes", "/quotes/[id]", "/orders", "/orders/[id]", "/schedule", "/m/today", "/m/jobs/[id]", "/invoices", "/invoices/[id]", "/settings/company", "/settings/users"], "pro": ["/articles", "/articles/import", "/gaeb", "/maintenance", "/maintenance/[id]", "/receivables", "/reports", "/settings/tax"], "enterprise": ["/exports", "/resources", "/subcontractors", "/portal"]}
+}

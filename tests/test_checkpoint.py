@@ -92,3 +92,20 @@ def test_corrupt_working_memory_is_reported(tmp_path, home):
     (home / ".onecommand" / "brain" / "working_memory.json").write_text("{")
     out = cp(home, project, "status")
     assert out.returncode == 1 and "not valid JSON" in out.stderr
+
+
+def test_phase_checkpoint_is_refused_while_assigned_skills_were_not_loaded(tmp_path, home):
+    from conftest import REPO
+    project = make_project(tmp_path)
+    write_json(project / ".onecommand-spec.json", {"project_name": "Notes", "app_type": "web-app", "build_targets": ["web"]})
+    cat = lambda *a: py("skill-catalog.py", "--project-dir", str(project), *a)  # noqa: E731
+    cat("scan", "--oc-root", str(REPO), "--home", str(home))
+    assert cat("check").returncode == 0
+    r = cp(home, project, "phase", "2", "--summary", "built")
+    assert r.returncode == 1 and "NOT saved" in r.stdout and "oc-frontend-design" in r.stdout
+    assert not (home / ".onecommand" / "brain" / "working_memory.json").exists()
+    for name in ("oc-frontend-design", "oc-ui-ux", "21st-components", "collab-protocol"):
+        cat("read", name, "--phase", "2")
+    assert cp(home, project, "phase", "2", "--summary", "built").returncode == 0
+    r = cp(home, project, "phase", "3", "--summary", "x", "--skills-skipped", "no marketing in a demo")
+    assert r.returncode == 0 and wm(home)["skills_skipped"]["3"] == "no marketing in a demo"

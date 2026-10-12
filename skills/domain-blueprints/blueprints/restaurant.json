@@ -1,0 +1,174 @@
+{
+  "id": "restaurant",
+  "name": "Restaurant & Gastronomie",
+  "kind": "industry",
+  "version": 1,
+  "ui_language": "de",
+  "aliases": ["restaurant", "restaurants", "restaurantsoftware", "gastronomie", "gastronomiesoftware", "gastro", "gastrobetrieb", "gaststätte", "wirtshaus", "bistro", "café", "cafe", "pizzeria", "tischreservierung", "speisekarte", "qr-bestellung", "küchenmonitor", "restaurant management", "table reservation", "kitchen display"],
+  "summary": "Online-Tischreservierung mit Tischplan, Speisekarte mit Allergenkennzeichnung, QR-Bestellung am Tisch, Bonierung an Küchenmonitor und Bar, Tischabrechnung über eine angeschlossene zertifizierte Kasse sowie Dienstplan, Bestandsführung und Gutscheine.",
+  "design": {"personality": ["gastfreundlich", "appetitlich", "souverän"], "typefaces": {"display": "DM Serif Display", "text": "Figtree"}, "palette": "warmes Terrakotta als Marke auf cremigem Papierton für Gästeseiten; Service- und Küchenansicht auf dunklem Anthrazit mit Ampelfarben für Wartezeit; Allergene als neutrale Kürzel-Chips statt Warnrot", "density": "comfortable", "signature_ideas": ["Tischplan als Grundriss: Tische in Statusfarben (frei, reserviert, belegt, Rechnung) mit Uhrzeit der nächsten Reservierung", "Bon-Karten im Küchenmonitor mit laufender Wartezeit, die nach 15 Minuten die Farbe wechselt", "Speisekarte mit Allergen-Kürzeln und Filter 'ohne Gluten', 'vegetarisch' für Gäste"], "references": ["OpenTable", "Lightspeed Restaurant", "Toast"], "avoid": ["Stockfotos von Gerichten, die nicht auf der Karte stehen", "rote Gefahren-Symbole für Allergene", "kleine Schrift im Küchenmonitor, die aus 2 m Abstand nicht lesbar ist", "Kassenoptik, die eine zertifizierte Kasse vortäuscht"]},
+  "roles": [
+    {"id": "admin", "name": "Inhaber / Betriebsleitung", "can": "alles inkl. Speisekarte, Preise, Tischplan, Kassenanbindung, Mitarbeiter und Auswertungen"},
+    {"id": "manager", "name": "Schichtleitung", "can": "Reservierungen, Tischplan, Dienstplan, Bestand, Gutscheine einlösen", "tier": "pro"},
+    {"id": "service", "name": "Service", "can": "Tische öffnen, bonieren, Tischrechnung an die Kasse übergeben, Reservierungen ansehen und platzieren"},
+    {"id": "kitchen", "name": "Küche / Bar", "can": "Bons der eigenen Station sehen und als fertig melden, Artikel ausverkauft setzen"}
+  ],
+  "entities": [
+    {"name": "User", "fields": ["name", "email", "role", "pin", "station(kitchen|bar|service)", "hourlyWage", "birthDate", "active"], "tier": "mvp"},
+    {"name": "OpeningHours", "fields": ["weekday", "open", "close", "lastSeating"], "tier": "mvp"},
+    {"name": "MenuCategory", "fields": ["name", "sortOrder", "station(kitchen|bar)"], "tier": "mvp"},
+    {"name": "MenuItem", "fields": ["categoryId", "name", "description", "price", "vatCategory(food|beverage)", "allergens", "additives", "noAllergensConfirmed", "vegetarian", "vegan", "soldOut", "active"], "tier": "mvp"},
+    {"name": "Modifier", "fields": ["menuItemId", "name", "priceDelta", "allergens"], "tier": "mvp"},
+    {"name": "Area", "fields": ["name", "sortOrder"], "tier": "mvp"},
+    {"name": "Table", "fields": ["areaId", "number", "seats", "combinableWith", "qrCode", "x", "y", "reservable"], "tier": "mvp"},
+    {"name": "Reservation", "fields": ["date", "time", "durationMinutes", "partySize", "tableIds", "name", "email", "phone", "status(confirmed|seated|completed|cancelled|no_show)", "source(online|phone|walk_in)", "notes", "cancelToken"], "tier": "mvp"},
+    {"name": "TableSession", "fields": ["tableId", "reservationId", "guestCount", "openedAt", "openedBy", "closedAt"], "tier": "mvp"},
+    {"name": "Order", "fields": ["tableSessionId", "source(qr|staff)", "createdBy", "createdAt"], "tier": "mvp"},
+    {"name": "OrderItem", "fields": ["orderId", "menuItemId", "quantity", "modifierIds", "note", "course", "station(kitchen|bar)", "status(new|in_progress|ready|served|void)", "firedAt", "readyAt"], "tier": "mvp"},
+    {"name": "RegisterConnection", "fields": ["provider", "apiKeyRef", "status(connected|disconnected)", "lastCheckAt"], "tier": "mvp"},
+    {"name": "RegisterHandover", "fields": ["tableSessionId", "orderItemIds", "total", "posTransactionId", "tseTransactionNumber", "tseSignature", "tseSerialNumber", "paidAt"], "tier": "mvp"},
+    {"name": "Shift", "fields": ["userId", "area", "start", "end", "published"], "tier": "pro"},
+    {"name": "TimeRecord", "fields": ["userId", "clockIn", "clockOut", "breakMinutes"], "tier": "pro"},
+    {"name": "StockItem", "fields": ["name", "unit", "onHand", "minLevel", "supplier", "purchasePrice"], "tier": "pro"},
+    {"name": "RecipeLine", "fields": ["menuItemId", "stockItemId", "quantity"], "tier": "pro"},
+    {"name": "StockMovement", "fields": ["stockItemId", "type(sale|delivery|count|waste)", "quantity", "at", "userId"], "tier": "pro"},
+    {"name": "Voucher", "fields": ["code", "initialValue", "balance", "issuedAt", "validUntil", "purchaserEmail", "status(active|redeemed|expired)"], "tier": "pro"},
+    {"name": "VoucherRedemption", "fields": ["voucherId", "amount", "redeemedAt", "tableSessionId"], "tier": "pro"},
+    {"name": "Guest", "fields": ["name", "email", "phone", "visitCount", "noShowCount", "notes", "dietaryNotes", "dietaryConsentAt", "marketingOptInAt"], "tier": "pro"},
+    {"name": "EventRequest", "fields": ["date", "partySize", "area", "menuChoice", "depositAmount", "depositPaidAt", "status(requested|offered|confirmed|cancelled)"], "tier": "enterprise"},
+    {"name": "TakeawayOrder", "fields": ["pickupAt", "items", "total", "paymentId", "status(received|preparing|ready|picked_up)", "phone"], "tier": "enterprise"},
+    {"name": "Location", "fields": ["name", "address", "timezone", "priceOverrides"], "tier": "enterprise"}
+  ],
+  "modules": [
+    {"id": "auth", "name": "Anmeldung & Rollen", "tier": "mvp",
+     "features": ["Login für Betriebsleitung, Service und Küche", "Schneller Wechsel am geteilten Tablet per PIN", "Gäste reservieren und bestellen ohne Konto"],
+     "criteria": [
+       {"title": "Unauthenticated access to /kitchen redirects to /login", "verification": "e2e", "start": "/kitchen", "requires_auth": false, "steps": ["Open /kitchen without a session"], "expected": ["URL is /login"]},
+       {"title": "Kitchen staff cannot change menu prices", "verification": "api", "steps": ["Log in as Küche", "PATCH the price of 'Käsespätzle' to 9,90 €"], "expected": ["HTTP 403", "Price on /menu is still 14,50 €"]}
+     ]},
+    {"id": "menu", "name": "Speisekarte mit Allergenen & Zusatzstoffen", "tier": "mvp",
+     "features": ["Kategorien, Gerichte, Getränke mit Preis, Beschreibung, Varianten und Extras", "Die 14 Hauptallergene nach LMIV je Gericht und Extra, Zusatzstoffe mit Kennziffern", "Steuerkategorie je Artikel: Speisen oder Getränke", "Öffentliche Speisekarte mit Allergen-Legende und Filtern (ohne Gluten, vegetarisch, vegan)", "Ausverkauft-Schalter wirkt sofort auf Karte und QR-Bestellung"],
+     "criteria": [
+       {"title": "Allergens of a dish appear on the public menu and the gluten filter hides it", "verification": "e2e", "start": "/admin/menu", "requires_auth": true, "steps": ["Create 'Käsespätzle' 14,50 € with allergens 'Glutenhaltiges Getreide', 'Eier', 'Milch'", "Open /menu", "Activate the filter 'ohne Gluten'"], "expected": ["'Käsespätzle' is listed with '14,50 €' and the allergen codes with a legend on the page", "With 'ohne Gluten' active, 'Käsespätzle' is not listed"]},
+       {"title": "A dish without allergen declaration cannot be published", "verification": "e2e", "start": "/admin/menu", "requires_auth": true, "steps": ["Create 'Tagessuppe' 6,50 € without allergens and without ticking 'Enthält keines der 14 Hauptallergene'", "Click 'Veröffentlichen'"], "expected": ["Error 'Bitte Allergene angeben' is visible", "'Tagessuppe' is not listed on /menu"]}
+     ]},
+    {"id": "reservations", "name": "Online-Tischreservierung", "tier": "mvp",
+     "features": ["Gäste wählen Datum, Uhrzeit und Personenzahl; angeboten werden nur Zeiten mit passendem freien Tisch oder kombinierbaren Tischen", "Verweildauer je Personenzahl, letzte Platzierung vor Küchenschluss", "Bestätigungs-E-Mail mit Storno-Link", "Telefonische Reservierungen und Walk-ins im Betrieb erfassen", "Reservierungsliste des Tages mit Notizen (Kinderstuhl, Geburtstag)"],
+     "criteria": [
+       {"title": "Guest reserves online and receives a confirmation with a cancel link", "verification": "e2e", "start": "/reserve", "requires_auth": false, "steps": ["Choose tomorrow, 19:00, 4 Personen", "Enter name 'Müller', e-mail and phone", "Click 'Verbindlich reservieren'"], "expected": ["Page shows 'Reservierung bestätigt'", "Outbox contains a mail with date, time, party size and a cancel link", "/reservations lists 'Müller · 4 Personen · 19:00' for tomorrow"]},
+       {"title": "The last free table cannot be booked twice", "verification": "api", "steps": ["Only one 4-seat table is free tomorrow at 19:00", "Send two reservation requests for 4 persons at 19:00 in parallel"], "expected": ["One returns 201, the other 409", "19:00 is no longer offered for 4 persons"]}
+     ]},
+    {"id": "floor-plan", "name": "Tischplan", "tier": "mvp",
+     "features": ["Tischplan-Editor: Bereiche (Innen, Terrasse), Tische mit Plätzen, Position und Kombinierbarkeit", "Live-Ansicht mit Status frei, reserviert, belegt, Rechnung angefordert", "Reservierung auf Tisch zuweisen, Gäste platzieren, Tisch umsetzen oder zusammenlegen", "Zeitleiste je Tisch für den Abend"],
+     "criteria": [
+       {"title": "Reservation shows on its table and a walk-in occupies a free table", "verification": "e2e", "start": "/floor", "requires_auth": true, "steps": ["Reservation 'Müller' (4) today 19:00 is assigned to Tisch 12", "Open /floor", "Select Tisch 7, click 'Walk-in platzieren', 2 Personen", "Reload the page"], "expected": ["Tisch 12 shows '19:00 Müller (4)'", "Tisch 7 shows status 'Belegt' with '2 Gäste' after reload"]}
+     ]},
+    {"id": "ordering", "name": "QR-Bestellung & Bonierung", "tier": "mvp",
+     "features": ["QR-Code je Tisch öffnet die Speisekarte dieses Tisches", "Gäste bestellen mit Warenkorb, Extras und Hinweis (z. B. 'ohne Zwiebeln')", "QR-Bestellung nur, wenn der Tisch vom Service geöffnet ist", "Service boniert am Tablet: Gänge, Sitzplatz, Hinweise", "Getränke gehen an die Bar, Speisen an die Küche"],
+     "criteria": [
+       {"title": "Guest orders via the table QR code and the order appears on the table", "verification": "e2e", "start": "/t/[code]", "requires_auth": false, "steps": ["Service has opened Tisch 5", "Open the QR link of Tisch 5", "Add 'Käsespätzle' and 'Apfelschorle 0,4 l', click 'Bestellung absenden'", "Log in as Service and open Tisch 5"], "expected": ["Guest sees 'Bestellung ist unterwegs'", "Tisch 5 lists 'Käsespätzle' and 'Apfelschorle 0,4 l' with status 'Neu' and source 'QR'"]},
+       {"title": "A QR code orders only for an opened table", "verification": "api", "steps": ["Tisch 6 is not opened", "POST an order with the QR code of Tisch 6", "Service opens Tisch 6, POST the same order again"], "expected": ["First request returns 409 with 'Tisch ist noch nicht geöffnet'", "Second request returns 201 and the order belongs to Tisch 6"]}
+     ]},
+    {"id": "kitchen-display", "name": "Küchenmonitor & Bar", "tier": "mvp",
+     "features": ["Bons je Station (Küche, Bar) in Eingangsreihenfolge mit Tisch, Gang und Wartezeit", "Hinweise und Allergie-Vermerke hervorgehoben", "Gang abrufen durch den Service", "Fertig melden → Service sieht 'Abholbereit'", "Gericht ausverkauft setzen"],
+     "criteria": [
+       {"title": "Items are routed to their station and 'Fertig' reaches the service", "verification": "e2e", "start": "/service/tables/[id]", "requires_auth": true, "steps": ["Service boniert on Tisch 7 'Wiener Schnitzel' with note 'Allergie: Nüsse' and 'Pils 0,3 l'", "Open /kitchen as Küche", "Open /kitchen with station 'Bar'", "In the kitchen click 'Fertig' on the schnitzel bon"], "expected": ["Kitchen shows bon 'Tisch 7 · Wiener Schnitzel' with highlighted 'Allergie: Nüsse' and no 'Pils'", "Bar shows 'Tisch 7 · Pils 0,3 l'", "Service view of Tisch 7 shows 'Abholbereit' for the schnitzel"]}
+     ]},
+    {"id": "billing", "name": "Tischabrechnung über die zertifizierte Kasse", "tier": "mvp",
+     "features": ["Tischrechnung zusammenstellen, getrennt zahlen nach Positionen, Tische zusammenlegen", "Übergabe der Positionen mit Steuerkategorie an eine angeschlossene zertifizierte Kasse (TSE); Kassieren, Beleg und Storno erfolgen dort", "TSE-Daten des Kassenbelegs (Transaktionsnummer, Seriennummer) werden am Tisch gespeichert", "Ohne Kassenanbindung keine Zahlungsfunktion: die App ist keine Kasse und erzeugt keine Kassenbelege"],
+     "criteria": [
+       {"title": "Split bill hands only the selected items to the connected register", "verification": "e2e", "start": "/service/tables/[id]", "requires_auth": true, "steps": ["The POS sandbox is connected", "Tisch 5 has 2 × 'Käsespätzle' and 2 × 'Apfelschorle 0,4 l'", "Click 'Getrennt zahlen', select 1 × 'Käsespätzle' and 1 × 'Apfelschorle 0,4 l'", "Click 'An Kasse übergeben' and confirm the payment in the POS sandbox"], "expected": ["The POS sandbox received exactly these 2 positions with Steuerkategorie 'Speisen' and 'Getränke'", "Tisch 5 still lists the remaining 2 positions", "The paid part shows a 'TSE-Transaktionsnummer'"]},
+       {"title": "Without a connected certified register the app offers no payment", "verification": "e2e", "start": "/settings/register", "requires_auth": true, "steps": ["Disconnect the register", "Open a table with items as Service"], "expected": ["No button 'Kassieren' or 'Bar bezahlt' is visible", "Notice 'Zahlungen nur über eine angeschlossene zertifizierte Kasse mit TSE' is shown", "/settings/register shows status 'Keine Kasse verbunden'"]}
+     ]},
+    {"id": "shifts", "name": "Dienstplan & Arbeitszeiten", "tier": "pro",
+     "features": ["Wochenplan je Bereich (Küche, Service, Bar) mit Schichtvorlagen", "Verfügbarkeiten und Tauschanfragen der Mitarbeiter", "Plan veröffentlichen → Mitarbeiter sehen ihre Schichten und werden benachrichtigt", "Warnungen bei Ruhezeit, Tageshöchstarbeitszeit, Jugendlichen nach 22 Uhr und Minijob-Grenze", "Kommen/Gehen erfassen, Export für das Lohnbüro"],
+     "criteria": [
+       {"title": "A shift with too little rest time is flagged", "verification": "e2e", "start": "/admin/shifts", "requires_auth": true, "steps": ["Lea has a late shift Friday until 23:30", "Plan Lea for an early shift Saturday from 08:00"], "expected": ["Warning 'Ruhezeit 8,5 h – unter der gesetzlichen Mindestruhezeit' is visible next to Lea's Saturday shift"]},
+       {"title": "Only the published plan is visible to staff", "verification": "e2e", "start": "/my-shifts", "requires_auth": true, "steps": ["Plan week 1 and click 'Veröffentlichen'; plan week 2 without publishing", "Log in as Service 'Lea' and open /my-shifts"], "expected": ["Lea sees her shifts of week 1", "Week 2 shows 'Noch nicht veröffentlicht'"]}
+     ]},
+    {"id": "inventory", "name": "Bestandsführung light", "tier": "pro",
+     "features": ["Lagerartikel mit Einheit, Bestand, Mindestbestand, Lieferant und EK", "Rezeptur je Gericht: Bonierung bucht Zutaten ab", "Wareneingang, Inventur zählen, Schwund erfassen", "Nachbestell-Liste bei Unterschreitung des Mindestbestands", "Gericht automatisch ausverkauft, wenn eine gezählte Zutat auf 0 fällt"],
+     "criteria": [
+       {"title": "Ordering a dish reduces stock and triggers the reorder list", "verification": "e2e", "start": "/admin/inventory", "requires_auth": true, "steps": ["'Kalbsschnitzel' has stock 10, minimum 8; recipe of 'Wiener Schnitzel' uses 1 'Kalbsschnitzel'", "Service boniert 3 × 'Wiener Schnitzel'", "Open /admin/inventory"], "expected": ["'Kalbsschnitzel' shows stock 7", "'Kalbsschnitzel' is listed under 'Nachbestellen'"]}
+     ]},
+    {"id": "vouchers", "name": "Gutscheine", "tier": "pro",
+     "features": ["Wertgutscheine online verkaufen (Stripe) mit Code, PDF und Wunschtext", "Gutscheine im Betrieb ausgeben", "Einlösen mit Teilbetrag und Restwert, Übergabe an die Kasse als Zahlungsart Gutschein", "Gültigkeit mindestens 3 Jahre bis Jahresende", "Liste offener Gutscheinwerte"],
+     "criteria": [
+       {"title": "Guest buys a voucher online and receives it by mail", "verification": "e2e", "start": "/vouchers", "requires_auth": false, "steps": ["Choose 50,00 €, enter recipient text 'Alles Gute, Anna!'", "Pay with the Stripe test card"], "expected": ["Page shows 'Gutschein gekauft'", "Outbox contains a mail with a PDF voucher showing a code and '50,00 €'"]},
+       {"title": "Partial redemption keeps the remaining balance", "verification": "e2e", "start": "/admin/vouchers", "requires_auth": true, "steps": ["Redeem 30,00 € from a 50,00 € voucher", "Try to redeem 25,00 € from the same voucher"], "expected": ["Voucher shows 'Restwert 20,00 €'", "Second redemption shows 'Restwert nicht ausreichend (20,00 €)'"]}
+     ]},
+    {"id": "guests", "name": "Gästekartei & No-Shows", "tier": "pro",
+     "features": ["Gästeprofil aus Reservierungen mit Besuchshistorie und Vorlieben", "No-Show markieren, Zähler im Profil und Hinweis bei der nächsten Reservierung", "Unverträglichkeiten nur mit ausdrücklicher Einwilligung speichern", "Newsletter nur mit Double-Opt-in"],
+     "criteria": [
+       {"title": "A no-show is counted on the guest profile and flagged on the next reservation", "verification": "e2e", "start": "/admin/guests", "requires_auth": true, "steps": ["Mark the reservation of 'Müller' as 'Nicht erschienen'", "'Müller' reserves again with the same e-mail", "Open /reservations"], "expected": ["Guest profile shows 'No-Shows: 1'", "The new reservation shows the hint 'Bereits 1 × nicht erschienen'"]},
+       {"title": "Dietary notes cannot be saved without consent", "verification": "e2e", "start": "/admin/guests", "requires_auth": true, "steps": ["Open guest 'Müller', enter 'Zöliakie' under 'Unverträglichkeiten' without ticking 'Einwilligung liegt vor'", "Click 'Speichern'"], "expected": ["Error 'Ohne Einwilligung des Gastes nicht speicherbar' is visible", "After reload 'Zöliakie' is not stored"]}
+     ]},
+    {"id": "reports", "name": "Auswertungen", "tier": "pro",
+     "features": ["Umsatz an die Kasse übergebener Positionen je Tag, Bereich und Kategorie", "Bestseller und Ladenhüter", "Auslastung, Gäste pro Tag, No-Show-Quote", "Personalkostenquote aus Dienstplan und Umsatz"],
+     "criteria": [
+       {"title": "Dashboard and reports show the same 'No-Show-Quote (letzte 30 Tage)'", "verification": "e2e", "start": "/reports", "requires_auth": true, "steps": ["Seed 20 reservations in the last 30 days: 18 completed, 2 not shown", "Open /dashboard and /reports"], "expected": ["Both pages show 'No-Show-Quote (letzte 30 Tage)' with '10 %'"]}
+     ]},
+    {"id": "pay-at-table", "name": "Bezahlen am Tisch per QR", "tier": "enterprise",
+     "features": ["Gast ruft über den Tisch-QR-Code die offene Rechnung auf und bezahlt online (Karte, Apple Pay, Google Pay) mit Trinkgeld", "Jede Online-Zahlung wird über die angeschlossene Kasse bzw. Cloud-TSE erfasst; der Gast erhält den digitalen Kassenbeleg", "Ist die Kasse nicht erreichbar, wird keine Online-Zahlung angenommen"],
+     "criteria": [
+       {"title": "Guest pays the open bill online and receives the register receipt", "verification": "e2e", "start": "/t/[code]/pay", "requires_auth": false, "steps": ["Tisch 5 has an open bill of 42,00 €", "Open the pay link of Tisch 5, choose 10 % Trinkgeld, pay with the Stripe test card"], "expected": ["Page shows 'Bezahlt – 46,20 €' and a receipt with 'TSE-Signatur'", "The POS sandbox recorded the payment", "Tisch 5 shows status 'Bezahlt' in /floor"]},
+       {"title": "Online payment is refused while the register is unreachable", "verification": "e2e", "start": "/t/[code]/pay", "requires_auth": false, "steps": ["Set the POS sandbox offline", "Open the pay link of Tisch 5"], "expected": ["Text 'Online-Zahlung gerade nicht möglich – bitte beim Service bezahlen' is visible", "No Stripe payment is created"]}
+     ]},
+    {"id": "events", "name": "Gruppen & Veranstaltungen", "tier": "enterprise",
+     "features": ["Ab einstellbarer Personenzahl wird aus der Reservierung eine Gruppenanfrage", "Bankett-Angebot mit Menüauswahl vorab und Raum-/Bereichsblockung", "Anzahlung per Zahlungslink, Bestätigung erst nach Zahlungseingang"],
+     "criteria": [
+       {"title": "A large party becomes a group request and is confirmed after the deposit", "verification": "e2e", "start": "/reserve", "requires_auth": false, "steps": ["Request 12 Personen for Saturday 19:00", "As Betriebsleitung open /admin/events, set Anzahlung 120,00 € and click 'Angebot senden'", "Pay the deposit link with the Stripe test card"], "expected": ["Guest sees 'Gruppenanfrage gesendet' instead of a direct confirmation", "Outbox contains the offer with a payment link", "The event shows 'Bestätigt – Anzahlung bezahlt'"]}
+     ]},
+    {"id": "takeaway", "name": "Abholung online", "tier": "enterprise",
+     "features": ["Online-Bestellung zur Abholung mit Zeitfenstern und Kapazität je Fenster", "Online-Zahlung, erfasst über die angeschlossene Kasse bzw. Cloud-TSE", "Bon geht an den Küchenmonitor; Gast erhält 'Abholbereit' per SMS"],
+     "criteria": [
+       {"title": "Pickup order reaches the kitchen and the guest is notified", "verification": "e2e", "start": "/order", "requires_auth": false, "steps": ["Order 2 × 'Käsespätzle' for pickup today 18:30, pay with the Stripe test card", "In the kitchen click 'Fertig' on the bon"], "expected": ["Guest sees 'Bestellung eingegangen – Abholung 18:30'", "Kitchen shows bon 'Abholung 18:30 · 2 × Käsespätzle'", "SMS outbox contains 'Ihre Bestellung ist abholbereit'"]}
+     ]},
+    {"id": "multi-location", "name": "Mehrere Standorte", "tier": "enterprise",
+     "features": ["Standorte mit eigenem Tischplan, Öffnungszeiten, Team und Kasse", "Zentrale Speisekarte mit Preisen und Verfügbarkeit je Standort", "Auswertungen je Standort und gesamt"],
+     "criteria": [
+       {"title": "A location price override applies only to that location's menu", "verification": "e2e", "start": "/admin/locations", "requires_auth": true, "steps": ["Set the price of 'Käsespätzle' to 16,50 € for location 'Hafen'", "Open /menu for 'Hafen' and for 'Altstadt'"], "expected": ["'Hafen' shows 'Käsespätzle 16,50 €'", "'Altstadt' shows 'Käsespätzle 14,50 €'"]}
+     ]}
+  ],
+  "metrics": [
+    {"id": "covers_today", "tier": "mvp", "label": "Reservierte Gäste (heute)", "unit": "Anzahl", "definition": "Summe der Personenzahl aller Reservierungen mit Datum heute, ohne stornierte und ohne nicht erschienene", "period": "Heute", "shown_on": ["/dashboard", "/reservations"]},
+    {"id": "no_show_rate", "tier": "pro", "label": "No-Show-Quote (letzte 30 Tage)", "unit": "%", "definition": "nicht erschienene / (erschienene + nicht erschienene) Reservierungen mit Datum in den letzten 30 Tagen; stornierte zählen nicht", "period": "letzte 30 Tage", "shown_on": ["/dashboard", "/reports"]},
+    {"id": "spend_per_cover", "tier": "pro", "label": "Umsatz pro Gast (diese Woche)", "unit": "EUR", "definition": "Bruttosumme der an die Kasse übergebenen Positionen ohne Trinkgeld und ohne Gutscheinverkäufe / Gästezahl der in der laufenden Woche (Mo–So) geschlossenen Tische", "period": "Diese Woche", "shown_on": ["/reports"]},
+    {"id": "labour_cost_ratio", "tier": "pro", "label": "Personalkostenquote (dieser Monat)", "unit": "%", "definition": "Stundenlohn × erfasste Arbeitszeit aller Mitarbeiter / Nettoumsatz der an die Kasse übergebenen Positionen im laufenden Kalendermonat", "period": "Dieser Monat", "shown_on": ["/reports"]},
+    {"id": "open_voucher_balance", "tier": "pro", "label": "Offene Gutscheinwerte (aktuell)", "unit": "EUR", "definition": "Summe der Restwerte aller nicht abgelaufenen Gutscheine", "period": "aktuell (kein Zeitraum)", "shown_on": ["/admin/vouchers", "/reports"]}
+  ],
+  "compliance": [
+    {"rule": "Die 14 Hauptallergene für jedes Gericht vor der Bestellung zugänglich machen — schriftlich auf der Karte oder digital, nicht nur mündlich ohne Dokumentation", "source": "Art. 9 Abs. 1 Buchst. c, Art. 44 und Anhang II LMIV (VO (EU) Nr. 1169/2011); § 4 LMIDV", "tier": "mvp"},
+    {"rule": "Kennzeichnungspflichtige Zusatzstoffe (z. B. Farbstoff, Konservierungsstoff, Geschmacksverstärker, koffeinhaltig) bei loser Ware angeben", "source": "Lebensmittelzusatzstoff-Durchführungsverordnung (LMZDV)", "tier": "mvp"},
+    {"rule": "Preise als Endpreise inklusive Umsatzsteuer und Bedienungsgeld; Preisverzeichnis für Speisen und Getränke auslegen bzw. am Eingang aushängen", "source": "§ 7 PAngV", "tier": "mvp"},
+    {"rule": "Bestellungen, Zahlungen und Belege laufen über eine Kasse mit zertifizierter technischer Sicherheitseinrichtung (TSE); die App gibt sich nicht als Kasse aus, nimmt kein Bargeld an und erzeugt keine Kassenbelege", "source": "§ 146a Abs. 1 AO; KassenSichV", "tier": "mvp"},
+    {"rule": "Belegausgabepflicht bei jedem Geschäftsvorfall — erfüllt die angeschlossene Kasse; die App zeigt den Kassenbeleg nur an", "source": "§ 146a Abs. 2 AO", "tier": "mvp"},
+    {"rule": "Steuersatz je Artikel: Speisen 7 %, Getränke 19 % — an die Kasse mit der Position übergeben", "source": "§ 12 UStG", "tier": "mvp"},
+    {"rule": "Reservierungsdaten nur für die Reservierung verwenden und nach einer festen Frist löschen; keine Werbung ohne Einwilligung", "source": "Art. 5, 6 und 17 DSGVO; § 7 UWG", "tier": "mvp"},
+    {"rule": "Unverträglichkeiten und Allergien im Gästeprofil sind Gesundheitsdaten — Speicherung nur mit ausdrücklicher Einwilligung", "source": "Art. 9 Abs. 2 Buchst. a DSGVO", "tier": "pro"},
+    {"rule": "Höchstarbeitszeit 10 Stunden je Werktag; Ruhezeit mindestens 11 Stunden, in Gaststätten auf 10 Stunden verkürzbar bei Ausgleich", "source": "§§ 3, 5 Abs. 1 und 2 ArbZG", "tier": "pro"},
+    {"rule": "Arbeitszeit im Gaststättengewerbe (Beginn, Ende, Dauer) spätestens am siebten Tag aufzeichnen und 2 Jahre aufbewahren", "source": "§ 17 Abs. 1 MiLoG; § 2a SchwarzArbG", "tier": "pro"},
+    {"rule": "Jugendliche über 16 Jahre in Gaststätten nur bis 22 Uhr beschäftigen", "source": "§ 14 Abs. 2 Nr. 1 JArbSchG", "tier": "pro"},
+    {"rule": "Wertgutscheine sind Mehrzweckgutscheine: Umsatzsteuer erst bei Einlösung, nicht beim Verkauf", "source": "§ 3 Abs. 13 und 15 UStG", "tier": "pro"},
+    {"rule": "Gutscheine verjähren frühestens nach der regelmäßigen Frist von 3 Jahren zum Jahresende; kürzere Fristen in AGB sind meist unwirksam", "source": "§§ 195, 199 BGB; § 307 BGB", "tier": "pro"},
+    {"rule": "Aufzeichnungen und Belege 8 bzw. 10 Jahre aufbewahren (Buchungsbelege 8, Bücher und Inventare 10 Jahre)", "source": "§ 147 Abs. 3 AO", "tier": "pro"},
+    {"rule": "Online-Zahlungen am Tisch und bei Abholung werden als Geschäftsvorfälle über die TSE der angeschlossenen Kasse oder einer zertifizierten Cloud-TSE erfasst", "source": "§ 146a AO; KassenSichV", "tier": "enterprise"}
+  ],
+  "integrations": {
+    "connectable": ["Zertifizierte Kassensysteme mit offener API (z. B. ready2order, Lightspeed) — Positionen werden dort kassiert und TSE-signiert", "Zertifizierte Cloud-TSE mit API (z. B. fiskaly SIGN DE) für Online-Zahlungen", "Stripe für Gutscheinverkauf, Anzahlungen und Bezahlen am Tisch", "E-Mail (SMTP) und SMS für Bestätigungen und Abholbereit-Meldungen", "Bon- und Küchendrucker im Netzwerk (ESC/POS)", "Reservierungslink im Google-Unternehmensprofil"],
+    "export_only": ["Kassen ohne API — Tischrechnungen als Datei bzw. manuelle Übernahme", "DATEV — Gutscheinverkäufe und -einlösungen als Buchungsstapel (EXTF-CSV)", "Arbeitszeiten als CSV an Lohnbüro oder Steuerberater", "Speisekarte als PDF mit Allergen-Legende zum Ausdrucken", "Bestellliste an Lieferanten als PDF/CSV"],
+    "not_possible": ["Eigene TSE und eigene Kassenbelege — die App ist keine Kasse; Signaturen nur über eine angeschlossene zertifizierte Kasse oder Cloud-TSE", "DSFinV-K-Export und Kassen-Meldung an das Finanzamt (§ 146a Abs. 4 AO) — erfolgen durch Kasse bzw. Betreiber über ELSTER, nicht durch die App", "Reservierungsplattformen (z. B. OpenTable, TheFork) ohne Partnervertrag — keine offene API"]
+  },
+  "non_functional": [
+    {"tier": "mvp", "text": "Küchenmonitor, Tischplan und Service-Ansicht zeigen neue Bestellungen innerhalb von 2 Sekunden ohne Neuladen (WebSocket oder SSE)"},
+    {"tier": "mvp", "text": "Gästeseiten (Speisekarte, QR-Bestellung, Reservierung) laufen auf dem Handy ohne Login und ohne App-Installation; Speisekarte lädt auf 4G in unter 2 Sekunden"},
+    {"tier": "mvp", "text": "Küchenmonitor aus 2 m lesbar: Gerichtsname mindestens 24 px, Hinweise und Allergie-Vermerke farblich hervorgehoben"},
+    {"tier": "mvp", "text": "Die App nimmt kein Bargeld an und erzeugt keine Kassenbelege; jede Zahlung läuft über die angeschlossene zertifizierte Kasse"},
+    {"tier": "mvp", "text": "QR-Codes enthalten ein nicht erratbares Token je Tisch; Bestellungen nur bei geöffnetem Tisch"},
+    {"tier": "mvp", "text": "Reservierungsdaten werden nach einer einstellbaren Frist (Standard 30 Tage nach dem Besuch) gelöscht oder anonymisiert, sofern kein Gästeprofil mit Einwilligung besteht"},
+    {"tier": "pro", "text": "Service-Ansicht arbeitet bei WLAN-Abbruch weiter und sendet Bonierungen nach Wiederverbindung ohne doppelte Bons"},
+    {"tier": "enterprise", "text": "Änderungsprotokoll für Preise, Stornos vor Kassenübergabe und Gutscheine (wer, wann, alt/neu)"}
+  ],
+  "production_dependencies": {"mvp": ["email"], "pro": ["email", "stripe"], "enterprise": ["email", "stripe", "sms"]},
+  "pages": {"mvp": ["/login", "/dashboard", "/menu", "/reserve", "/reserve/confirmed", "/cancel/[token]", "/t/[code]", "/floor", "/service/tables/[id]", "/reservations", "/kitchen", "/admin/menu", "/admin/tables", "/settings/register", "/settings/users"], "pro": ["/admin/shifts", "/my-shifts", "/admin/inventory", "/vouchers", "/admin/vouchers", "/admin/guests", "/reports"], "enterprise": ["/t/[code]/pay", "/admin/events", "/order", "/admin/locations"]}
+}

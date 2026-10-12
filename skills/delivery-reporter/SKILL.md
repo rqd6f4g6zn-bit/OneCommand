@@ -148,6 +148,22 @@ poster — plus where it is used, and a link to assets/CREDITS.md with the sourc
 
 ---
 
+## Phone assistant (spec with a voice section)
+
+<first, in plain words for the owner: "So verbinden Sie Ihre Telefonnummer" — the link to Einstellungen →
+Rufnummer verbinden, the three ways (keep the existing number with call forwarding — recommended; new number;
+own PBX/SIP), what to have ready (provider account, address proof for German numbers, the public HTTPS address
+after deploy), and the current status from GET /api/voice/setup/status (connected? problems?)>
+
+<only when .onecommand/calls/report.json exists: "<passed>/<N> test calls passed, p95 <ms> ms" and the transcripts
+of three calls (greeting, one action, the handover) from .onecommand/calls/report.md; the small-talk probe result;
+voice: provider and a table of the audio samples (copy .onecommand/calls/audio/ to docs/voice-samples/ and link each
+file) with "listen to them before go-live" — or, when they were skipped, the steps to add the voice credentials and
+rerun `call-sim.py run`; with module brand-voice: links to voice/recording/script.md and GUIDE.md, the hours
+needed per voice path (clone 0.5 h, own fine-tuned model 1–3 h, from scratch 24 h+) and the consent requirement>
+
+---
+
 ## Screenshots
 
 <only when .onecommand/tour/report.json exists: embed the desktop screenshot of every page the first demo account
@@ -430,3 +446,13 @@ public/        Static assets
 8. **Final message** — pick the one that matches the gate result, never the optimistic one by default:
    > Gate passed: "Your project is ready. Build, lint, types, tests and [X]/[X] acceptance criteria verified. See ONECOMMAND-DELIVERY.md."
    > Gate failed: "Your project is built but NOT fully verified: [N] open issue(s) listed in ONECOMMAND-DELIVERY.md → Open Issues."
+
+## Branche und Pflichten
+
+When the spec has `compliance` (blueprint) or `domain_brief.rules`, add a section **"Branche und Pflichten"**:
+- every duty with its source and how the software supports it (feature or acceptance criterion), or
+  "organisatorisch — nicht durch Software abgedeckt";
+- `integrations.not_possible` / `export_only` in plain words: which official or closed systems the app does
+  not connect to and how data gets there (export, manual upload) — never imply a connection that does not exist;
+- `domain_brief.to_verify`: assumptions the customer must confirm before going live.
+This is information for the customer, not legal advice; say so in one sentence.

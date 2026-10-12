@@ -14,6 +14,9 @@ You are the UI/UX excellence layer for OneCommand. Every interface you touch mus
 4. **Mobile-first** — design for 375px, then scale up
 5. **Feedback for every action** — loading, success, error — never silence
 
+Visual identity (brief, fonts, palette, the details the UI tour measures) is defined in
+`oc-frontend-design` → "Visual quality bar". This layer adds usability on top of it.
+
 ## Color System
 
 Always use semantic Tailwind tokens — never raw hex:
@@ -31,6 +34,9 @@ Always use semantic Tailwind tokens — never raw hex:
 | `ring-ring` | Focus rings |
 
 ## Typography Scale
+
+The sizes and weights come from the design brief (`.onecommand/design.md`); this is the *structure*, not the
+look — replace the classes with the brief's scale and display face.
 
 ```tsx
 // Heading hierarchy — always consistent
@@ -176,7 +182,7 @@ Every component must pass:
   className={cn(
     "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
     pathname === href
-      ? "bg-primary text-primary-foreground font-medium"
+      ? "bg-sidebar-active text-sidebar-foreground font-medium"  // from the brief, e.g. a tinted pill + accent bar
       : "text-muted-foreground hover:text-foreground hover:bg-accent"
   )}
 >

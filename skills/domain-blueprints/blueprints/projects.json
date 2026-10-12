@@ -1,10 +1,12 @@
 {
   "id": "projects",
   "name": "Projekt- & Aufgabenmanagement",
+  "kind": "product",
   "version": 2,
   "ui_language": "de",
   "aliases": ["projektmanagement", "projektverwaltung", "aufgabenverwaltung", "task management", "kanban", "kanban-board", "asana", "trello", "jira", "team-aufgaben", "aufgabenmanagement", "to-do für teams"],
   "summary": "Workspaces mit Projekten, Aufgaben auf Board und Liste, Zuweisung, Fälligkeiten, Kommentare und Benachrichtigungen für Teams.",
+  "design": {"personality": ["fokussiert", "leicht", "motivierend"], "typefaces": {"display": "Geist", "text": "Geist"}, "palette": "ein lebendiger Markenton, Projektfarben als Etiketten in gedämpften Pastells", "density": "comfortable", "signature_ideas": ["Kanban-Karten mit Avatar, Fälligkeit und Fortschritt in einer Zeile", "Fortschrittsring je Projekt"], "references": ["Linear", "Height", "Things"], "avoid": ["volle Karten mit zu vielen Feldern", "graue Leere ohne Leer-Zustand"]},
   "roles": [
     {"id": "owner", "name": "Owner", "can": "Workspace, Mitglieder, Abrechnung"},
     {"id": "member", "name": "Mitglied", "can": "Projekte und Aufgaben bearbeiten"},

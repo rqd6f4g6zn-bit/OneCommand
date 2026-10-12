@@ -8,7 +8,8 @@ You are the Frontend Design system for OneCommand. Apply these rules to every pa
 
 ## ⚠️ Component-Source Priority (read first)
 
-**Before generating any common UI section from scratch, consult the `21st-components` skill.**
+**Before generating any common UI section from scratch, consult the `21st-components` skill** — then restyle what
+you take with the design brief's tokens. A library component in its default look is not done.
 
 Order of preference for sourcing components:
 1. **21st.dev community library** (via `21st-components` skill) — battle-tested, shadcn-compatible
@@ -23,8 +24,110 @@ to custom generation.
 Token budget benefit: ~60-80% of typical landing/dashboard UI is covered by
 21st.dev. Generating from scratch is the exception, not the default.
 
+## Visual quality bar (read before writing any page)
+
+Functional checks pass long before a UI looks good. A phone-assistant build passed every gate and still
+looked like an unfinished admin template: headings in the OS fallback serif, "callback" and "order_status"
+in monospace as chart labels, row lines missing in the actions column, a sidebar background that stopped
+halfway down the page. The UI tour now measures these (`hooks/ui-tour.py`, design audit) and keeps
+`review-status` red until they are gone — but the goal is a UI a paying customer shows to their boss.
+
+### 1. Design brief first — `.onecommand/design.md`
+
+Before the first component, write the brief and derive every token from it. Start from the spec's
+`design_direction` (blueprint) or `domain_brief.design` (researched domain): it says what this industry
+expects and what looks cheap there. Adapt it to the customer's brand and name — do not copy it verbatim.
+
+| Field | Content |
+|---|---|
+| Personality | 3 adjectives from the domain and audience (tea shop: warm, calm, crafted — bank: precise, sober, trustworthy) |
+| Typefaces | display face + text face, both shipped with the app (below); one may be a variable font |
+| Palette | brand hue → primary (buttons, focus), one accent, neutrals *tinted towards the brand hue* (not stock slate/zinc), success/warning/danger tuned to the palette; light **and** dark values |
+| Shape | radius scale (e.g. 6/10/16 px), border vs. shadow style, density (comfortable / compact for data-heavy tools) |
+| Signature | one recognisable element with a meaning, in **at most three places** — e.g. an aurora veil that marks "the assistant" (sidebar brand, login panel, the automation KPI), a custom chart palette. Never on every card header: then it is decoration |
+| References | 2–3 products whose quality level is the bar (Linear, Stripe Dashboard, Vercel, Notion, Shopify Polaris …) |
+
+Write the tokens into `globals.css` from the brief — CSS variables plus `@theme` with Tailwind v4 (no
+`tailwind.config`), or `tailwind.config` with Tailwind v3. Restyle the shared components (`components/ui/*`)
+to the brief; they are the project's own code, not a vendor folder. Stock shadcn
+defaults with a changed primary colour are not a design.
+
+### 2. Typography — ship the fonts
+
+- **Never** a bare system stack (`ui-sans-serif, system-ui …`, `Georgia`, `Arial`) as the first family: it
+  renders as DejaVu on Linux, Segoe on Windows, SF on Mac — the tour reports it.
+- Self-host: `npm i @fontsource-variable/<name>` and import it in the root layout, or `next/font/local` with
+  the files in `app/fonts/`. `next/font/google` downloads at build time and fails in offline CI — only when
+  the build machine is known to be online.
+- Good pairings: Inter / Inter Display, Geist / Geist Mono, Manrope / Fraunces, Plus Jakarta Sans / Newsreader,
+  IBM Plex Sans / IBM Plex Serif, DM Sans / DM Serif Display. Match the personality from the brief.
+- Scale with contrast: page title ≥ 1.75 × body size, tighter tracking (`tracking-tight`) on large headings;
+  key figures (KPIs, prices, durations) in the display face, `tabular-nums`, 28–36 px.
+- Monospace only for real reference values a user copies (order number, tracking code, API key) — never
+  for labels, intents or statuses.
+
+### 3. Layout details the tour measures
+
+- **Sidebar**: background on the full-height grid column, sticky only on the inner nav —
+  `<div className="bg-sidebar"><aside className="sticky top-0 h-screen">…</aside></div>`. A sticky
+  `h-screen` element *with* the background ends at 100 vh in full-page screenshots and print.
+- **Table row lines**: draw them on the row (`<tr className="border-b last:border-0">`) or exclude only the
+  last row (`[&_tbody_tr:last-child_td]:border-b-0`). `last:border-b-0` on the cell removes the line from
+  the last *column* of every row.
+- **Contrast**: WCAG AA — 4.5:1 for text, 3:1 for text ≥ 24 px (or ≥ 18.7 px bold). Muted text on tinted
+  cards fails first; check it in both themes.
+- **Code values**: every enum shown to a user goes through a label map (`INTENT_LABELS[intent]`,
+  `STATUS_LABELS[status]`), including chart axes, badges and filters.
+
+### 4. Composition
+
+- One focal point per page: title + one primary action top right; secondary actions as outline/ghost.
+- Dashboards: KPI tiles with trend (delta vs. previous period, sparkline), one real chart (recharts) with
+  labelled axes and the brand palette, lists with avatars/icons — not bare progress bars with code labels.
+- Row actions: an icon button group with tooltips or a "⋯" menu, not two text buttons per row.
+- Empty states: icon or illustration, one sentence what goes here, the primary action.
+- Spacing: 4 px grid, page padding 24–32 px desktop / 16 px mobile, cards 20–24 px, section gap 24–32 px;
+  align card edges to one grid.
+- Dark mode is designed, not inverted: own surface steps, softer borders, the same brand accent.
+- **Mobile is designed, not stacked**: KPI tiles 2 per row (`grid-cols-2`, compact padding, number
+  24–28 px), page actions in one row or a "⋯" menu — not six full-width tiles and full-width buttons of
+  different widths. A mobile dashboard shows the key numbers within the first screen.
+- **No half-empty pages**: a settings page with two narrow cards on a 1440 px screen gets a two-column
+  layout (explanation left, form right) or a status summary — not 60 % white space.
+- **No redundant columns**: a column that repeats another ("Absicht: Versand" next to "Versand – geklärt")
+  is removed or turned into something the user needs (outcome, next step).
+- **Dates**: show German formats (`05.10.2026, 21:21`, relative "vor 2 Std." in lists) and use a date-range
+  picker component for filters; the native `<input type=date>` shows the browser's format and looks
+  different on every system.
+
+### 5. The identity check (before the tour)
+
+Open the dashboard screenshot next to the brief and answer in `.onecommand/design.md`:
+1. Without the logo, would someone recognise the brand? (palette, typeface, signature element visible)
+2. Where does the eye go first — is that the most important thing on the page?
+3. Which element would a Stripe/Linear designer delete or merge?
+Ask the three questions for every screenshot in the review list, not only the dashboard. Fix what the
+answers reveal. "Clean but generic" is a finding, not a pass. List pages with few rows may stay short —
+"no half-empty pages" targets settings, detail and form pages.
+
+### 6. Pitfalls a redesign hit (each cost a round)
+
+- **Tooltips / popovers**: hide them with `invisible` (plus opacity for the fade), not `opacity-0` alone —
+  the contrast audit multiplies opacity and screen readers still reach them. Inside `overflow-x-auto` table
+  wrappers they get clipped at the first and last row: place them left/right or portal them.
+- **Never nest forms**: a popover with its own `<form>` inside a filter `<form>` makes its submit button do
+  nothing — use a `<div>` with a button handler inside forms.
+- **Grid / flex children need `min-w-0`**: a table inside a card in a grid otherwise pushes the page wider
+  than a phone screen.
+- **Text over imagery** (signature, hero, gradients): the audit cannot measure it — put a solid or gradient
+  scrim behind the text and check the screenshot by eye.
+- **KPI trends need data**: a tile with "+3 ggü. Vorwoche" needs the previous period from the API. The
+  backend returns current and previous value (and a daily series for charts) for every spec metric — do not
+  page through list endpoints in the browser to compute them.
+- **Do not show the same value twice in a row** (full date in two lines, intent in two columns).
+
 ## Stack (from spec)
-- **Framework**: Next.js 14 App Router
+- **Framework**: Next.js App Router (the version the stack detector chose — currently 15/16)
 - **Styling**: Tailwind CSS + shadcn/ui
 - **State**: React hooks + server components where possible
 - **Icons**: lucide-react
@@ -43,7 +146,7 @@ app/
 ├── page.tsx                ← landing page
 └── globals.css
 components/
-├── ui/                     ← shadcn components (never edit)
+├── ui/                     ← shared primitives (shadcn or own), styled from the design brief
 ├── layout/
 │   ├── navbar.tsx
 │   ├── sidebar.tsx
@@ -117,7 +220,7 @@ import { useState } from "react"
 // Only mark "use client" when you need: hooks, events, browser APIs
 ```
 
-### Forms — always use react-hook-form + zod
+### Forms — react-hook-form + zod when the project uses them (otherwise keep the project's pattern)
 ```tsx
 "use client"
 import { useForm } from "react-hook-form"
@@ -188,6 +291,6 @@ export const api = {
 ## Performance Rules
 
 - Images: always `next/image` with `width` + `height` or `fill`
-- Fonts: always `next/font/google` with `display: swap`
+- Fonts: self-hosted (`@fontsource-variable/*` or `next/font/local`) with `display: swap` — see Visual quality bar
 - Dynamic imports for heavy components: `const Chart = dynamic(() => import("./chart"), { ssr: false })`
 - Never import entire icon packs — import individually: `import { User } from "lucide-react"`

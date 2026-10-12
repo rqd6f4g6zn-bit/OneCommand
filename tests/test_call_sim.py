@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
+import shutil
 import threading
+import wave
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -15,26 +18,121 @@ from conftest import py, write_json
 GREETING = "Willkommen bei Servicehafen. Sie sprechen mit unserem digitalen Assistenten, einer KI."
 
 
+def wav(seconds: float, text: str = "") -> bytes:
+    """Silent WAV of the given length that carries the spoken text in its first frames (read back by the fake STT)."""
+    payload = text.encode()
+    payload += b"\x00" * (len(payload) % 2)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(payload + b"\x00\x00" * max(0, int(16000 * seconds) - len(payload) // 2))
+    return buf.getvalue()
+
+
+def heard_text(audio: bytes, mode: str) -> str:
+    with wave.open(io.BytesIO(audio)) as w:
+        text = w.readframes(w.getnframes()).rstrip(b"\x00").decode()
+    if mode == "garble":
+        return " ".join("äh" if i % 3 == 2 else word for i, word in enumerate(text.split()))
+    if mode == "name":
+        return text.replace("Servicehafen", "Serviz Hofen")
+    return text
+
+
 class Assistant(BaseHTTPRequestHandler):
     """A tiny rule-based assistant with the /api/voice/simulate contract."""
     greeting = GREETING
     slow_ms = 0
     long_reply = False
+    smalltalk_fallback = False
+    complaint_fallback = False
+    memory = True
+    verify = True
+    sessions: dict = {}
+    tts = "elevenlabs"          # X-Voice-Provider; "503" = no provider configured
+    stt = "exact"               # exact | garble | name | 503
+    setup_mode = "honest"       # honest | hides_localhost | missing | incomplete
+
+    def do_GET(self):
+        if self.path != "/api/voice/setup/status" or self.setup_mode == "missing":
+            self.send_response(404)
+            self.end_headers()
+            return
+        data = {"connected": False, "provider": "twilio", "number": None, "mode": None,
+                "webhook_url": f"http://127.0.0.1:{self.server.server_address[1]}/api/voice/incoming",
+                "webhook_ok": False, "last_call_at": None,
+                "problems": ["Keine Twilio-Zugangsdaten", "Nicht öffentlich erreichbar: PUBLIC_BASE_URL fehlt"]}
+        if self.setup_mode == "hides_localhost":
+            data.update(webhook_ok=True, problems=[])
+        if self.setup_mode == "incomplete":
+            data = {"connected": False}
+        body = json.dumps(data).encode()
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+    letters_per_s = 13.0
 
     def log_message(self, *args):
         pass
 
+    def speak(self, text: str):
+        if self.tts == "503":
+            self.send_response(503)
+            self.end_headers()
+            self.wfile.write(b'{"error":"no TTS provider configured"}')
+            return
+        letters = sum(ch.isalnum() for ch in text)
+        data = wav(letters / self.letters_per_s, text)
+        self.send_response(200)
+        self.send_header("content-type", "audio/wav")
+        self.send_header("x-voice-provider", self.tts)
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_POST(self):
-        body = json.loads(self.rfile.read(int(self.headers["content-length"])))
+        raw = self.rfile.read(int(self.headers["content-length"]))
+        if self.path == "/api/voice/stt":
+            if self.stt == "503":
+                self.send_response(503)
+                self.end_headers()
+                return
+            data = json.dumps({"text": heard_text(raw, self.stt)}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        body = json.loads(raw)
+        if self.path == "/api/voice/tts":
+            return self.speak(body["text"])
         text = body["text"].lower()
+        last = self.sessions.setdefault(body["session_id"], {})
         if self.slow_ms:
             time.sleep(self.slow_ms / 1000)
         if not text:
             out = {"reply": self.greeting, "intent": "greeting"}
+        elif any(w in text for w in ("hallo", "moment")) and "mensch" not in text:
+            out = {"reply": "Wie bitte? Das habe ich leider nicht verstanden." if self.smalltalk_fallback
+                   else "Hallo! Wie kann ich Ihnen helfen?", "intent": None if self.smalltalk_fallback else "smalltalk"}
+        elif "lieferadresse" in text:
+            out = ({"reply": "Gern. Zur Sicherheit: Wie lautet die Postleitzahl Ihrer Lieferadresse?", "intent": "change_address"}
+                   if self.verify else {"reply": "Erledigt, ich habe die Adresse geändert.", "intent": "change_address"})
+        elif "falsch geliefert" in text:
+            out = ({"reply": "Wie bitte? Das habe ich leider nicht verstanden.", "intent": None} if self.complaint_fallback
+                   else {"reply": "Das tut mir leid. Ich lege ein Ticket an, ein Kollege meldet sich heute.",
+                         "intent": "complaint", "action": {"type": "create_ticket"}})
+        elif "wann kommt" in text:
+            order = last.get("order") if self.memory else None
+            out = ({"reply": f"Ihre Bestellung {order} kommt am Mittwoch.", "intent": "order_status"} if order
+                   else {"reply": "Gern. Wie lautet Ihre Bestellnummer?", "intent": "order_status"})
         elif "geöffnet" in text:
             reply = "Wir sind Montag bis Freitag von 8 bis 18 Uhr für Sie da."
             out = {"reply": reply * (20 if self.long_reply else 1), "intent": "opening_hours"}
         elif "bestellung" in text:
+            last["order"] = "4711"
             out = {"reply": "Ihre Bestellung 4711 ist unterwegs.", "intent": "order_status", "action": {"type": "lookup_order"}}
         elif "mensch" in text:
             out = {"reply": "Ich verbinde Sie mit einem Kollegen.", "intent": "handover", "handover": True}
@@ -55,6 +153,9 @@ def server():
     yield f"http://127.0.0.1:{srv.server_address[1]}"
     srv.shutdown()
     Assistant.greeting, Assistant.slow_ms, Assistant.long_reply = GREETING, 0, False
+    Assistant.smalltalk_fallback, Assistant.tts, Assistant.letters_per_s = False, "elevenlabs", 13.0
+    Assistant.complaint_fallback, Assistant.memory, Assistant.sessions, Assistant.verify = False, True, {}, True
+    Assistant.stt, Assistant.setup_mode = "exact", "honest"
 
 
 SCENARIOS = {
@@ -87,9 +188,11 @@ def test_all_calls_pass(tmp_path, server):
     assert sim("validate", "--project-dir", str(p)).returncode == 0
     r = sim("run", "--project-dir", str(p), "--base-url", server)
     assert r.returncode == 0, r.stdout
-    assert "3/3 calls passed" in r.stdout
+    assert "7/7 calls passed" in r.stdout and "Small talk (built-in)" in r.stdout and "Caller identity (built-in)" in r.stdout
+    assert "Complaint (built-in)" in r.stdout and "Follow-up question (built-in)" in r.stdout
     report = json.loads((p / ".onecommand" / "calls" / "report.json").read_text())
-    assert report["passed"] and report["turns"] == 4 and report["latency_ms_p95"] is not None
+    assert report["passed"] and report["turns"] == 11 and report["latency_ms_p95"] is not None
+    assert report["audio"] is None
     md = (p / ".onecommand" / "calls" / "report.md").read_text()
     assert "**Caller:** Wo ist meine Bestellung 4711?" in md and "digitalen Assistenten" in md
 
@@ -148,3 +251,170 @@ def test_unreachable_assistant(tmp_path):
 def test_no_voice_section_is_not_applicable(tmp_path):
     write_json(tmp_path / ".onecommand-spec.json", {"project_name": "web"})
     assert sim("run", "--project-dir", str(tmp_path)).returncode == 3
+
+
+def test_smalltalk_answered_with_not_understood_fails(tmp_path, server):
+    Assistant.smalltalk_fallback = True
+    r = sim("run", "--project-dir", str(project(tmp_path)), "--base-url", server)
+    assert r.returncode == 1
+    assert "answers small talk with 'not understood'" in r.stdout and "'Hallo?'" in r.stdout
+
+
+def test_smalltalk_probe_can_be_switched_off(tmp_path, server):
+    Assistant.smalltalk_fallback = True
+    r = sim("run", "--project-dir", str(project(tmp_path, smalltalk=[])), "--base-url", server)
+    assert r.returncode == 0 and "6/6 calls passed" in r.stdout
+
+
+def test_twiml_say_and_robotic_engines_fail_validation(tmp_path):
+    p = project(tmp_path)
+    route = p / "app" / "api" / "voice" / "dtmf" / "route.ts"
+    route.parent.mkdir(parents=True)
+    route.write_text('const xml = `<Response><Say language="de-DE">${reply}</Say></Response>`;\n')
+    (p / "lib").mkdir()
+    (p / "lib" / "tts.py").write_text('subprocess.run(["espeak-ng", "-v", "de", text])\n# espeak would be robotic\n')
+    r = sim("validate", "--project-dir", str(p))
+    assert r.returncode == 1
+    assert "app/api/voice/dtmf/route.ts:1: TwiML <Say>" in r.stdout
+    assert "lib/tts.py:1: robotic speech engine" in r.stdout and "tts.py:2" not in r.stdout
+
+
+def test_turn_that_checks_only_length_is_rejected(tmp_path):
+    sc = {"hallo": {"name": "Hallo", "turns": [{"say": "Hallo", "expect": {"max_chars": 300}}]}, **SCENARIOS}
+    r = sim("validate", "--project-dir", str(project(tmp_path, sc, intents=[])))
+    assert r.returncode == 1 and "hallo.json turn 1: checks only length/latency" in r.stdout
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_voice_samples_are_saved_for_listening(tmp_path, server):
+    p = project(tmp_path, tts_endpoint="/api/voice/tts")
+    r = sim("run", "--project-dir", str(p), "--base-url", server)
+    assert r.returncode == 0, r.stdout
+    assert "voice: " in r.stdout and "(elevenlabs" in r.stdout
+    audio = json.loads((p / ".onecommand" / "calls" / "report.json").read_text())["audio"]
+    assert audio["status"] == "ok" and len(audio["files"]) == 12     # greeting + 11 replies
+    assert (p / ".onecommand" / "calls" / "audio" / "greeting.wav").exists()
+    assert all(12 <= a["letters_per_s"] <= 14 for a in audio["files"])
+    md = (p / ".onecommand" / "calls" / "report.md").read_text()
+    assert "## 🔊 Voice samples" in md and "(audio/greeting.wav)" in md
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_rushed_speech_fails(tmp_path, server):
+    Assistant.letters_per_s = 60
+    r = sim("run", "--project-dir", str(project(tmp_path, tts_endpoint="/api/voice/tts")), "--base-url", server)
+    assert r.returncode == 1 and "letters/s — speech is too fast" in r.stdout
+
+
+@pytest.mark.parametrize("provider,code,message", [
+    ("503", 0, "no voice provider configured"),
+    ("fake", 0, "no voice provider configured"),
+    ("espeak-ng", 1, "is a robotic engine"),
+])
+def test_voice_provider_states(tmp_path, server, provider, code, message):
+    Assistant.tts = provider
+    r = sim("run", "--project-dir", str(project(tmp_path, tts_endpoint="/api/voice/tts")), "--base-url", server)
+    assert r.returncode == code and message in r.stdout
+
+
+def test_complaint_answered_with_not_understood_fails(tmp_path, server):
+    Assistant.complaint_fallback = True
+    r = sim("run", "--project-dir", str(project(tmp_path)), "--base-url", server)
+    assert r.returncode == 1 and "answers a complaint with 'not understood'" in r.stdout
+
+
+def test_followup_without_memory_fails(tmp_path, server):
+    Assistant.memory = False
+    r = sim("run", "--project-dir", str(project(tmp_path)), "--base-url", server)
+    assert r.returncode == 1
+    assert "asks again for the number the caller already gave (4711)" in r.stdout
+
+
+def test_followup_probe_needs_a_scenario_with_a_number(tmp_path, server):
+    sc = {k: v for k, v in SCENARIOS.items() if k != "bestellung"}
+    r = sim("run", "--project-dir", str(project(tmp_path, sc, intents=[])), "--base-url", server)
+    assert r.returncode == 0 and "⚠ no follow-up probe" in r.stdout and "⚠ no identity probe" in r.stdout
+    custom = {**sc, "termin": {"name": "Termin", "turns": [
+        {"say": "Mein Termin 2024 ist wann?", "expect": {"intent": "appointment"}}]}}
+    r = sim("run", "--project-dir", str(project(tmp_path, custom, intents=[],
+                                                followup={"after_intent": "appointment", "then": ["Und wann kommt es?"]})),
+            "--base-url", server)
+    assert "Follow-up question (built-in)" in r.stdout
+
+
+def test_change_for_unverified_caller_fails(tmp_path, server):
+    Assistant.verify = False
+    r = sim("run", "--project-dir", str(project(tmp_path)), "--base-url", server)
+    assert r.returncode == 1 and "changed something for a caller identified only by phone number" in r.stdout
+
+
+PRON = {"tts_endpoint": "/api/voice/tts", "stt_endpoint": "/api/voice/stt", "company_name": "Servicehafen"}
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_pronunciation_round_trip_passes(tmp_path, server):
+    p = project(tmp_path, **PRON, pronunciation=["Unser Darjeeling kommt aus Indien."])
+    r = sim("run", "--project-dir", str(p), "--base-url", server)
+    assert r.returncode == 0, r.stdout
+    audio = json.loads((p / ".onecommand" / "calls" / "report.json").read_text())["audio"]
+    pron = [a for a in audio["files"] if a["name"].startswith("pronunciation-")]
+    assert len(pron) == 8 and all(a["wer"] == 0 for a in pron)          # 6 standard + company + own sentence
+    assert audio["pronunciation"]["checked"] == len(audio["files"]) and "mean word error rate 0.0" in r.stdout
+    md = (p / ".onecommand" / "calls" / "report.md").read_text()
+    assert "Heard by the recogniser" in md and "Willkommen bei Servicehafen." in md
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_unclear_pronunciation_fails(tmp_path, server):
+    Assistant.stt = "garble"
+    r = sim("run", "--project-dir", str(project(tmp_path, **PRON)), "--base-url", server)
+    assert r.returncode == 1 and "pronounced unclearly" in r.stdout and "word error rate" in r.stdout
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_mispronounced_company_name_fails(tmp_path, server):
+    Assistant.stt = "name"
+    r = sim("run", "--project-dir", str(project(tmp_path, **PRON)), "--base-url", server)
+    assert r.returncode == 1
+    assert "'Servicehafen' is not recognisable in the audio" in r.stdout and "pronunciation lexicon" in r.stdout
+
+
+@pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe not installed")
+def test_pronunciation_skipped_without_recogniser(tmp_path, server):
+    Assistant.stt = "503"
+    r = sim("run", "--project-dir", str(project(tmp_path, **PRON)), "--base-url", server)
+    assert r.returncode == 0 and "⚠ no speech recogniser configured — pronunciation test skipped" in r.stdout
+
+
+def test_number_words_and_wer():
+    import importlib.util
+    from conftest import HOOKS
+    spec = importlib.util.spec_from_file_location("callsim", HOOKS / "call-sim.py")
+    cs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cs)
+    assert [cs.number_words(n) for n in (0, 18, 21, 39, 101, 4711)] == [
+        "null", "achtzehn", "einundzwanzig", "neununddreißig", "einhunderteins", "viertausendsiebenhundertelf"]
+    assert cs.normalise("Ab 39 € oder 4,90 Euro") == ["ab", "neununddreißig", "euro", "oder", "vier", "komma", "neunzig", "euro"]
+    assert cs.wer(cs.normalise("von acht bis achtzehn Uhr"), cs.normalise("von 8 bis 18 Uhr")) == 0
+    assert cs.wer(["a", "b", "c", "d"], ["a", "x", "c"]) == 0.5
+    assert cs.heard("Nordlicht Tee", cs.normalise("willkommen bei nord licht tee"))
+    assert not cs.heard("Servicehafen", cs.normalise("willkommen bei serviz hofen"))
+
+
+SETUP = {"setup_endpoint": "/api/voice/setup/status"}
+
+
+def test_number_setup_status_passes_when_honest(tmp_path, server):
+    r = sim("run", "--project-dir", str(project(tmp_path, **SETUP)), "--base-url", server)
+    assert r.returncode == 0 and "✓ number setup: connected=False" in r.stdout and "problems=2" in r.stdout
+
+
+@pytest.mark.parametrize("mode,message", [
+    ("hides_localhost", "offers the webhook http://127.0.0.1"),
+    ("missing", "the owner cannot see whether the phone number is connected"),
+    ("incomplete", "lacks provider, number, mode, webhook_url, webhook_ok, last_call_at, problems"),
+])
+def test_number_setup_problems_fail(tmp_path, server, mode, message):
+    Assistant.setup_mode = mode
+    r = sim("run", "--project-dir", str(project(tmp_path, **SETUP)), "--base-url", server)
+    assert r.returncode == 1 and message in r.stdout

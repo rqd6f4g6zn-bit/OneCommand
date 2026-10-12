@@ -17,6 +17,18 @@
       "habit-mobile",
       "platformer",
       "server-os"
+    ],
+    "industries": [
+      "notary",
+      "practice-phone",
+      "restaurant-site",
+      "unknown-domain"
+    ],
+    "hard": [
+      "practice-phone",
+      "marketplace",
+      "unknown-domain",
+      "crm-enterprise"
     ]
   },
   "prompts": [
@@ -66,6 +78,36 @@
       "id": "server-os",
       "type": "os",
       "prompt": "Minimales Server-Betriebssystem auf Alpine-Basis mit nginx, PostgreSQL, gehärtetem SSH (nur Schlüssel), Firewall und automatischen Sicherheitsupdates, testbar in QEMU."
+    },
+    {
+      "id": "notary",
+      "type": "web",
+      "prompt": "Software für unser Notariat",
+      "notes": "Industry blueprint notary: 14-day draft rule, conflict check, deed register, GNotKG fees, handover instead of fake BNotK connection."
+    },
+    {
+      "id": "practice-phone",
+      "type": "web",
+      "prompt": "Praxis-Software für Physiotherapie mit Telefon-KI",
+      "notes": "Combination: medical-practice --with phone-assistant; health data (Art. 9 DSGVO), no fake KV/TI connection."
+    },
+    {
+      "id": "restaurant-site",
+      "type": "web",
+      "prompt": "Webseite für unser Restaurant",
+      "notes": "Product leads (website), industry gives look and duties (allergens) — no kitchen display."
+    },
+    {
+      "id": "unknown-domain",
+      "type": "web",
+      "prompt": "Software für unser Bestattungsinstitut",
+      "notes": "No blueprint: the spec must carry a researched domain_brief (blueprint.py check fails without it)."
+    },
+    {
+      "id": "marketplace",
+      "type": "web",
+      "prompt": "Lieferando für Hofläden",
+      "notes": "Hard: three-sided marketplace from four words."
     }
   ]
 }
