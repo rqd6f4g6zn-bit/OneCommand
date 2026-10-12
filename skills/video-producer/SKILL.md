@@ -33,6 +33,16 @@ studies. You plan the edit, `hooks/video.py` does the cutting and encoding, the 
    API (free key, license per clip) or a generative video API (Runway, Luma, Veo — paid key). Never
    ship footage without a known license; list every clip with source and license in `assets/CREDITS.md`.
 
+## Output path (by platform)
+
+| Platform | `--out-dir` (videos + poster) | Referenced as |
+|---|---|---|
+| Next.js | `public/videos/` | `/videos/hero.mp4` |
+| WordPress (spec has `wordpress`) | `wordpress/themes/<theme>/assets/video/` | `get_theme_file_uri( 'assets/video/hero.mp4' )` in PHP, or a block attribute (core/video, core/cover `url` / `poster`) set in the pattern or `seed.php` |
+
+The commands below use `public/videos`; for WordPress substitute the theme path in `render`, `check` and
+the embed. Captions (`.vtt`) go next to the video.
+
 ## 3. Cut
 
 1. Find cut points: `python3 "$OC_ROOT/hooks/video.py" scenes assets/raw/drone.mp4 --threshold 0.3`
@@ -68,6 +78,6 @@ studies. You plan the edit, `hooks/video.py` does the cutting and encoding, the 
 
 ## 5. Done when
 
-- `video.py check public/videos` exits 0 (both formats, poster, faststart, muted loops silent, budget).
+- `video.py check public/videos` (WordPress: `wordpress/themes/<theme>/assets/video`) exits 0 (both formats, poster, faststart, muted loops silent, budget).
 - The UI tour's performance budget passes on the page with the video (LCP, page weight).
 - `assets/CREDITS.md` lists every source with its license; the delivery report links it.

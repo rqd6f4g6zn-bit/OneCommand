@@ -81,7 +81,9 @@ criteria per tier (mvp ⊂ pro ⊂ enterprise), `design`, `compliance` (§ sourc
 industry look and duties). No match → the spec needs a `domain_brief` (`blueprint.py brief`); `check` fails
 without it.
 `hooks/blueprint.py detect|expand|check`: spec-analyzer expands the matching blueprint and builds the
-spec on top; `check` fails when a module or a blueprint criterion (`source` tag) is dropped. New
+spec on top; `check` fails when a module or a blueprint criterion (`source` tag) is dropped. A website for an
+industry (`expand website --context restaurant`) takes the industry's `website` block (guest-facing modules,
+page names, public look) and only `compliance` rules whose `scope` is not `software`. New
 blueprints: add a JSON file — `tests/test_blueprint.py` validates schema and every tier expansion.
 
 ## Skill Plan

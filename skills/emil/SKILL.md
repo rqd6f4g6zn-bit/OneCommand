@@ -31,8 +31,12 @@ A guide that says "use `animate`" or "see review-animations" means the guide of 
 | React Native / Expo motion | `animate-expo` (+ `RECIPES.md`) |
 | Swift (iOS/macOS native code) | `write-swift` |
 
-Read the guide with the Read tool before writing or judging code for that task; read the linked files
-when the guide says so. Several tasks → several guides.
+Load a guide through the catalog, like a skill — it prints the guide and records the read:
+`python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir "$PROJECT_DIR" read emil/<guide> --phase N`.
+Inside a build, `check-read N` fails while a guide the phase needs is not loaded (Phase 2: `emil-design-eng`,
+`animate`, `mobile-native`; Phase 6: `break-ui`, `review-animations`). Linked files (RECIPES.md, CATALOG.md …)
+are read with the Read tool when the guide says so. Outside a build (`/emil`) the Read tool is enough.
+Several tasks → several guides.
 
 ## Inside a OneCommand build
 
@@ -42,6 +46,12 @@ when the guide says so. Several tasks → several guides.
 - **Phase 6 (exceed expectations):** run `break-ui` on every list, table and card component with the demo
   data, `review-animations` on every component that moves, `animation-performance` on anything that
   animates on scroll or during load. Fix what they find — in the app's code, with the guides' exact values.
+- **OneCommand overrides two guide defaults inside a build** (no one is there to ask): `break-ui` and
+  `review-animations` say "report, then stop — fix only when asked"; in Phase 6 the findings are fixed right
+  away and listed in `.onecommand/decisions.md`. `break-ui` asks for a dev-only demo/worst-case toggle; use
+  the worst-case seed instead — WordPress: `wp-gate.py serve --seed-mode worst` (seed.php reads
+  `OC_SEED_MODE=worst`), Next.js: a `SEED_MODE=worst` branch of the demo seed. Never ship a toggle in the UI.
+  With `/emil` outside a build the guides' own defaults apply.
 - Motion follows the design brief: the brief's personality decides how much moves (a notary's software
   moves less than a restaurant's website); these guides decide how it moves.
 - `prefers-reduced-motion` is honoured everywhere (the guides show how).

@@ -182,6 +182,13 @@ otherwise write "None — all checks and must-criteria passed.">
 
 ---
 
+## Vor dem Livegang ersetzen
+
+<only when spec.demo_facts is non-empty — see "Demo facts" below: one checkbox per entry,
+"- [ ] **<field>**: <value> (Demo-Wert)">
+
+---
+
 ## Beyond Your Request
 
 <list each item added by exceed-expectations with ★>
@@ -456,3 +463,24 @@ When the spec has `compliance` (blueprint) or `domain_brief.rules`, add a sectio
   not connect to and how data gets there (export, manual upload) — never imply a connection that does not exist;
 - `domain_brief.to_verify`: assumptions the customer must confirm before going live.
 This is information for the customer, not legal advice; say so in one sentence.
+
+## Demo facts — "Vor dem Livegang ersetzen"
+
+When the spec has `demo_facts` (invented address, owner, USt-ID, register, phone, opening hours, prices,
+menu, allergens, team names, seat counts, video IDs …), add the section **"Vor dem Livegang ersetzen"**:
+
+```markdown
+## Vor dem Livegang ersetzen
+
+Diese Angaben sind Demo-Werte, damit die Seite vollständig aussieht. Sie sind erfunden und müssen vor
+der Veröffentlichung durch Ihre echten Daten ersetzt werden (Impressum-Angaben sind Pflicht, § 5 DDG).
+
+- [ ] **Impressum: Anschrift**: Ottenser Hauptstraße 21, 22765 Hamburg
+- [ ] **Öffnungszeiten**: Di–So 17:30–23:00, Mo Ruhetag
+```
+
+- Every `demo_facts` entry appears, with field and demo value; say where it is edited (WordPress: the page
+  or site-plugin setting, otherwise the file).
+- Never present a demo fact as real anywhere in the report — not in "What Was Built", not in screenshot
+  captions, not in the final message. Write "Demo-Adresse", not "Adresse".
+- When `demo_facts` is empty, omit the section.

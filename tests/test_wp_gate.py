@@ -34,7 +34,8 @@ PLUGIN = """<?php
  */
 defined( 'ABSPATH' ) || exit;
 add_action( 'init', function () {
-\tregister_post_type( 'kh_bohne', array( 'label' => 'Bohnen', 'public' => true, 'show_in_rest' => true ) );
+\tregister_post_type( 'kh_bohne', array( 'label' => 'Bohnen', 'public' => true, 'show_in_rest' => true,
+\t\t'rewrite' => array( 'slug' => 'bohnen', 'with_front' => false ) ) );
 } );
 """
 
@@ -48,6 +49,20 @@ foreach ( array( 'startseite' => 'Startseite', 'ueber-uns' => 'Über uns' ) as $
 }
 update_option( 'show_on_front', 'page' );
 update_option( 'page_on_front', get_page_by_path( 'startseite' )->ID );
+// The plugin's post type exists here: the seed runs after theme and plugins are active.
+if ( ! post_type_exists( 'kh_bohne' ) ) { throw new Exception( 'post type kh_bohne not registered during the seed' ); }
+if ( ! get_page_by_path( 'arabica', OBJECT, 'kh_bohne' ) ) {
+\twp_insert_post( array( 'post_type' => 'kh_bohne', 'post_status' => 'publish', 'post_title' => 'Arabica', 'post_name' => 'arabica' ) );
+}
+// A structure with a front: categories become /journal/category/… only after a flush in a fresh request.
+global $wp_rewrite;
+$wp_rewrite->set_permalink_structure( '/journal/%postname%/' );
+$cat = wp_insert_term( 'Röstung', 'category', array( 'slug' => 'roestung' ) );
+$cat_id = is_wp_error( $cat ) ? (int) get_term_by( 'slug', 'roestung', 'category' )->term_id : (int) $cat['term_id'];
+if ( ! get_page_by_path( 'erste-roestung', OBJECT, 'post' ) ) {
+\twp_insert_post( array( 'post_status' => 'publish', 'post_title' => 'Erste Röstung', 'post_name' => 'erste-roestung', 'post_category' => array( $cat_id ) ) );
+}
+echo getenv( 'ONECOMMAND_E2E' ) === '1' ? '' : 'no test mode';
 """
 
 
@@ -140,7 +155,41 @@ def test_real_wordpress_site_starts_with_theme_plugin_users_and_seed(tmp_path):
         assert "Willkommen im Kaffeehaus" in html and "kaffeehaus" in html
         assert urllib.request.urlopen("http://127.0.0.1:8897/ueber-uns/", timeout=30).status == 200
         assert urllib.request.urlopen("http://127.0.0.1:8897/wp-login.php", timeout=30).status == 200
+        assert urllib.request.urlopen("http://127.0.0.1:8897/bohnen/arabica/", timeout=30).status == 200
+        assert urllib.request.urlopen("http://127.0.0.1:8897/journal/erste-roestung/", timeout=30).status == 200
+        assert urllib.request.urlopen("http://127.0.0.1:8897/journal/category/roestung/", timeout=30).status == 200
     finally:
         import signal
         os.killpg(proc.pid, signal.SIGINT)
         proc.wait(timeout=30)
+
+
+def load_gate():
+    import importlib.util
+    from conftest import HOOKS
+    spec = importlib.util.spec_from_file_location("wpgate", HOOKS / "wp-gate.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_demo_administrator_installs_the_site_even_when_listed_later():
+    gate = load_gate()
+    spec = {"demo": {"accounts": [
+        {"role": "editor", "wp_role": "editor", "email": "redaktion@luna.test"},
+        {"role": "admin", "wp_role": "administrator", "login": "admin", "email": "admin@luna.test", "password": "Demo1234!"}]}}
+    users = gate.demo_users(spec)
+    assert [u["login"] for u in users] == ["admin", "redaktion"] and users[0]["password"] == "Demo1234!"
+
+
+def test_core_escaped_markup_may_be_echoed(tmp_path):
+    root = make_site(tmp_path)
+    render = root / "wordpress" / "plugins" / "kaffeehaus-core" / "render.php"
+    render.write_text("<?php\ndefined( 'ABSPATH' ) || exit;\n$wrapper = get_block_wrapper_attributes( array( 'class' => 'x' ) );\n"
+                      "?>\n<div <?php echo $wrapper; ?>></div>\n")
+    gate = load_gate()
+    errors, _ = gate.static_problems(root, SPEC["wordpress"])
+    assert not [e for e in errors if "render.php" in e], errors
+    render.write_text("<?php\ndefined( 'ABSPATH' ) || exit;\n$title = $attributes['title'];\n?>\n<h2><?php echo $title; ?></h2>\n")
+    errors, _ = gate.static_problems(root, SPEC["wordpress"])
+    assert any("render.php" in e and "escaping" in e for e in errors)

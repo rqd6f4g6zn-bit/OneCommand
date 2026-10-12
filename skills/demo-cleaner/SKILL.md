@@ -55,6 +55,35 @@ grep -rn "test_key_\|demo_key_\|fake_key_\|YOUR_API_KEY\|YOUR_SECRET\|xxx_\|yyy_
 echo "=== END SCAN ==="
 ```
 
+### WordPress builds (spec has `wordpress`)
+
+The scan above only reads `*.tsx`/`*.ts`. For WordPress, run the same patterns over PHP, HTML and JSON in
+`wordpress/` (theme templates, parts, patterns, `theme.json`, the site plugin, `seed.php`):
+
+```bash
+WP_INC='--include=*.php --include=*.html --include=*.json --include=*.css'
+WP_EXCL='--exclude-dir=node_modules --exclude-dir=vendor --exclude-dir=build'
+for pat in "lorem\|ipsum\|dolor sit amet" \
+           "John Doe\|Jane Doe\|john@example\|test@example\|foo@bar\|Max Mustermann\|Musterstraße\|Musterstadt" \
+           "picsum\.photos\|placeholder\.com\|via\.placeholder\|placehold\.it\|dummyimage\.com" \
+           "Acme\|Demo Company\|Your Company\|Company Name\|Firmenname" \
+           "555-\|(555)\|123-456-7890\|0123 456789\|123 Main Street\|Anytown" \
+           "TODO\|FIXME\|Coming soon\|Under construction\|Your text here\|\[Adresse\]\|\[Telefon\]" \
+           "YOUR_API_KEY\|YOUR_SECRET\|demo_key_\|test_key_"; do
+  grep -rn $WP_INC $WP_EXCL "$pat" wordpress/ 2>/dev/null
+done
+```
+
+- Demo content in `wordpress/seed.php` (pages, posts, menu items, images) is the site's starter content —
+  it stays; it must not contain lorem ipsum or the patterns above.
+- Every invented business fact in theme, plugin or `seed.php` (address, owner, USt-ID, register, phone,
+  e-mail, opening hours, prices, menu, allergens, team names, seat counts, video IDs) must be listed in
+  `spec.demo_facts`. Add missing entries (and to `to_verify`); remove invented reviews, testimonials with
+  names, ratings, awards and certificates — they are never allowed (`spec-analyzer` → `demo_facts`).
+- Test-only REST routes and the mail outbox of the site plugin stay when they are registered only behind
+  `getenv( 'ONECOMMAND_E2E' )` or `wp_get_environment_type() === 'local'`. Unguarded ones are a security
+  hole on the live site: add the guard (do not delete them — the acceptance tests use them).
+
 ## Step 2: Fix each finding
 
 For each item found, apply the appropriate replacement:
@@ -135,6 +164,8 @@ echo "=== POST-CLEAN VERIFICATION ==="
 DEMO_COUNT=$(grep -rn "lorem\|ipsum\|picsum\|John Doe\|Jane Doe\|placeholder\.com\|Acme Inc\|TODO\|Coming soon" \
   --include="*.tsx" --exclude-dir=node_modules . 2>/dev/null | wc -l | tr -d ' ')
 echo "Remaining demo/placeholder instances: $DEMO_COUNT"
+[ -d wordpress ] && DEMO_COUNT=$((DEMO_COUNT + $(grep -rn "lorem\|ipsum\|picsum\|John Doe\|Musterstraße\|placeholder\.com\|Acme\|TODO\|Coming soon" \
+  --include="*.php" --include="*.html" --include="*.json" --exclude-dir=node_modules --exclude-dir=vendor wordpress/ 2>/dev/null | wc -l)))
 [ "$DEMO_COUNT" -eq 0 ] && echo "✓ Clean" || echo "⚠ $DEMO_COUNT items still need review"
 echo "=========================="
 ```

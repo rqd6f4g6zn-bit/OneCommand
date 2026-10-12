@@ -103,6 +103,17 @@ defaults with a changed primary colour are not a design.
   picker component for filters; the native `<input type=date>` shows the browser's format and looks
   different on every system.
 
+### 4b. WordPress builds (spec has `wordpress`)
+
+- Tokens (palette, font families with self-hosted `fontFace`, font sizes, spacing, layout widths) go into
+  `theme.json` — not only into CSS variables; editors pick from them and the gate checks them.
+- The visual quality bar above applies unchanged — a block theme is no excuse for a template look.
+- Every post / journal / news card has a featured image: `seed.php` sets `_thumbnail_id` on every demo
+  post; no card without image (a `core/post-featured-image` must never render empty).
+- Native date inputs follow the browser locale: set `lang="de"` on `<html>` (`language_attributes()`,
+  site language `de_DE`) and show the expected format as a hint ("TT.MM.JJJJ"), or use a German date
+  picker — a German site never shows `mm/dd/yyyy` (oc-ui-ux → Forms).
+
 ### 5. The identity check (before the tour)
 
 Open the dashboard screenshot next to the brief and answer in `.onecommand/design.md`:

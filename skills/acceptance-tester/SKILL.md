@@ -47,7 +47,7 @@ Add to `.gitignore` if missing: `test-results/`, `playwright-report/`, `.onecomm
 
 ## Step 2 — `playwright.config.ts`
 
-Write exactly this shape. The gate starts nothing itself — Playwright's `webServer` starts the production build, so tests hit the same code that ships.
+Write exactly this shape (WordPress builds: see "WordPress builds" below). The gate starts nothing itself — Playwright's `webServer` starts the production build, so tests hit the same code that ships.
 
 ```ts
 import { defineConfig, devices } from '@playwright/test';
@@ -88,6 +88,56 @@ export default defineConfig({
 | Vite / React SPA | `npm run preview -- --port ${PORT} --strictPort` |
 | Express / Fastify / Hono | `npm run start` (server must read `process.env.PORT`) |
 | Separate API + frontend | two `webServer` entries, one per process |
+| WordPress (spec has `wordpress`) | none — see below |
+
+## WordPress builds (spec has `wordpress`)
+
+The template above does not apply. `hooks/quality-gate.sh` hands the spec to `hooks/wp-gate.py`, which
+starts real WordPress itself (PHP built-in server + SQLite, `.onecommand/wp-site/`, `WP_ENVIRONMENT_TYPE=local`,
+`ONECOMMAND_E2E=1` exported to PHP) and passes the URL as `BASE_URL`. A `webServer` entry would start a
+second, wrong server.
+
+```ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e/acceptance',
+  fullyParallel: false, workers: 1, retries: 1, timeout: 45_000,
+  expect: { timeout: 7_000 }, forbidOnly: true,
+  reporter: [['list'], ['json']],
+  use: { baseURL: process.env.BASE_URL, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // no webServer: wp-gate.py starts the site
+});
+```
+
+Test titles still start with `AC-###`. `helpers.ts` for WordPress:
+
+- **Login** on `/wp-login.php`: wp-login moves focus to `#user_login` ~200 ms after load — fills made
+  before that land in the wrong field. Wait first, then fill:
+  ```ts
+  await page.goto('/wp-login.php');
+  await expect(page.locator('#user_login')).toBeFocused();
+  await page.locator('#user_login').fill(user);
+  await page.locator('#user_pass').fill(pass);
+  await page.locator('#wp-submit').click();
+  await expect(page).toHaveURL(/\/wp-admin\//);
+  ```
+- **Block editor**: the content canvas is an iframe — `page.frameLocator('iframe[name="editor-canvas"]')`
+  for title and blocks; the toolbar and sidebars stay on `page`.
+- **Welcome guide**: switch it off in `seed.php` (`wp_persisted_preferences` user meta,
+  `core/edit-post` → `welcomeGuide: false`) — never click it away in the test.
+- **Publish** has a pre-publish panel: click 'Veröffentlichen' in the toolbar, then
+  `.editor-post-publish-panel__header-publish-button`; assert the "veröffentlicht" snackbar.
+- **Cleanup and test-mode data** via a test-only REST route of the site plugin
+  (`/wp-json/<theme>-core/v1/e2e/…`), registered only when `getenv('ONECOMMAND_E2E')` is set. A REST
+  nonce from `wpApiSettings` / `wp.apiFetch` exists only on editor pages — dashboard pages do not load
+  `wp.apiFetch` — so do not depend on it.
+- **E-mail**: in test mode the site plugin writes mails to an outbox exposed by that REST route
+  (`GET …/e2e/outbox`); tests read it there, no SMTP.
+- **Fixed URLs**: contact forms post to `/wp-admin/admin-post.php` (hidden `action` field), RSS is
+  `/feed/`, sitemap `/wp-sitemap.xml`.
+- Front-end criteria run as a visitor (no login); log in only for editor/admin criteria.
 
 ## Step 3 — One test per criterion
 
@@ -157,7 +207,7 @@ test('AC-007: GET /api/workouts without a session returns 401', async ({ request
 bash "$OC_ROOT/hooks/quality-gate.sh" --stage e2e
 ```
 
-The gate prepares the database (docker compose `db` service if present → `prisma db push` → seed), runs Playwright, and writes:
+The gate prepares the database (docker compose `db` service if present → `prisma db push` → seed), runs Playwright, and writes (WordPress: `wp-gate.py` sets up and serves the site instead, same outputs):
 
 - `.onecommand/gate/acceptance.json` — verdict per criterion (`passed` / `failed` / `missing` / `skipped` / `manual`)
 - `.onecommand/gate/acceptance.md` — matrix for the delivery report

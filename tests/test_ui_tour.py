@@ -132,6 +132,30 @@ def visit(**kw):
     return {**base, **kw}
 
 
+def test_wordpress_site_is_toured_as_a_visitor():
+    spec = {"pages": ["/", "/speisekarte", "/journal/[slug]", "/wp-admin/"], "wordpress": {"theme": "luna"},
+            "demo": {"login_path": "/wp-login.php", "accounts": [{"email": "admin@luna.test", "password": "x"}]}}
+    pages = tour.collect_pages(spec)
+    anon, priv = tour.split_pages(pages, "/wp-login.php", True, tour.public_pages(spec, pages))
+    assert anon["static"] == ["/", "/speisekarte"] and [d["path"] for d in anon["dynamic"]] == ["/journal/[slug]"]
+    assert priv["static"] == ["/wp-admin/"]
+    # any app: pages listed in spec.public_pages are visited without a login
+    app = {"pages": ["/", "/preise", "/dashboard"], "public_pages": ["/", "/preise"]}
+    anon, priv = tour.split_pages(app["pages"], "/login", True, tour.public_pages(app, app["pages"]))
+    assert anon["static"] == ["/", "/preise"] and priv["static"] == ["/dashboard"]
+
+
+def test_browser_runs_with_the_pages_os_locale():
+    env = tour.browser_env("de-DE")
+    assert env["LANG"] == "de_DE.UTF-8" and env["LC_ALL"] == "de_DE.UTF-8"   # date fields: TT.MM.JJJJ, not mm/dd/yyyy
+
+
+def test_broken_internal_links_block():
+    data = {"logins": [], "visits": [], "broken_links": [{"from": "/journal", "href": "/journal/category/wein/", "status": 404}]}
+    blocking, _, _ = tour.evaluate(data, None)
+    assert blocking and blocking[0].startswith("broken link on /journal: /journal/category/wein/ → HTTP 404")
+
+
 def test_evaluate():
     data = {"logins": [{"account": "sales@x.demo", "role": "sales", "ok": False, "error": "Ungültige Anmeldedaten"}],
             "visits": [

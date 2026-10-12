@@ -146,6 +146,16 @@ def test_spec_sections_decide_conditional_skills(env):
     assert status["voice-agent"] == "assigned" and status["video-producer"] == "assigned"
 
 
+def test_react_components_are_not_assigned_to_wordpress_builds(env):
+    home, project = env
+    write_json(project / ".onecommand-spec.json", {"app_type": "website", "build_targets": ["web"],
+                                                   "wordpress": {"theme": "luna"}})
+    scan(home, project)
+    rows = {s["name"]: s for s in catalog(project)["skills"]}
+    assert rows["21st-components"]["status"] == "not_used" and "wordpress" in rows["21st-components"]["reason"]
+    assert rows["wordpress-builder"]["status"] == "assigned"
+
+
 def test_read_records_and_check_read_enforces_loading(env):
     home, project = env
     scan(home, project)
@@ -162,7 +172,15 @@ def test_read_records_and_check_read_enforces_loading(env):
     assert reads[0]["skill"] == "oc-frontend-design" and len(reads[0]["sha256"]) == 64
     for name in ("oc-ui-ux", "emil", "21st-components", "collab-protocol", "superpowers:frontend-design"):
         assert cat(project, "read", name, "--phase", "2").returncode == 0
+    # emil's guides carry its rules: phase 2 also needs emil-design-eng, animate and mobile-native
+    assert "read emil/animate --phase 2" in phase2
+    guides = cat(project, "check-read", "2")
+    assert guides.returncode == 1 and "emil/emil-design-eng: assigned to phase 2 but never loaded" in guides.stdout
+    for g in ("emil-design-eng", "animate", "mobile-native"):
+        out = cat(project, "read", f"emil/{g}", "--phase", "2")
+        assert out.returncode == 0 and len(out.stdout) > 500
     assert cat(project, "check-read", "2").returncode == 0
+    assert cat(project, "read", "emil/../../etc", "--phase", "2").returncode == 2
     assert cat(project, "read", "oc-ui-ux", "--phase", "3").returncode == 0  # phase-specific: does not count for 2
     assert cat(project, "read", "nope", "--phase", "2").returncode == 2
 
@@ -173,7 +191,8 @@ def test_check_read_detects_a_skill_loaded_in_an_older_version(env, tmp_path):
     decide(project, GOOD)
     cat(project, "check")
     sp_skill = tmp_path / "superpowers" / "skills" / "frontend-design" / "SKILL.md"
-    for name in ("oc-frontend-design", "oc-ui-ux", "emil", "21st-components", "collab-protocol", "superpowers:frontend-design"):
+    for name in ("oc-frontend-design", "oc-ui-ux", "emil", "21st-components", "collab-protocol", "superpowers:frontend-design",
+                 "emil/emil-design-eng", "emil/animate", "emil/mobile-native"):
         cat(project, "read", name, "--phase", "2")
     sp_skill.write_text(sp_skill.read_text() + "new rule\n")
     out = cat(project, "check-read", "2")

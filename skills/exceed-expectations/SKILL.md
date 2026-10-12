@@ -19,7 +19,9 @@ You are the Exceed-Expectations phase of OneCommand. Your job is to surprise the
 cat .onecommand-spec.json
 ```
 
-Use `app_type` and `features` to decide which additions are relevant.
+Use `app_type` and `features` to decide which additions are relevant. Spec with a `wordpress` section:
+the Next.js additions below (next-themes, `error.tsx`, `manifest.json`, `app/sitemap.ts`) do not apply — use
+"Additions: WordPress sites" instead.
 
 ---
 
@@ -254,6 +256,27 @@ export function SearchInput({ placeholder = 'Search...' }: { placeholder?: strin
 ```
 
 ---
+
+## Additions: WordPress sites (spec has `wordpress`)
+
+All in the block theme `wordpress/themes/<theme>/` or the site plugin — no extra plugins.
+
+| Next.js addition | WordPress equivalent |
+|---|---|
+| Dark mode (next-themes) | Style variation `styles/<name>.json` (e.g. `styles/nacht.json`, own palette with tested contrast). Check it visually in the UI tour: switch the variation, screenshot every page template |
+| `error.tsx` / `not-found.tsx` | `templates/404.html` in the brand look: short message, search block, links to the main pages |
+| PWA manifest / icons | Site icon set in `seed.php` (`site_icon` option, ≥ 512 px image) and `<meta name="theme-color">` from the brand palette (`wp_head`) |
+| Component variants | Block style variations (`register_block_style()` or `styles/blocks/*.json`) for buttons, groups, images — instead of custom CSS classes editors must remember |
+| Sitemap / robots | Core `/wp-sitemap.xml` and `robots.txt` — verify they list the CPTs, exclude test-only content |
+
+- **Editor experience**: page patterns locked where layout matters (`"templateLock": "contentOnly"` on the
+  pattern's group), `template` + `template_lock` on CPTs (menu item, team member) so editors fill fields
+  instead of building layouts; pattern category named after the brand.
+- **Mobile menu exit animation**: core/navigation removes `is-menu-open` instantly, so a CSS transition only
+  runs on open. When the class disappears (MutationObserver on `.wp-block-navigation__responsive-container`
+  in the theme's script), add a closing class (`is-menu-closing`) that keeps the overlay visible while the
+  CSS exit transition runs, and remove it on `transitionend`; or accept no exit animation and state that in
+  `.onecommand/design.md`. Respect `prefers-reduced-motion`.
 
 ## Craft Pass (skill `emil`)
 

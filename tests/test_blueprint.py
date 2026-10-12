@@ -280,8 +280,68 @@ def test_combined_expansion_is_covered_and_carries_the_industry_look(tmp_path):
     assert bp("expand", "website", "--context", "restaurant", "--out", str(web)).returncode == 0
     w = json.loads(web.read_text())
     restaurant = json.loads((REPO / "skills/domain-blueprints/blueprints/restaurant.json").read_text())
-    assert w["design_direction"] == restaurant["design"] and w["compliance"]
+    assert w["design_direction"]["typefaces"] == restaurant["design"]["typefaces"] and w["compliance"]
     assert not any(c["source"].startswith("blueprint:restaurant/") for c in w["acceptance_criteria"])  # no kitchen display
+
+
+def test_industry_website_gets_the_guest_facing_modules_not_the_back_office(tmp_path):
+    """'Webseite für unser Restaurant': menu with allergens, opening hours, table request — not an agency site
+    with case studies, and not the duties of the restaurant's cash register."""
+    out = tmp_path / "web.json"
+    assert bp("expand", "website", "--context", "restaurant", "--tier", "pro", "--out", str(out)).returncode == 0
+    spec = json.loads(out.read_text())
+    assert {"speisekarte", "oeffnungszeiten", "reservierung", "feiern"} <= set(spec["features"])
+    assert "case-studies" not in spec["features"] and "case-studies" in spec["blueprint"]["excluded_modules"]
+    assert {"/speisekarte", "/reservierung", "/feiern", "/journal"} <= set(spec["pages"])
+    assert not {"/leistungen", "/referenzen", "/blog", "/kontakt"} & set(spec["pages"])
+    assert any(c["source"].startswith("blueprint:restaurant.website/speisekarte/") for c in spec["acceptance_criteria"])
+    sources = " ".join(r["source"] for r in spec["compliance"])
+    assert "LMIV" in sources and "PAngV" in sources                      # the menu's duties
+    assert "KassenSichV" not in sources and "ArbZG" not in sources       # the software's duties
+    design = spec["design_direction"]
+    assert design["motion"].startswith("emil") and "Tischplan" not in " ".join(design["signature_ideas"])
+    assert "Template-Hero mit Stockfoto" in design["avoid"] and "rote Gefahren-Symbole für Allergene" in design["avoid"]
+    assert not any("Kasse" in x for x in spec["integrations"]["connectable"])
+    assert bp("check", "--spec", str(out)).returncode == 0
+    spec["acceptance_criteria"] = [c for c in spec["acceptance_criteria"] if "restaurant.website/speisekarte" not in c["source"]]
+    out.write_text(json.dumps(spec))
+    r = bp("check", "--spec", str(out))
+    assert r.returncode == 1 and "speisekarte" in r.stdout          # website-block criteria are covered too
+    # the software build of the same industry is unchanged
+    soft = json.loads(bp("expand", "restaurant", "--tier", "pro").stdout)
+    assert "KassenSichV" in " ".join(r["source"] for r in soft["compliance"]) and "speisekarte" not in soft["features"]
+
+
+INDUSTRIES = [p.stem for p in BLUEPRINTS if json.loads(p.read_text()).get("kind") == "industry"]
+
+
+@pytest.mark.parametrize("industry", INDUSTRIES)
+def test_every_industry_has_a_website_block_that_expands(tmp_path, industry):
+    data = json.loads((REPO / "skills/domain-blueprints/blueprints" / f"{industry}.json").read_text())
+    block = data.get("website")
+    assert block, f"{industry}: no website block — 'Webseite für …' would get a generic agency site"
+    website = json.loads((REPO / "skills/domain-blueprints/blueprints/website.json").read_text())
+    site_ids = {m["id"] for m in website["modules"]}
+    assert set(block.get("exclude") or {}) <= site_ids and all(str(v).strip() for v in (block.get("exclude") or {}).values())
+    assert set(block.get("page_map") or {}) <= {p for t in website["pages"].values() for p in t}
+    ids = [m["id"] for m in block["modules"]]
+    assert len(ids) == len(set(ids)) and not set(ids) & site_ids
+    assert sum(m["tier"] == "mvp" for m in block["modules"]) >= 2
+    for m in block["modules"]:
+        assert m["features"] and m["criteria"], m["id"]
+        for c in m["criteria"]:
+            assert c["verification"] in ("e2e", "api", "manual") and c["steps"] and c["expected"]
+    for r in data.get("compliance", []):
+        assert r.get("scope", "all") in ("all", "software", "website"), r
+    for tier in TIERS:
+        for platform in ([], ["--platform", "wordpress"]):
+            out = tmp_path / f"{tier}-{len(platform)}.json"
+            r = bp("expand", "website", "--context", industry, "--tier", tier, *platform, "--out", str(out))
+            assert r.returncode == 0, r.stderr
+            for script, cmd in (("blueprint.py", "check"), ("acceptance-report.py", "validate"), ("ui-tour.py", "validate")):
+                v = py(script, cmd, "--spec", str(out))
+                assert v.returncode == 0, (industry, tier, platform, script, v.stdout[-800:])
+            assert "vague wording" not in py("acceptance-report.py", "validate", "--spec", str(out)).stdout
 
 
 def test_every_blueprint_declares_its_kind_and_aliases_are_unique():
@@ -305,9 +365,14 @@ def test_wordpress_platform_is_detected_and_expanded(tmp_path):
     assert spec["wordpress"]["theme"] == "trattoria-luna" and spec["wordpress"]["plugins"] == ["trattoria-luna-core"]
     assert spec["blueprint"]["platform"] == "wordpress" and spec["tech_stack"]["cms"] == "wordpress"
     assert {"wp-theme", "wp-editor-experience", "wp-privacy", "wp-security", "wp-performance"} <= set(spec["features"])
-    assert "/wp-admin/" in spec["pages"] and "/admin" not in spec["pages"]
+    assert "/admin" not in spec["pages"] and "/wp-admin/" not in spec["pages"]   # the back office is not a page
     assert spec["demo"]["login_path"] == "/wp-login.php"
     assert {a["wp_role"] for a in spec["demo"]["accounts"]} == {"administrator", "editor"}
+    assert spec["demo"]["accounts"][0]["wp_role"] == "administrator"           # wp-gate installs with the first one
+    text = json.dumps(spec["acceptance_criteria"])
+    assert "/api/contact" not in text and "rss.xml" not in text and "/wp-admin/admin-post.php" in text and "/feed/" in text
+    consent = next(c for c in spec["acceptance_criteria"] if c["source"] == "blueprint:website/legal-consent/0")
+    assert "analytics" not in json.dumps(consent).lower() and "Datenschutz-Einstellungen" in json.dumps(consent)
     for tool in ("blueprint.py check", "acceptance-report.py validate", "ui-tour.py validate"):
         script, cmd = tool.split()
         assert py(script, cmd, "--spec", str(out)).returncode == 0, tool

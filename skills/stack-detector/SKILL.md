@@ -35,6 +35,18 @@ You are the Stack Detector for OneCommand.
    npx prisma --version 2>/dev/null || echo "Prisma CLI: not installed (will be via npm install)"
    ```
 
+5b. **WordPress spec** (`.onecommand-spec.json` has a `wordpress` section): no Prisma or database check —
+   `hooks/wp-gate.py` runs WordPress on SQLite. Check instead:
+   ```bash
+   php -r 'exit(version_compare(PHP_VERSION, "8.1", ">=") ? 0 : 1);' && php --version | head -1 || echo "PHP 8.1+: NOT FOUND"
+   php -m | grep -qi '^pdo_sqlite$' && echo "pdo_sqlite: ok" || echo "pdo_sqlite: NOT FOUND (apt install php-sqlite3)"
+   node --version 2>/dev/null || echo "Node: NOT FOUND (needed for @wordpress/scripts block builds)"
+   git --version 2>/dev/null || echo "git: NOT FOUND"
+   ```
+   git is required: wp-gate fetches WordPress core and the SQLite integration from GitHub into
+   `~/.onecommand/cache/wordpress` (`python3 "$OC_ROOT/hooks/wp-gate.py" fetch` warms the cache). A missing
+   PHP, `pdo_sqlite` or git is a blocker — report it with the install command, do not generate around it.
+
 6. **Output**: Confirm the final tech stack as a concise summary:
    > "Stack confirmed: Next.js 14 + Tailwind + PostgreSQL + Prisma. Node v20 detected. Proceeding with generation."
 

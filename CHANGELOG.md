@@ -2,6 +2,67 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.15.0] — 2026-10-12
+
+What a real test build taught: "WordPress Webseite für unser Restaurant Trattoria Luna in Hamburg", built end to
+end with 1.14.0 (gate passed, 31/31 automated criteria). Every gap it found is fixed in the plugin, not in the site.
+
+### Added
+- **Industry websites.** Every industry blueprint has a `website` block. "Webseite für unser Restaurant" now gets
+  the guest-facing modules with acceptance criteria:
+  - restaurant: menu with allergens and filters, opening hours with structured data, table request, events,
+    vouchers;
+  - law firm, notary, tax advisor, medical practice, property management, real-estate agency and trades: their
+    own modules (practice areas, team, appointment and damage requests, listings with energy data, service
+    area, emergency service …).
+
+  The block also renames the generic pages (`/leistungen` → `/speisekarte`), leaves out modules that do not
+  fit (no case studies for lawyers or doctors) and gives the public site's look. Before, the site was a
+  generic agency website with the duties of the business software.
+- **`compliance[].scope`.** `software` rules (cash register, deadline control, working time) are left out of a
+  website, and website duties of the profession (advertising rules, Impressum details, consumer arbitration,
+  consent for embeds) are added with their sources.
+- **WordPress criteria fit WordPress.** `platforms.wordpress.criteria_overrides`: the contact form posts to
+  admin-post.php, the feed is `/feed/`, and consent covers external media instead of analytics. The demo
+  administrator comes first, and `/wp-admin/` is no longer a page of the site.
+- **`demo_facts`.** Every invented business fact (address, owner, VAT ID, hours, prices, menu) is listed in the
+  spec, and the delivery report turns it into a "Vor dem Livegang ersetzen" checklist. Invented reviews,
+  ratings and awards are not allowed (UWG § 5).
+- **emil guides are loaded and checked.** `skill-catalog.py read emil/<guide>`. `check-read` fails while
+  phase 2 lacks `emil-design-eng`, `animate`, `mobile-native` or phase 6 lacks `break-ui`,
+  `review-animations`.
+- **Worst-case seed.** `wp-gate.py serve --seed-mode worst` (`OC_SEED_MODE`) for emil's break-ui, instead of a
+  toggle in the UI.
+
+### Changed
+- **UI tour:**
+  - A WordPress site (or any page in `spec.public_pages`) is toured as a visitor, without the admin bar.
+    Demo logins tour the back office.
+  - Every page is scrolled before its screenshot, so lazy images are no longer blank.
+  - Broken images and every internal link that answers 4xx/5xx are blocking.
+  - The performance budget is not applied to `/wp-admin`.
+  - The login waits for wp-login's focus move.
+  - Chromium runs with the page's OS locale, so German date fields no longer show `mm/dd/yyyy`.
+- **wp-gate:**
+  - `seed.php` runs in its own PHP process, after theme and plugins are active, so post types and patterns
+    are registered.
+  - The core language pack for `ui_language` is installed when reachable (otherwise a gate warning).
+  - The PHP server gets `ONECOMMAND_E2E=1`, the one test-mode switch.
+  - `result.json` carries the acceptance summary, so the Phase 4 verdict shows `must X / Y`.
+  - Echoing core's escaped markup (`get_block_wrapper_attributes()`) is allowed.
+  - Compiled `build/` PHP is linted.
+  - `--fresh` stops a server still running on the site instead of failing on `rmtree`.
+- **Skills:**
+  - `acceptance-tester`, `demo-cleaner`, `self-healer`, `stack-detector`, `exceed-expectations`,
+    `oc-frontend-design`, `oc-ui-ux` and `video-producer` have WordPress sections.
+  - `wordpress-builder` covers rewrite order, German slugs with `ß`, featured images on every card, page
+    cache vs. nonces, test-mode mail, and untested style variations.
+  - `21st-components` (React) is no longer assigned to WordPress builds.
+- **Website criteria** use neutral wording (no "Wir planen einen Relaunch" on a restaurant site).
+
+### Fixed
+- The final banner in `/onecommand` had a literal newline inside a Python string (SyntaxError).
+
 ## [1.14.0] — 2026-10-12
 
 WordPress at agency level, and Emil Kowalski's design engineering in one command.
