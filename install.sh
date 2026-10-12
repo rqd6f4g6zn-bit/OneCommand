@@ -538,6 +538,7 @@ section "[ 4/4 ] Verifying bundled skills"
 
 BUNDLED_SKILLS=(
   "oc-frontend-design"
+  "emil"
   "oc-ui-ux"
   "oc-marketing"
   "app-icon-generator"

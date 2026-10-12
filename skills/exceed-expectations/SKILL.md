@@ -255,6 +255,15 @@ export function SearchInput({ placeholder = 'Search...' }: { placeholder?: strin
 
 ---
 
+## Craft Pass (skill `emil`)
+
+Load the `emil` skill and run, in the app's code:
+1. `break-ui` on every list, table, card and detail header with worst-case data (long names, unbreakable
+   e-mails, huge counts, empty states, non-Latin text) — fix every overflow, truncation and layout break.
+2. `review-animations` on every component that moves — fix every finding with the values from STANDARDS.md.
+3. `animation-performance` on scroll- and load-time motion; `mobile-native` on every page used on phones.
+Note each fix in the report with the guide it came from.
+
 ## Accessibility Pass
 
 After all additions, run this accessibility check:

@@ -15,6 +15,7 @@ Skills installed elsewhere (personal, project, other plugins) join this library 
 | `21st-components` | 2, 3 | community UI sections before custom code | web |
 | `app-icon-generator` | 2 | app icons in every iOS/Android size | mobile |
 | `asset-generator` | 2 | sprites, models, audio | game |
+| `emil` | 2, 6 | Emil Kowalski's design engineering: polish, animation, native feel on phones, worst-case data (/emil) | web |
 | `game-engine-selector` | 2 | choose Godot / Three.js / Phaser | game |
 | `godot-builder` | 2 | Godot 4 project (if selected) | game |
 | `ml-builder` | 2, 4 | AI/ML training project: data, training, evaluation, model card, inference API (via ml-agent) | ml |
