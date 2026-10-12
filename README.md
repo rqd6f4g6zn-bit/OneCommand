@@ -29,13 +29,20 @@ Then restart Claude Code and run `/oc-doctor` to confirm the installation is hea
 
 ### Updates
 
-OneCommand updates itself. At the start of every Claude Code session (at most every 6 hours) it
-checks the tracked branch of your checkout; when a newer release exists it fast-forwards, re-runs
-`install.sh`, and rolls back automatically if that install fails. It never updates while a build is
-in progress, when the checkout has local changes, or when you are on another branch.
+OneCommand updates itself — nobody has to remember it:
+- **at every Claude Code session start**, and
+- **in the background at login and every hour** (macOS launchd, Linux systemd user timer or cron, set up
+  by `install.sh`). This also keeps Codex current, which has no session hooks.
+
+Each run checks the tracked branch of your checkout. When a newer release exists, it fast-forwards,
+re-runs `install.sh` and rolls back automatically if that install fails. The next session says once that
+an update arrived. It never updates while a build is in progress, when the checkout has local changes, or
+when you are on another branch.
 
 - `/oc-update` — update now · `/oc-update check` — only look · `/oc-update off|on` — toggle
+- `/oc-update background off|on` — the hourly job (`./install.sh --no-background-update` skips it)
 - Settings in `~/.onecommand/config.json`: `auto_update`, `update_branch`, `update_interval_hours`
+  (0 = every start), `background_update`
 
 ## Usage
 

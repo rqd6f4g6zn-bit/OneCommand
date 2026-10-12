@@ -92,12 +92,63 @@ def test_auto_installs_update_and_runs_installer(s):
     assert '"1.1.0"' in (s.home / "install-runs.log").read_text()
 
 
-def test_auto_is_throttled(s):
+def test_auto_checks_at_every_session_start_by_default(s):
+    s.update("auto", "--force")
+    s.publish("1.1.0")
+    out = s.update("auto")                                   # right after the last check: still installs
+    assert "updated v1.0.0 → v1.1.0" in out.stdout and s.version() == "1.1.0"
+
+
+def test_auto_is_throttled_when_an_interval_is_set(s):
+    write_json(s.home / ".onecommand" / "config.json", {"auto_update": True, "update_interval_hours": 6})
     s.update("auto", "--force")
     s.publish("1.1.0")
     out = s.update("auto")
     assert "checked recently" in out.stdout
     assert s.version() == "1.0.0"
+
+
+def test_background_update_is_announced_once_at_the_next_session(s):
+    s.publish("1.1.0")
+    bg = s.update("auto", "--quiet", "--source", "background")
+    assert bg.returncode == 0 and s.version() == "1.1.0"
+    first = s.update("auto", "--quiet")
+    assert "updated in the background: v1.0.0 → v1.1.0" in first.stdout
+    assert s.update("auto", "--quiet").stdout == ""                # only once
+    s.publish("1.2.0")
+    now = s.update("auto", "--quiet")                                # installed by the session itself
+    assert "updated v1.1.0 → v1.2.0" in now.stdout and "background" not in now.stdout
+    assert s.update("auto", "--quiet").stdout == ""
+
+
+def test_scheduler_can_be_switched_off_and_reports_its_state(s):
+    env = {**s.env, "ONECOMMAND_SCHEDULER": "off"}
+    from conftest import py as run_py
+    out = run_py("update.py", "--repo", str(s.checkout), "schedule", "install", env=env)
+    assert out.returncode == 0 and "skipped" in out.stdout
+    status = run_py("update.py", "--repo", str(s.checkout), "status", env=env)
+    assert "check: every session start" in status.stdout and "background job:" in status.stdout
+
+
+def test_launchd_plist_runs_the_updater_hourly_and_at_login(s, monkeypatch):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("upd", HOOKS / "update.py")
+    upd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(upd)
+    monkeypatch.setattr(upd, "HOME", s.home)
+    monkeypatch.setattr(upd, "OC_HOME", s.home / ".onecommand")
+    monkeypatch.setattr(upd, "LOG_PATH", s.home / ".onecommand" / "update.log")
+    monkeypatch.setattr(upd, "scheduler_kind", lambda: "launchd")
+    calls = []
+    monkeypatch.setattr(upd, "sh", lambda cmd: calls.append(cmd) or type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    where = upd.schedule_install(s.checkout)
+    plist = (s.home / "Library" / "LaunchAgents" / f"{upd.JOB_LABEL}.plist").read_text()
+    assert "launchd" in where and "<key>RunAtLoad</key><true/>" in plist and "<integer>3600</integer>" in plist
+    assert "<string>--source</string><string>background</string>" in plist and str(s.checkout) in plist
+    assert any(c[:2] == ["launchctl", "bootstrap"] for c in calls)
+    assert "<key>PATH</key>" in plist and "/opt/homebrew/bin" in plist   # codex and git are found under launchd
+    assert "launchd" in upd.job_status()
+    assert upd.schedule_remove() == ["launchd agent"] and "not installed" in upd.job_status()
 
 
 @pytest.mark.parametrize("guard,expected", [
@@ -184,3 +235,30 @@ def test_missing_checkout_never_blocks_a_session_hook(tmp_path):
     assert out.returncode == 0
     loud = run(["python3", str(lone / "update.py"), "check"], env=env)
     assert loud.returncode == 2 and "no OneCommand git checkout found" in loud.stderr
+
+
+def test_cron_fallback_adds_and_removes_only_its_own_lines(s, monkeypatch, tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("upd2", HOOKS / "update.py")
+    upd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(upd)
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    table = tmp_path / "crontab.txt"
+    table.write_text("0 3 * * * /usr/bin/backup.sh\n")
+    crontab = fake / "crontab"
+    crontab.write_text(f'#!/bin/sh\nif [ "$1" = "-l" ]; then cat "{table}"; else cat > "{table}"; fi\n')
+    crontab.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake}:{os.environ['PATH']}")
+    monkeypatch.setattr(upd, "HOME", s.home)
+    monkeypatch.setattr(upd, "OC_HOME", s.home / ".onecommand")
+    monkeypatch.setattr(upd, "LOG_PATH", s.home / ".onecommand" / "update.log")
+    monkeypatch.setattr(upd, "scheduler_kind", lambda: "cron")
+    assert "crontab" in upd.schedule_install(s.checkout)
+    upd.schedule_install(s.checkout)                                  # idempotent: still two lines
+    lines = table.read_text().splitlines()
+    assert lines[0] == "0 3 * * * /usr/bin/backup.sh"
+    assert sum(upd.CRON_MARK in l for l in lines) == 2 and any(l.startswith("@reboot") for l in lines)
+    assert "crontab" in upd.job_status()
+    assert upd.schedule_remove() == ["crontab entry"]
+    assert table.read_text().splitlines() == ["0 3 * * * /usr/bin/backup.sh"]
