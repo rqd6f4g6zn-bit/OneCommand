@@ -13,11 +13,12 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.15.0"
+PLUGIN_VERSION="1.16.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=false
 VERBOSE=false
+BACKGROUND_UPDATE=true
 
 # Colors (disabled when stdout is not a terminal)
 if [ -t 1 ]; then
@@ -49,6 +50,8 @@ Usage: ./install.sh [options]
 Options:
   -n, --dry-run   Show what would change without writing anything
   -v, --verbose   Print every file that is created, updated or deleted
+      --no-background-update
+                  Do not install the hourly background updater (launchd / systemd / cron)
   -h, --help      Show this help and exit
 
 Installs OneCommand into Claude Code (~/.claude) and, if the codex CLI is in
@@ -60,6 +63,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -n|--dry-run) DRY_RUN=true ;;
     -v|--verbose) VERBOSE=true ;;
+    --no-background-update) BACKGROUND_UPDATE=false ;;
     -h|--help)    usage; exit 0 ;;
     *)            err "Unknown option: $1"; usage >&2; exit 2 ;;
   esac
@@ -253,9 +257,16 @@ if os.path.exists(path):
         print("error:config.json is not a JSON object — left untouched")
         raise SystemExit(0)
     # Auto-update settings (v1.5.0+): add defaults, never override a user's choice.
-    defaults = {"auto_update": True, "update_branch": "main", "update_interval_hours": 6}
+    defaults = {"auto_update": True, "update_branch": "main", "update_interval_hours": 0, "background_update": True}
     missing = {k: v for k, v in defaults.items() if k not in cfg}
     cfg.update(missing)
+    # v1.16.0: check at every session start. 6 h was the old default, never offered as a choice — migrate it once.
+    if cfg.get("update_interval_hours") == 6 and not cfg.get("update_settings_v2"):
+        cfg["update_interval_hours"] = 0
+        missing["update_interval_hours"] = 0
+    if not cfg.get("update_settings_v2"):
+        cfg["update_settings_v2"] = True
+        missing["update_settings_v2"] = True
     if cfg.get("version") == version and not missing:
         print("skip")
         raise SystemExit(0)
@@ -265,7 +276,8 @@ if os.path.exists(path):
     msg = f"updated:v{old} → v{version}"
 else:
     cfg = {"version": version, "installed_at": datetime.now(timezone.utc).isoformat(), "plan": "unknown",
-           "auto_update": True, "update_branch": "main", "update_interval_hours": 6}
+           "auto_update": True, "update_branch": "main", "update_interval_hours": 0, "background_update": True,
+           "update_settings_v2": True}
     msg = "created"
 if not dry:
     d = os.path.dirname(path)
@@ -611,6 +623,23 @@ for skill_dir in "${REPO_ROOT}/skills"/*/; do
   fi
 done
 
+# ─── Background updates ───────────────────────────────────────────────────────
+# Keeps Claude Code and Codex current even when the user never runs /oc-update: launchd (macOS),
+# a systemd user timer or cron run `update.py auto` at login and every hour.
+if [ "$BACKGROUND_UPDATE" = false ]; then
+  ok "Background updates off (--no-background-update)"
+elif [ "$DRY_RUN" = true ]; then
+  ok "Would install the hourly background updater (launchd / systemd / cron)"
+elif [ ! -e "$REPO_ROOT/.git" ]; then
+  warn "Background updates need a git checkout — clone the repository and run install.sh from it"
+else
+  if sched_out="$(python3 "$REPO_ROOT/hooks/update.py" --repo "$REPO_ROOT" schedule install --quiet 2>&1)"; then
+    [ -n "$sched_out" ] && ok "${sched_out#✅ }"
+  else
+    warn "Background updates not installed: ${sched_out##*] } — updates still run at every session start"
+  fi
+fi
+
 # ─── Done ─────────────────────────────────────────────────────────────────────
 
 echo ""
@@ -636,7 +665,7 @@ if [ "$all_ok" = true ]; then
   echo "  Usage in Claude Code:  /onecommand \"your project description\""
   echo "  Usage in Codex:        /einbefehl  \"your project description\""
   echo "  Health check:          /oc-doctor"
-  echo "  Updates:               automatic at session start · /oc-update to update now"
+  echo "  Updates:               at every session start + hourly in the background · /oc-update to update now"
   echo ""
 else
   box "OneCommand — Installed with warnings"

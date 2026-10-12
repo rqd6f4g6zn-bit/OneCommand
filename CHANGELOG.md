@@ -2,6 +2,28 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.16.0] — 2026-10-12
+
+Updates arrive without anyone remembering them.
+
+### Changed
+- **Every session start.** The SessionStart hook checks for a newer release at every start, both startup and
+  resume. Before, it checked at most every 6 hours. `update_interval_hours` defaults to 0, and existing
+  installs move from the old default of 6 to 0 once.
+
+### Added
+- **Background updates.** `install.sh` sets up `update.py schedule install`, which runs the updater at login
+  and every hour:
+  - macOS: a launchd agent;
+  - Linux: a systemd user timer, or a crontab entry when systemd is not available.
+
+  Codex, which has no session hooks, is now current at every start too. The job keeps the installing shell's
+  PATH, so git and the codex CLI are found.
+- **The next session reports a background update once:** "updated in the background: vX → vY".
+- **A lock** keeps the session hook, the background job and `/oc-update` from updating at the same time.
+- **Switching it off:** `/oc-update background off|on`, `./install.sh --no-background-update`, or
+  `"background_update": false` in `~/.onecommand/config.json`. `update.py status` shows the job.
+
 ## [1.15.0] — 2026-10-12
 
 What a real test build taught: "WordPress Webseite für unser Restaurant Trattoria Luna in Hamburg", built end to

@@ -19,7 +19,7 @@ require("rsync")
 
 def install(home: Path, fake_bin: Path, *args: str, codex: bool = True):
     path = f"{fake_bin}:{os.environ['PATH']}" if codex else "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"
-    return run(["bash", str(REPO / "install.sh"), *args], env={"HOME": str(home), "PATH": path}, timeout=300)
+    return run(["bash", str(REPO / "install.sh"), *args], env={"HOME": str(home), "PATH": path, "ONECOMMAND_SCHEDULER": "off"}, timeout=300)
 
 
 def plugin_version() -> str:
@@ -113,3 +113,21 @@ def test_without_codex_skips_codex_install(home, fake_bin):
 
 def test_unknown_option(home, fake_bin):
     assert install(home, fake_bin, "--nope").returncode == 2
+
+
+def test_update_settings_migrate_to_every_session_start(home, fake_bin):
+    write_json(home / ".onecommand" / "config.json", {"version": "1.14.0", "auto_update": True, "update_interval_hours": 6})
+    out = install(home, fake_bin)
+    assert out.returncode == 0, out.stdout + out.stderr
+    cfg = json.loads((home / ".onecommand" / "config.json").read_text())
+    assert cfg["update_interval_hours"] == 0 and cfg["background_update"] is True and cfg["update_settings_v2"] is True
+    # a choice made after the migration is kept
+    cfg["update_interval_hours"] = 6
+    write_json(home / ".onecommand" / "config.json", cfg)
+    assert install(home, fake_bin).returncode == 0
+    assert json.loads((home / ".onecommand" / "config.json").read_text())["update_interval_hours"] == 6
+
+
+def test_no_background_update_flag(home, fake_bin):
+    out = install(home, fake_bin, "--no-background-update")
+    assert out.returncode == 0 and "Background updates off" in out.stdout

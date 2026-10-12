@@ -141,7 +141,7 @@ EOF
 ```
 Remember the printed `OC_ROOT` for the whole build and store it in working memory as `plugin_root`. If it is `NOT_FOUND`, stop and tell the user to run `/oc-doctor`.
 
-5. **Update status** — OneCommand installs updates automatically at session start (SessionStart hook). Check whether one arrived since this session began:
+5. **Update status** — OneCommand installs updates automatically at every session start (SessionStart hook) and hourly in the background. Check whether one arrived since this session began:
 ```bash
 python3 "$OC_ROOT/hooks/update.py" check --quiet 2>/dev/null || true
 ```

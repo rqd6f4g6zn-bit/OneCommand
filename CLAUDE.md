@@ -102,10 +102,14 @@ verification step otherwise.
 
 ## Auto-Update
 
-`hooks/hooks.json` runs `hooks/update.py auto --quiet` at SessionStart: throttled
-(`update_interval_hours`), fast-forward only, rollback on failed install, skipped during a running
-build, with local changes or on another branch. A commit that failed to install is not retried until
-a newer one appears. Codex runs the same script in its pre-flight.
+`hooks/hooks.json` runs `hooks/update.py auto --quiet` at every SessionStart (startup and resume;
+`update_interval_hours` 0 = every start), fast-forward only, rollback on failed install, skipped during a
+running build, with local changes or on another branch. A commit that failed to install is not retried until
+a newer one appears. install.sh also sets up a background job (`update.py schedule install`: launchd on
+macOS, systemd user timer or cron on Linux) that runs `auto` at login and hourly, so Codex — which has no
+session hooks — stays current too; the next session announces a background update once. A lock keeps the
+hook, the job and `/oc-update` from overlapping. Tests set `ONECOMMAND_SCHEDULER=off` — never install a
+real job from a test.
 
 ## Benchmark
 

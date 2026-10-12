@@ -1,9 +1,9 @@
 {
-  "description": "OneCommand: check for a newer release at session start and install it automatically (throttled, never during a running build).",
+  "description": "OneCommand: check for a newer release at every session start and install it automatically (never during a running build); the background job installs updates between sessions.",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup",
+        "matcher": "startup|resume",
         "hooks": [
           {
             "type": "command",

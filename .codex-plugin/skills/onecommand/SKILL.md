@@ -67,11 +67,14 @@ ls package.json src/ app/ 2>/dev/null | head -5
 If existing code found, ask:
 > "Existing project detected. Build inside it (adapting stack), or create a new subdirectory?"
 
-**Self-update** (Codex has no session hooks, so the check runs here — throttled, never during a running build):
+**Self-update.** Codex has no session hooks: the background job install.sh set up (launchd / systemd / cron, at
+login and hourly) keeps this skill current between sessions. The check here catches the rest — never during a
+running build:
 ```bash
-python3 "$HOME/.codex/skills/onecommand/hooks/update.py" auto --quiet
+python3 "$HOME/.codex/skills/onecommand/hooks/update.py" auto --quiet --source codex
 ```
-If it prints "✅ OneCommand updated", tell the user the new version is active from the next Codex session and continue with the current one.
+If it prints "✅ OneCommand updated", tell the user the new version is active from the next Codex session and continue
+with the current one; "updated in the background" means this session already runs the new version.
 
 ---
 

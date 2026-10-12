@@ -11,10 +11,15 @@ Subcommands
 -----------
 check   Report whether an update is available (no changes).
 apply   Install an available update now (ignores the check interval).
-auto    What the SessionStart hook and the Codex pre-flight run: honours
-        auto_update / update_interval_hours from ~/.onecommand/config.json and
-        applies the update when enabled.
-status  Print configuration and the result of the last check.
+auto    What the SessionStart hook, the background job and the Codex pre-flight run:
+        honours auto_update / update_interval_hours from ~/.onecommand/config.json
+        and applies the update when enabled. Announces an update the background
+        job installed since the last session once.
+status  Print configuration, the background job and the result of the last check.
+schedule install|remove|status
+        The background job that keeps Claude Code AND Codex current even when the
+        user never starts a session in between: macOS launchd agent, Linux systemd
+        user timer, otherwise a crontab entry. Runs `auto` at login and every hour.
 
 Never updates when: the checkout has uncommitted changes, it is on a different
 branch than the tracked one, local commits are not on the remote (diverged),
@@ -23,8 +28,10 @@ or a OneCommand build is in progress (resume would mix two versions).
 Configuration (~/.onecommand/config.json, created by install.sh):
   "auto_update": true            false → only report, never install
   "update_branch": "main"        branch to track
-  "update_interval_hours": 6     minimum time between automatic checks
-Environment: ONECOMMAND_AUTO_UPDATE=0 disables automatic installs for one run.
+  "update_interval_hours": 0     minimum time between automatic checks (0: every session start)
+  "background_update": true      false → no background job (install.sh / schedule respect it)
+Environment: ONECOMMAND_AUTO_UPDATE=0 disables automatic installs for one run;
+ONECOMMAND_SCHEDULER=off makes `schedule install` a no-op (tests, CI, containers).
 
 Exit codes: 0 ok (up to date, updated, skipped) · 1 update failed (rolled back)
 · 2 usage / setup error · 10 update available (check only)
@@ -33,7 +40,10 @@ Exit codes: 0 ok (up to date, updated, skipped) · 1 update failed (rolled back)
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
+import platform
+import shutil
 import logging
 import os
 import subprocess
@@ -49,8 +59,12 @@ HOME = Path.home()
 OC_HOME = HOME / ".onecommand"
 CONFIG_PATH = OC_HOME / "config.json"
 STATE_PATH = OC_HOME / "update-state.json"
-DEFAULTS = {"auto_update": True, "update_branch": "main", "update_interval_hours": 6}
-FETCH_TIMEOUT = 25
+DEFAULTS = {"auto_update": True, "update_branch": "main", "update_interval_hours": 0, "background_update": True}
+LOCK_PATH = OC_HOME / "update.lock"
+LOG_PATH = OC_HOME / "update.log"
+JOB_LABEL = "de.usc-software.onecommand.update"
+JOB_INTERVAL_S = 3600
+FETCH_TIMEOUT = 20
 INSTALL_TIMEOUT = 300
 BUILD_STALE_HOURS = 24
 EXIT_AVAILABLE = 10
@@ -185,7 +199,8 @@ def inspect(repo: Path, branch: str) -> dict[str, Any]:
 def run_install(repo: Path) -> tuple[bool, str]:
     try:
         proc = subprocess.run(["bash", str(repo / "install.sh")], cwd=repo, capture_output=True, text=True,
-                              timeout=INSTALL_TIMEOUT, env={**os.environ, "ONECOMMAND_AUTO_UPDATE": "0"})
+                              timeout=INSTALL_TIMEOUT,
+                              env={**os.environ, "ONECOMMAND_AUTO_UPDATE": "0", "ONECOMMAND_IN_UPDATE": "1"})
     except subprocess.TimeoutExpired:
         return False, f"install.sh timed out after {INSTALL_TIMEOUT}s"
     return proc.returncode == 0, (proc.stdout + proc.stderr)[-2000:]
@@ -232,6 +247,7 @@ def message(info: dict[str, Any]) -> str:
         "skipped_build_running": f"OneCommand update v{rv} waits — {info.get('detail')}.",
         "disabled": f"OneCommand update available: v{lv} → v{rv} — auto_update is off, run /oc-update to install.",
         "throttled": "OneCommand update check skipped — checked recently.",
+        "busy": "OneCommand update check skipped — another update is running.",
         "known_broken": f"OneCommand v{rv} failed to install before — waiting for a newer release (or run /oc-update to retry).",
         "failed_rolled_back": f"⚠ OneCommand update to v{rv} failed and was rolled back to v{lv}. Details: ~/.onecommand/update-state.json",
         "failed_rollback_incomplete": "✗ OneCommand update failed AND rollback failed — run install.sh manually, then /oc-doctor.",
@@ -245,6 +261,7 @@ def record(info: dict[str, Any]) -> None:
     state.update(last_check=info.get("checked_at", now_iso()), last_status=info.get("status"), last=info)
     if info.get("status") == "updated":
         state["last_update"] = now_iso()
+        state["last_update_info"] = {k: info.get(k) for k in ("local_version", "installed_version", "commits", "source")}
         state.pop("failed_sha", None)
     elif str(info.get("status", "")).startswith("failed"):
         state["failed_sha"] = info.get("remote_sha")
@@ -252,7 +269,7 @@ def record(info: dict[str, Any]) -> None:
 
 
 # Statuses a quiet (hook) run stays silent about — nothing for the user to act on.
-QUIET = {"up_to_date", "offline", "other_branch", "throttled", "known_broken"}
+QUIET = {"up_to_date", "offline", "other_branch", "throttled", "known_broken", "busy"}
 
 
 def emit(info: dict[str, Any], quiet: bool, as_json: bool) -> None:
@@ -264,6 +281,47 @@ def emit(info: dict[str, Any], quiet: bool, as_json: bool) -> None:
 
 # ─── commands ─────────────────────────────────────────────────────────────────
 
+class Busy(Exception):
+    pass
+
+
+def locked(func):
+    """One updater at a time: the session hook, the background job and /oc-update can overlap."""
+    def wrapper(args: argparse.Namespace) -> int:
+        LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(LOCK_PATH, "w") as fh:
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | (fcntl.LOCK_NB if getattr(args, "quiet", False) else 0))
+            except BlockingIOError:
+                emit({"status": "busy"}, getattr(args, "quiet", False), getattr(args, "json", False))
+                return 0
+            return func(args)
+    return wrapper
+
+
+def announce_background_update(args: argparse.Namespace) -> None:
+    """An update the background job installed since the last session: say so once, at session start."""
+    if args.source == "background":
+        return
+    state = read_json(STATE_PATH, {})
+    if not isinstance(state, dict) or not state.get("last_update"):
+        return
+    if state.get("announced_update") == state["last_update"]:
+        return
+    done = state.get("last_update_info") or {}
+    if done.get("source") == "background" and not args.json:
+        print(f"✅ OneCommand was updated in the background: v{done.get('local_version', '?')} → "
+              f"v{done.get('installed_version', '?')} — active in this session.")
+    mark_announced()
+
+
+def mark_announced() -> None:
+    state = read_json(STATE_PATH, {})
+    if isinstance(state, dict) and state.get("last_update"):
+        state["announced_update"] = state["last_update"]
+        write_json(STATE_PATH, state)
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     info = inspect(find_repo(args.repo), args.branch or config()["update_branch"])
     record(info)
@@ -271,6 +329,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     return EXIT_AVAILABLE if info["status"] == "available" else 0
 
 
+@locked
 def cmd_apply(args: argparse.Namespace) -> int:
     repo = find_repo(args.repo)
     info = inspect(repo, args.branch or config()["update_branch"])
@@ -281,7 +340,9 @@ def cmd_apply(args: argparse.Namespace) -> int:
     return 1 if str(info["status"]).startswith("failed") else 0
 
 
+@locked
 def cmd_auto(args: argparse.Namespace) -> int:
+    announce_background_update(args)
     cfg = config()
     state = read_json(STATE_PATH, {}) if STATE_PATH.exists() else {}
     last = state.get("last_check") if isinstance(state, dict) else None
@@ -304,9 +365,191 @@ def cmd_auto(args: argparse.Namespace) -> int:
             info = apply_update(repo, info, force=False)
         else:
             info["status"] = "disabled"
+    info["source"] = args.source
     record(info)
+    if info["status"] == "updated" and args.source != "background":
+        mark_announced()                  # the user sees this update's message right now
     emit(info, args.quiet, args.json)
     return 1 if str(info["status"]).startswith("failed") else 0
+
+
+# ─── background job ───────────────────────────────────────────────────────────
+
+def job_command(repo: Path) -> list[str]:
+    python = sys.executable or shutil.which("python3") or "python3"
+    return [python, str(repo / "hooks" / "update.py"), "--repo", str(repo), "auto", "--quiet", "--source", "background"]
+
+
+def job_path() -> str:
+    """The PATH the job runs with: the installing shell's, so git, node and the codex CLI are found
+    (launchd and cron start jobs with a bare /usr/bin:/bin — install.sh would skip Codex)."""
+    extra = ["/opt/homebrew/bin", "/usr/local/bin", str(HOME / ".local" / "bin")]
+    parts = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p] + extra + ["/usr/bin", "/bin"]
+    return os.pathsep.join(dict.fromkeys(parts))
+
+
+def launchd_plist() -> Path:
+    return HOME / "Library" / "LaunchAgents" / f"{JOB_LABEL}.plist"
+
+
+def systemd_dir() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME") or HOME / ".config") / "systemd" / "user"
+
+
+CRON_MARK = "# onecommand-auto-update"
+
+
+def scheduler_kind() -> str:
+    if platform.system() == "Darwin" and shutil.which("launchctl"):
+        return "launchd"
+    if shutil.which("systemctl") and subprocess.run(["systemctl", "--user", "show-environment"], capture_output=True,
+                                                    timeout=10).returncode == 0:
+        return "systemd"
+    if shutil.which("crontab"):
+        return "cron"
+    return "none"
+
+
+def sh(cmd: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+
+def job_status() -> str:
+    if (launchd_plist().exists()):
+        return f"launchd ({JOB_LABEL}, at login + hourly)"
+    if (systemd_dir() / "onecommand-update.timer").exists():
+        return "systemd user timer (onecommand-update.timer, at login + hourly)"
+    if shutil.which("crontab"):
+        cur = sh(["crontab", "-l"])
+        if cur.returncode == 0 and CRON_MARK in cur.stdout:
+            return "crontab (at reboot + hourly)"
+    return "not installed — updates only at session start (python3 hooks/update.py schedule install)"
+
+
+def schedule_install(repo: Path) -> str:
+    cmd = job_command(repo)
+    kind = scheduler_kind()
+    OC_HOME.mkdir(parents=True, exist_ok=True)
+    if kind == "launchd":
+        from xml.sax.saxutils import escape
+        plist = launchd_plist()
+        plist.parent.mkdir(parents=True, exist_ok=True)
+        args_xml = "".join(f"<string>{escape(a)}</string>" for a in cmd)
+        content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>{JOB_LABEL}</string>
+<key>ProgramArguments</key><array>{args_xml}</array>
+<key>EnvironmentVariables</key><dict><key>PATH</key><string>{escape(job_path())}</string></dict>
+<key>RunAtLoad</key><true/>
+<key>StartInterval</key><integer>{JOB_INTERVAL_S}</integer>
+<key>StandardOutPath</key><string>{escape(str(LOG_PATH))}</string>
+<key>StandardErrorPath</key><string>{escape(str(LOG_PATH))}</string>
+<key>ProcessType</key><string>Background</string>
+</dict></plist>
+"""
+        if plist.exists() and plist.read_text(encoding="utf-8") == content:
+            return f"launchd agent {JOB_LABEL} (at login + every hour, already installed)"
+        plist.write_text(content, encoding="utf-8")
+        if os.environ.get("ONECOMMAND_IN_UPDATE") == "1":
+            # install.sh runs inside the job itself: reloading it now would kill this update — next login loads it.
+            return f"launchd agent {JOB_LABEL} (updated, active from the next login)"
+        uid = str(os.getuid())
+        sh(["launchctl", "bootout", f"gui/{uid}/{JOB_LABEL}"])
+        r = sh(["launchctl", "bootstrap", f"gui/{uid}", str(plist)])
+        if r.returncode != 0:
+            r = sh(["launchctl", "load", "-w", str(plist)])
+        if r.returncode != 0:
+            raise UpdateError(f"launchctl could not load {plist}: {(r.stderr or r.stdout).strip()[:200]}")
+        return f"launchd agent {JOB_LABEL} (at login + every hour)"
+    if kind == "systemd":
+        d = systemd_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        exec_line = " ".join(f'"{a}"' if " " in a else a for a in cmd)
+        (d / "onecommand-update.service").write_text(f"""[Unit]
+Description=OneCommand auto-update (Claude Code + Codex)
+
+[Service]
+Type=oneshot
+Environment="PATH={job_path()}"
+ExecStart={exec_line}
+StandardOutput=append:{LOG_PATH}
+StandardError=append:{LOG_PATH}
+""", encoding="utf-8")
+        (d / "onecommand-update.timer").write_text("""[Unit]
+Description=OneCommand auto-update at login and every hour
+
+[Timer]
+OnStartupSec=2min
+OnUnitActiveSec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+""", encoding="utf-8")
+        sh(["systemctl", "--user", "daemon-reload"])
+        r = sh(["systemctl", "--user", "enable", "--now", "onecommand-update.timer"])
+        if r.returncode != 0:
+            raise UpdateError(f"systemctl --user enable failed: {(r.stderr or r.stdout).strip()[:200]}")
+        return "systemd user timer onecommand-update.timer (at login + every hour)"
+    if kind == "cron":
+        line = f"PATH='{job_path()}' " + " ".join(f"'{a}'" for a in cmd) + f" >> '{LOG_PATH}' 2>&1"
+        cur = sh(["crontab", "-l"])
+        lines = [l for l in (cur.stdout.splitlines() if cur.returncode == 0 else []) if CRON_MARK not in l]
+        lines += [f"@reboot {line} {CRON_MARK}", f"17 * * * * {line} {CRON_MARK}"]
+        r = subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n", capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            raise UpdateError(f"crontab could not be written: {(r.stderr or r.stdout).strip()[:200]}")
+        return "crontab (at reboot + every hour)"
+    raise UpdateError("no launchd, systemd or crontab found — updates run at session start only")
+
+
+def schedule_remove() -> list[str]:
+    removed = []
+    plist = launchd_plist()
+    if plist.exists():
+        if shutil.which("launchctl"):
+            sh(["launchctl", "bootout", f"gui/{os.getuid()}/{JOB_LABEL}"])
+            sh(["launchctl", "unload", "-w", str(plist)])
+        plist.unlink()
+        removed.append("launchd agent")
+    d = systemd_dir()
+    if (d / "onecommand-update.timer").exists():
+        if shutil.which("systemctl"):
+            sh(["systemctl", "--user", "disable", "--now", "onecommand-update.timer"])
+        for f in ("onecommand-update.timer", "onecommand-update.service"):
+            (d / f).unlink(missing_ok=True)
+        if shutil.which("systemctl"):
+            sh(["systemctl", "--user", "daemon-reload"])
+        removed.append("systemd timer")
+    if shutil.which("crontab"):
+        cur = sh(["crontab", "-l"])
+        if cur.returncode == 0 and CRON_MARK in cur.stdout:
+            keep = [l for l in cur.stdout.splitlines() if CRON_MARK not in l]
+            subprocess.run(["crontab", "-"], input="\n".join(keep) + ("\n" if keep else ""), text=True,
+                           capture_output=True, timeout=30)
+            removed.append("crontab entry")
+    return removed
+
+
+def cmd_schedule(args: argparse.Namespace) -> int:
+    if args.action == "status":
+        print(f"background job: {job_status()}")
+        return 0
+    if os.environ.get("ONECOMMAND_SCHEDULER", "").strip().lower() in ("off", "0", "false", "no"):
+        if not args.quiet:
+            print("background job: skipped (ONECOMMAND_SCHEDULER=off)")
+        return 0
+    if args.action == "remove":
+        removed = schedule_remove()
+        print("background job removed: " + ", ".join(removed) if removed else "background job: none installed")
+        return 0
+    if not config().get("background_update", True):
+        print("background job: not installed — background_update is false in ~/.onecommand/config.json")
+        return 0
+    where = schedule_install(find_repo(args.repo))
+    print(f"✅ background updates: {where} — Claude Code and Codex stay current without /oc-update")
+    return 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -316,8 +559,10 @@ def cmd_status(args: argparse.Namespace) -> int:
         repo = str(find_repo(args.repo))
     except UpdateError as exc:
         repo = f"not found ({exc})"
+    interval = "every session start" if float(cfg["update_interval_hours"]) <= 0 else f"{cfg['update_interval_hours']}h"
     print(f"auto_update: {cfg['auto_update']} · branch: {cfg['update_branch']} · "
-          f"interval: {cfg['update_interval_hours']}h · checkout: {repo}")
+          f"check: {interval} · checkout: {repo}")
+    print(f"background job: {job_status()}")
     if isinstance(state, dict) and state.get("last"):
         print(f"last check: {state.get('last_check')} → {message(state['last'])}")
     else:
@@ -335,6 +580,9 @@ def main(argv: list[str] | None = None) -> int:
                             ("status", cmd_status, "show configuration and last result")):
         p = sub.add_parser(name, help=hlp)
         p.set_defaults(func=func)
+        if name == "auto":
+            p.add_argument("--source", choices=("session", "background", "codex"), default="session",
+                           help="who runs the check (the background job announces nothing itself)")
         if name != "status":
             p.add_argument("--quiet", action="store_true", help="print nothing when there is nothing to act on")
             p.add_argument("--json", action="store_true", help="machine-readable output")
@@ -343,6 +591,10 @@ def main(argv: list[str] | None = None) -> int:
         if name in ("apply", "auto"):
             p.add_argument("--force", action="store_true",
                            help="apply: also during a running build · auto: ignore the check interval")
+    p = sub.add_parser("schedule", help="background job: install | remove | status")
+    p.add_argument("action", choices=("install", "remove", "status"))
+    p.add_argument("--quiet", action="store_true")
+    p.set_defaults(func=cmd_schedule)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,
                         format="[update] %(levelname)s %(message)s")

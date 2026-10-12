@@ -1,10 +1,10 @@
 ---
-description: Check for a newer OneCommand release and install it now. Use "/oc-update check" to only look, "/oc-update off|on" to switch automatic updates.
-argument-hint: '[check | off | on | status]'
+description: Check for a newer OneCommand release and install it now. Use "/oc-update check" to only look, "/oc-update off|on" to switch automatic updates, "/oc-update background off|on" for the hourly background job.
+argument-hint: '[check | off | on | status | background off|on]'
 allowed-tools: Bash, Read, Edit
 ---
 
-You are the OneCommand updater. OneCommand also updates itself automatically at the start of every Claude Code session (at most every 6 hours, never during a running build) — this command does it on demand.
+You are the OneCommand updater. OneCommand updates itself without this command: at the start of every Claude Code session, and — installed by install.sh — hourly in the background (macOS launchd, systemd user timer or cron), which also keeps Codex current. Never during a running build. This command does it on demand.
 
 Resolve the updater script:
 
@@ -34,6 +34,8 @@ Then act on `$ARGUMENTS`:
 | `check` | `python3 "$OC_ROOT/hooks/update.py" check` |
 | `status` | `python3 "$OC_ROOT/hooks/update.py" status` |
 | `off` / `on` | set `"auto_update"` to `false` / `true` in `~/.onecommand/config.json` (keep every other key), then run `status` |
+| `background off` | set `"background_update": false` in `~/.onecommand/config.json`, then `python3 "$OC_ROOT/hooks/update.py" schedule remove` |
+| `background on` | set `"background_update": true`, then `python3 "$OC_ROOT/hooks/update.py" schedule install` |
 
 Show the script's output unchanged, then add one line:
 - after `✅ … updated`: "Restart Claude Code (or start a new session) so the new commands and agents are loaded."
