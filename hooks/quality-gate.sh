@@ -13,7 +13,8 @@
 #           (hooks/ui-tour.py; skipped when the spec has no "demo" section), then test calls for
 #           phone assistants (hooks/call-sim.py, when the spec has a "voice" section)
 #   all     static, then e2e, then tour (each only runs when the previous one passed)
-#   (AI/ML projects — build_targets contain "ml" — are handed to hooks/ml-gate.py whatever the stage)
+#   (AI/ML projects — build_targets contain "ml" — are handed to hooks/ml-gate.py whatever the stage;
+#    WordPress sites — spec "wordpress" — to hooks/wp-gate.py with the same stage)
 #
 # Output (default <project>/.onecommand/gate/):
 #   result.json      machine-readable result of every step
@@ -95,6 +96,12 @@ cd "$PROJECT_DIR" || exit 2
 if ! command -v python3 &>/dev/null; then
   echo "[gate] python3 is required" >&2
   exit 2
+fi
+
+# WordPress websites (spec has a "wordpress" section) have their own verdict: PHP lint, WordPress security
+# rules, the real site on PHP + SQLite, acceptance tests and the UI tour (hooks/wp-gate.py).
+if [ -f .onecommand-spec.json ] && python3 -c 'import json,sys; s=json.load(open(".onecommand-spec.json")); sys.exit(0 if isinstance(s.get("wordpress"), dict) else 1)' 2>/dev/null; then
+  exec python3 "$SCRIPT_DIR/wp-gate.py" gate --project-dir "$PROJECT_DIR" --out "$OUT_DIR" --stage "$STAGE"
 fi
 
 # AI/ML training projects (spec build_targets contain "ml") have their own verdict: install, lint,

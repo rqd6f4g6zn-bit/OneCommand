@@ -32,6 +32,12 @@ assigned skill that was not loaded.
 - Apply what you loaded. Where your output departs from a skill rule, write why into
   `.onecommand/decisions.md`.
 
+## WordPress
+
+Spec has a `wordpress` section → load `wordpress-builder` and build the block theme, the site plugin, blocks and
+`seed.php` exactly as it says (layout in its section 1). Design brief, `emil` and the quality bar apply
+unchanged; `theme.json` carries the tokens.
+
 ## Step 1: Read the spec
 
 ```bash

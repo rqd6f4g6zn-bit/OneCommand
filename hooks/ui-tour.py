@@ -478,7 +478,13 @@ function slug(s) { return (s || 'root').replace(/^\/+/, '').replace(/[^a-zA-Z0-9
 async function visit(page, acct, vp, target, pattern) {
   const rec = { account: acct ? acct.email : null, role: acct ? (acct.role || null) : null, viewport: vp.name,
                 path: target, pattern: pattern || null, issues: [], warnings: [], console_errors: [] };
-  const pageErrors = [], bad = [];
+  const pageErrors = [], bad = [], thirdParty = new Set();
+  const onRequest = (r) => {
+    try {
+      const u = new URL(r.url());
+      if (/^https?:$/.test(u.protocol) && u.origin !== origin && !(cfg.allowed_third_parties || []).includes(u.hostname)) thirdParty.add(u.hostname);
+    } catch {}
+  };
   const onConsole = (m) => { if (m.type() === 'error') rec.console_errors.push(m.text().slice(0, 300)); };
   const onError = (e) => pageErrors.push(String((e && e.message) || e).slice(0, 300));
   const onResponse = (r) => {
@@ -487,7 +493,7 @@ async function visit(page, acct, vp, target, pattern) {
       if (u.origin === origin && r.status() >= 500) bad.push(`${r.status()} ${r.request().method()} ${u.pathname}`);
     } catch {}
   };
-  page.on('console', onConsole); page.on('pageerror', onError); page.on('response', onResponse);
+  page.on('console', onConsole); page.on('pageerror', onError); page.on('response', onResponse); page.on('request', onRequest);
   let resp = null;
   try {
     resp = await page.goto(cfg.base_url + target, { waitUntil: 'networkidle', timeout: cfg.nav_timeout_ms });
@@ -527,9 +533,12 @@ async function visit(page, acct, vp, target, pattern) {
   let text = '';
   try { text = await page.evaluate(() => (document.body ? document.body.innerText : '')); } catch {}
   rec.design = [];
-  const ids = findIdentifiers(text);
+  // The CMS's own back office (WordPress admin, login) is not the project's design.
+  const vendorUi = /^\/(wp-admin|wp-login\.php)/.test(new URL(page.url()).pathname);
+  if (thirdParty.size && !vendorUi) rec.design.push({ kind: 'privacy', msg: `requests to third parties without consent: ${[...thirdParty].sort().join(', ')} — every request sends the visitor's IP (GDPR): self-host it, remove it (WordPress: emoji script → s.w.org, Gravatar), or load it only after consent; allowed hosts go in spec.allowed_third_parties` });
+  const ids = vendorUi ? [] : findIdentifiers(text);
   if (ids.length) rec.design.push({ kind: 'identifier', msg: `technical identifiers visible: ${ids.slice(0, 5).map((i) => `"${i}"`).join(', ')} — show the user-facing label (e.g. the German intent / status name), not the code value` });
-  try { rec.design.push(...await page.evaluate(designAudit)); }
+  if (!vendorUi) try { rec.design.push(...await page.evaluate(designAudit)); }
   catch (e) { rec.warnings.push(`design audit failed: ${String(e.message || e).split('\n')[0]}`); }
   const hits = [...new Set((text.match(BAD_TEXT) || []).map((s) => s.trim()))];
   if (hits.length) rec.issues.push(`visible text shows ${hits.map((h) => `"${h}"`).join(', ')} — a value is missing or mis-parsed`);
@@ -553,7 +562,7 @@ async function visit(page, acct, vp, target, pattern) {
   if (acct && cfg.login_path && rec.final_path.startsWith(cfg.login_path) && !target.startsWith(cfg.login_path)) {
     rec.issues.push(`redirected to ${cfg.login_path} although logged in — session lost`);
   }
-  page.off('console', onConsole); page.off('pageerror', onError); page.off('response', onResponse);
+  page.off('console', onConsole); page.off('pageerror', onError); page.off('response', onResponse); page.off('request', onRequest);
   out.visits.push(rec);
   return rec;
 }
@@ -563,7 +572,7 @@ async function login(ctx, acct) {
   const rec = { account: acct.email, role: acct.role || null, ok: false };
   try {
     await page.goto(cfg.base_url + cfg.login_path, { waitUntil: 'networkidle', timeout: cfg.nav_timeout_ms });
-    await page.locator('input[type=email], input[name=email], input[autocomplete=username], input[autocomplete=email], input[name=username]').first().fill(acct.email);
+    await page.locator('input[type=email], input[name=email], input[autocomplete=username], input[autocomplete=email], input[name=username], input[name=log]').first().fill(acct.login || acct.email);
     await page.locator('input[type=password]').first().fill(acct.password);
     const left = page.waitForURL((u) => !new URL(u).pathname.startsWith(cfg.login_path), { timeout: cfg.login_timeout_ms }).catch(() => null);
     const submit = page.locator('form button[type=submit], button[type=submit]').first();
@@ -851,6 +860,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             "base_url": base_url.rstrip("/"), "out_dir": str(out_dir), "project_dir": str(project),
             "login_path": login_path, "first_account": accounts[0]["email"] if accounts else None,
             "metric_labels": metric_labels(spec),
+            "allowed_third_parties": spec.get("allowed_third_parties") or [],
             "performance_budget": spec.get("performance_budget") or None,
             "accounts": accounts, "anonymous": anon, "private": priv,
             "mobile_accounts": max(0, args.mobile_accounts), "mobile_anonymous": not accounts or bool(anon["static"]),

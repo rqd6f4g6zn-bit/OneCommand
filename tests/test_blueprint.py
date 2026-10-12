@@ -292,3 +292,32 @@ def test_every_blueprint_declares_its_kind_and_aliases_are_unique():
         for a in data["aliases"]:
             assert a not in seen, f"alias '{a}' in {path.stem} and {seen.get(a)}"
             seen[a] = path.stem
+
+
+def test_wordpress_platform_is_detected_and_expanded(tmp_path):
+    plan = json.loads(bp("detect", "--prompt", "Premium WordPress Webseite für unser Restaurant", "--json").stdout)["plan"]
+    assert (plan["primary"], plan["context"], plan["platform"]) == ("website", ["restaurant"], "wordpress")
+    assert json.loads(bp("detect", "--prompt", "Firmenwebseite für einen Handwerksbetrieb", "--json").stdout)["plan"]["platform"] is None
+    out = tmp_path / "wp.json"
+    assert bp("expand", "website", "--context", "restaurant", "--platform", "wordpress", "--tier", "pro",
+              "--project-name", "Trattoria Luna", "--out", str(out)).returncode == 0
+    spec = json.loads(out.read_text())
+    assert spec["wordpress"]["theme"] == "trattoria-luna" and spec["wordpress"]["plugins"] == ["trattoria-luna-core"]
+    assert spec["blueprint"]["platform"] == "wordpress" and spec["tech_stack"]["cms"] == "wordpress"
+    assert {"wp-theme", "wp-editor-experience", "wp-privacy", "wp-security", "wp-performance"} <= set(spec["features"])
+    assert "/wp-admin/" in spec["pages"] and "/admin" not in spec["pages"]
+    assert spec["demo"]["login_path"] == "/wp-login.php"
+    assert {a["wp_role"] for a in spec["demo"]["accounts"]} == {"administrator", "editor"}
+    for tool in ("blueprint.py check", "acceptance-report.py validate", "ui-tour.py validate"):
+        script, cmd = tool.split()
+        assert py(script, cmd, "--spec", str(out)).returncode == 0, tool
+    spec["acceptance_criteria"] = [c for c in spec["acceptance_criteria"] if "wp-privacy" not in c["source"]]
+    out.write_text(json.dumps(spec))
+    assert "wp-privacy" in bp("check", "--spec", str(out)).stdout          # platform modules are covered too
+
+
+def test_woocommerce_shop_gets_the_german_legal_module(tmp_path):
+    out = tmp_path / "shop.json"
+    assert bp("expand", "shop", "--platform", "wordpress", "--out", str(out)).returncode == 0
+    spec = json.loads(out.read_text())
+    assert "wc-germany" in spec["features"] and spec["wordpress"]["third_party_plugins"] == ["woocommerce", "woocommerce-germanized"]

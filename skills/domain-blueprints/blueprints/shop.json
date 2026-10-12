@@ -110,6 +110,7 @@
     {"id": "checkout_abandon_rate", "tier": "enterprise", "label": "Checkout-Abbruchquote (Zeitraum)", "unit": "%", "definition": "begonnene Checkouts ohne Bestellung / begonnene Checkouts im Zeitraum", "period": "gewählter Zeitraum"}
   ],
   "production_dependencies": {"mvp": ["stripe", "email"], "pro": ["stripe", "email", "storage"], "enterprise": ["stripe", "email", "storage"]},
+  "platforms": {"wordpress": {"modules": [{"id": "wc-germany", "name": "WooCommerce für den deutschen Markt", "tier": "mvp", "features": ["WooCommerce mit Rechtstexten für Deutschland (z. B. Germanized): Button 'Zahlungspflichtig bestellen', Widerrufsbelehrung, Grundpreise, Lieferzeiten", "Preise inkl. MwSt. mit Hinweis 'inkl. MwSt., zzgl. Versand'", "Zahlungen im Testmodus (Stripe/PayPal) für die Abnahme", "Bestell-E-Mails mit Rechnung als PDF"], "criteria": [{"title": "Checkout button reads 'Zahlungspflichtig bestellen'", "verification": "e2e", "start": "/", "requires_auth": false, "steps": ["Add a product to the cart", "Open the checkout"], "expected": ["The order button reads 'Zahlungspflichtig bestellen'", "Text 'inkl. MwSt.' is visible next to the price"]}]}], "third_party_plugins": ["woocommerce", "woocommerce-germanized"]}},
   "pages": {
     "mvp": ["/", "/products", "/products/[slug]", "/cart", "/checkout", "/checkout/success", "/login", "/register", "/account", "/account/orders", "/admin/products", "/admin/orders"],
     "pro": ["/admin/coupons", "/admin/reviews", "/admin/shipping"],

@@ -323,6 +323,10 @@ Skip frontend-agent, backend-agent for pure OS projects.
 
 **Always dispatch:**
 
+**WordPress sites** (spec has `wordpress`): dispatch only `frontend-agent` with the `wordpress-builder` skill —
+it builds the block theme, the site plugin, the blocks and `seed.php`; WordPress is the backend, so
+`backend-agent` is skipped. The gate (`quality-gate.sh`) hands over to `hooks/wp-gate.py`.
+
 **Frontend Agent** (`frontend-agent`):
 - **First** consults `21st-components` skill to source UI sections (hero, pricing,
   dashboard, auth, onboarding, features, testimonials, footers) from 21st.dev

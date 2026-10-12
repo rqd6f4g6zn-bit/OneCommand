@@ -177,6 +177,21 @@ python3 hooks/video.py render --plan video/plan.json --out-dir public/videos
 python3 hooks/video.py check public/videos                   # formats, faststart, silent loops, budget
 ```
 
+## WordPress Websites
+
+"WordPress Webseite für unser Restaurant" builds a WordPress site, not a Next.js app. You get:
+
+- a block theme generated from the design brief, with tokens in `theme.json` and self-hosted fonts;
+- a site plugin for post types, custom blocks and settings;
+- curated, locked patterns, so editors cannot break the design;
+- privacy without third-party requests (no emoji CDN, no Gravatar, no Google Fonts);
+- hardening (no user enumeration, no XML-RPC, escaped output, nonces);
+- WooCommerce for the German market;
+- demo content, deployment and handover.
+
+`hooks/wp-gate.py` runs the real site on PHP + SQLite with no Docker, then the acceptance tests and the UI tour.
+`python3 hooks/wp-gate.py serve` starts it locally.
+
 ## Knows the Domain
 
 Short prompts are enough. OneCommand ships 18 domain blueprints — **products** (CRM, online shop, appointment
