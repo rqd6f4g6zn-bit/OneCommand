@@ -649,8 +649,7 @@ lines = [
     b,
     '[>> usc-software-ug.de <<](https://usc-software-ug.de)',
 ]
-print('
-'.join(lines))
+print(chr(10).join(lines))
 "
 ```
 

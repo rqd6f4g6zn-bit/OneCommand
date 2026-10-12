@@ -128,6 +128,33 @@ AC-007 [missing] GET /api/workouts without a session returns 401
 - `redirected to /login although logged in` → session cookie lost between pages (path, domain, middleware).
 - Empty views for a demo login (review finding) → extend the demo seed, not the page.
 
+### WordPress (spec has `wordpress`, verdict from `hooks/wp-gate.py`)
+- **PHP fatal** (`php-errors`, `serve` fails, HTTP 500, white page) → read
+  `.onecommand/wp-site/wp-content/debug.log` and `.onecommand/gate/wp-server.log`; fix the file and line of
+  the first `PHP Fatal error` / `Parse error` (wrong hook timing, undefined function from a plugin that is not
+  active, missing `require`). Warnings from `/themes/` or `/plugins/` are fixed too, not ignored.
+- **Post type / taxonomy archive or single 404** → rewrite order: register a taxonomy **before** a post type
+  whose slug prefixes the taxonomy slug (`speisekarte` vs. `speisekarte/kategorie`), both on `init`; flush
+  rewrite rules at the end of `seed.php` (`flush_rewrite_rules()`) and on plugin activation — never on every
+  request.
+- **Block not registered** (block missing in the inserter, "Your site doesn't include support for …") →
+  `register_block_type( __DIR__ . '/build/<block>' )` must point at the folder with `block.json`; the build
+  output exists only after `npm run build` (`wordpress.build` in the spec) — check the path and that `build/`
+  is produced, not committed stale.
+- **`wordpress-standards` rule failures** — fix the code the rule names, never work around the regex:
+  `output without escaping` → `esc_html()` / `esc_attr()` / `esc_url()` / `wp_kses_post()` at the echo;
+  `without a nonce check` → `wp_nonce_field()` in the form, `check_admin_referer()` / `wp_verify_nonce()` in
+  the handler; `without sanitizing` → `sanitize_text_field( wp_unslash( $_POST['x'] ) )` (`absint`,
+  `sanitize_email`, `esc_url_raw` by type); `no direct-access guard` → `defined( 'ABSPATH' ) || exit;` as the
+  first statement of every plugin PHP file; SQL → `$wpdb->prepare()`.
+- **Login race in tests** (credentials typed into the wrong field, login stays on `/wp-login.php`) → wait for
+  `#user_login` to be focused before filling (`acceptance-tester` → WordPress builds). A test fix, not an
+  app fix — log it in `.onecommand/test-changes.md`.
+- **Nonce failures under page caching** ("Der Link ist abgelaufen", 403 on form submit or REST) → a nonce in a
+  cached page goes stale after 12–24 h: exclude the form page from the page cache (`nocache_headers()` on
+  that page, or the cache plugin's exclusion list), or fetch a fresh nonce via REST on load. Keep the nonce
+  check — the gate requires it for every `$_POST` handler.
+
 ### Runtime / start error
 ```
 Error: Invalid environment variable

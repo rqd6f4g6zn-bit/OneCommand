@@ -140,6 +140,21 @@ toast.dismiss(id)
 toast.success("Done!")
 ```
 
+## Forms: date and time inputs
+
+A native `<input type="date">` follows the browser locale, not the page — a German site can show
+`mm/dd/yyyy`. Every build (Next.js and WordPress):
+- `lang="de"` on `<html>` (Next.js: root `layout.tsx`; WordPress: site language `de_DE`).
+- Show the expected format next to the field as a hint: "Format: TT.MM.JJJJ" (`aria-describedby`).
+- Or use a German date picker component (`react-day-picker` with `locale={de}`, display `dd.MM.yyyy`).
+- Validation messages name the German format; the server accepts ISO (`2026-10-12`) from the native input.
+
+## WordPress builds (spec has `wordpress`)
+
+Everything in this skill applies. Tokens go into `theme.json` (not only CSS variables); the visual
+quality bar of `oc-frontend-design` is unchanged; every post / journal card has a featured image
+(`seed.php` sets `_thumbnail_id` — no card without image); date inputs as in "Forms" above.
+
 ## Accessibility Checklist
 
 Every component must pass:

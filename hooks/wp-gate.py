@@ -248,12 +248,17 @@ def static_problems(project: Path, wp: dict[str, Any]) -> tuple[list[str], list[
         is_template = "patterns" in path.parts or "templates" in path.parts or "parts" in path.parts
         if is_plugin and not re.search(r"defined\(\s*['\"](ABSPATH|WPINC)['\"]\s*\)", text):
             errors.append(f"{rel}: no direct-access guard — add `defined( 'ABSPATH' ) || exit;` at the top")
+        # Variables holding core's already-escaped markup (get_block_wrapper_attributes() …) may be echoed raw.
+        safe_vars = set(re.findall(r"(\$[A-Za-z_]\w*)\s*=\s*(?:get_block_wrapper_attributes|wp_kses(?:_post)?|esc_\w+|"
+                                   r"wp_interactivity_data_wp_context|get_the_post_thumbnail|wp_get_attachment_image)\s*\(", text))
         for i, line in enumerate(text.splitlines(), 1):
             if DANGEROUS.search(line):
                 errors.append(f"{rel}:{i}: dangerous call ({line.strip()[:80]})")
             if SQL_INTERP.search(line) and "prepare" not in line:
                 errors.append(f"{rel}:{i}: SQL with an interpolated variable — use $wpdb->prepare()")
             m = ECHO_RAW.search(line)
+            if m and m.group(1) in safe_vars:
+                continue
             if (m or ECHO_CONCAT.search(line)) and not re.search(ESC, line) and not is_template:
                 errors.append(f"{rel}:{i}: output without escaping — wrap in esc_html()/esc_attr()/esc_url()/wp_kses_post()")
         if SUPERGLOBAL.search(text):
@@ -268,7 +273,9 @@ def php_lint(project: Path) -> list[str]:
     if not shutil.which("php"):
         return ["php is not on PATH — install PHP 8.1+ (WordPress and this gate need it)"]
     errors = []
-    for path in php_files(project / "wordpress"):
+    base = project / "wordpress"
+    built = sorted(p for p in base.rglob("build/**/*.php") if "node_modules" not in p.parts) if base.exists() else []
+    for path in php_files(base) + built:
         r = subprocess.run(["php", "-l", str(path)], capture_output=True, text=True)
         if r.returncode != 0:
             errors.append(f"{path.relative_to(project)}: {(r.stdout + r.stderr).strip().splitlines()[0][:200]}")
@@ -315,7 +322,7 @@ $_SERVER['REQUEST_URI'] = '/';
 require __DIR__ . '/wp-load.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 $cfg = json_decode( file_get_contents( getenv( 'OC_WP_CONFIG' ) ), true );
-$out = array( 'users' => array(), 'plugins' => array(), 'errors' => array() );
+$out = array( 'users' => array(), 'plugins' => array(), 'errors' => array(), 'warnings' => array() );
 foreach ( $cfg['users'] as $u ) {
 	$id = username_exists( $u['login'] );
 	if ( ! $id ) {
@@ -334,11 +341,40 @@ foreach ( $cfg['plugins'] as $file ) {
 	$r = activate_plugin( $file );
 	if ( is_wp_error( $r ) ) { $out['errors'][] = 'plugin ' . $file . ': ' . $r->get_error_message(); } else { $out['plugins'][] = $file; }
 }
-if ( ! empty( $cfg['seed'] ) && file_exists( $cfg['seed'] ) ) {
-	try { require $cfg['seed']; } catch ( Throwable $e ) { $out['errors'][] = 'seed: ' . $e->getMessage(); }
+if ( ! empty( $cfg['locale'] ) ) {
+	if ( in_array( $cfg['locale'], get_available_languages(), true ) ) { update_option( 'WPLANG', $cfg['locale'] ); }
+	else { $out['warnings'][] = 'language pack ' . $cfg['locale'] . ' not installed — admin and core strings stay English'; }
 }
-flush_rewrite_rules( false );
 echo json_encode( $out ) . "\n";
+"""
+
+# A second process: theme and plugins are active from the first request on, so post types, taxonomies, blocks
+# and patterns are registered on 'init' before the seed runs (in the setup request 'init' had already fired).
+SEED_PHP = r"""<?php
+$_SERVER['HTTP_HOST'] = getenv( 'OC_WP_HOST' );
+$_SERVER['REQUEST_URI'] = '/';
+require __DIR__ . '/wp-load.php';
+require_once ABSPATH . 'wp-admin/includes/plugin.php';
+require_once ABSPATH . 'wp-admin/includes/media.php';
+require_once ABSPATH . 'wp-admin/includes/file.php';
+require_once ABSPATH . 'wp-admin/includes/image.php';
+$cfg = json_decode( file_get_contents( getenv( 'OC_WP_CONFIG' ) ), true );
+$out = array( 'errors' => array() );
+wp_set_current_user( (int) username_exists( $cfg['users'][0]['login'] ) );
+if ( ! empty( $cfg['seed'] ) && file_exists( $cfg['seed'] ) ) {
+	try { require $cfg['seed']; } catch ( Throwable $e ) { $out['errors'][] = 'seed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(); }
+}
+echo json_encode( $out ) . "\n";
+"""
+
+# A third, fresh process builds the rewrite rules: taxonomies and post types take the permalink front
+# (e.g. /journal/) when they are registered, so a structure the seed changed is only right in a new request.
+FLUSH_PHP = r"""<?php
+$_SERVER['HTTP_HOST'] = getenv( 'OC_WP_HOST' );
+$_SERVER['REQUEST_URI'] = '/';
+require __DIR__ . '/wp-load.php';
+flush_rewrite_rules( false );
+echo json_encode( array( 'errors' => array(), 'permalinks' => get_option( 'permalink_structure' ) ) ) . "\n";
 """
 
 ROUTER_PHP = r"""<?php
@@ -355,6 +391,11 @@ if ( is_dir( $file ) && is_file( rtrim( $file, '/' ) . '/index.php' ) ) {
 $_SERVER['SCRIPT_NAME'] = '/index.php';
 require $root . '/index.php';
 """
+
+
+# The one test-mode switch (acceptance-tester): the site plugin's outbox and test-only REST routes check
+# getenv('ONECOMMAND_E2E'); wp-config also sets WP_ENVIRONMENT_TYPE=local.
+TEST_ENV = {"ONECOMMAND_E2E": "1"}
 
 
 def free_port(preferred: int) -> int:
@@ -378,6 +419,9 @@ def demo_users(spec: dict[str, Any]) -> list[dict[str, str]]:
         users.append({"login": acct.get("login") or acct["email"].split("@")[0], "email": acct["email"],
                       "password": acct.get("password") or "Demo1234!", "role": role,
                       "name": acct.get("name") or acct["email"].split("@")[0]})
+    # The administrator installs WordPress (wp_install) — move a demo administrator first instead of adding
+    # a second 'admin' whose login could collide with it.
+    users.sort(key=lambda u: u["role"] != "administrator")
     if not users or users[0]["role"] != "administrator":
         users.insert(0, {"login": "admin", "email": "admin@example.test", "password": secrets.token_urlsafe(12),
                          "role": "administrator", "name": "Admin"})
@@ -393,11 +437,59 @@ def link(src: Path, dest: Path) -> None:
     dest.symlink_to(src, target_is_directory=src.is_dir())
 
 
-def prepare_site(project: Path, spec: dict[str, Any], wp: dict[str, Any], port: int, fresh: bool) -> tuple[Path, dict[str, Any]]:
+def stop_stale_server(site: Path) -> None:
+    """A PHP server from an earlier serve/gate on this site keeps writing debug.log: stop it first."""
+    pid_file = site / ".oc-server.pid"
+    try:
+        pid = int(pid_file.read_text().strip())
+        os.killpg(pid, signal.SIGTERM)
+        time.sleep(0.5)
+    except (OSError, ValueError, ProcessLookupError):
+        pass
+
+
+def fetch_language(version: str, locale: str) -> Path | None:
+    """The core language pack (admin + front-end core strings), cached; None when translate.wordpress.org is unreachable."""
+    dest = CACHE / "languages" / version / locale
+    if (dest / f"{locale}.mo").exists():
+        return dest
+    try:
+        with urllib.request.urlopen(f"https://api.wordpress.org/translations/core/1.0/?version={version}", timeout=30) as resp:
+            packs = json.loads(resp.read().decode("utf-8")).get("translations", [])
+        url = next((t["package"] for t in packs if t.get("language") == locale), None)
+        if not url:
+            return None
+        zpath = CACHE / "languages" / f"{version}-{locale}.zip"
+        dest.mkdir(parents=True, exist_ok=True)
+        with urllib.request.urlopen(url, timeout=60) as resp, open(zpath, "wb") as fh:
+            shutil.copyfileobj(resp, fh)
+        shutil.unpack_archive(str(zpath), str(dest))
+        return dest if (dest / f"{locale}.mo").exists() else None
+    except (urllib.error.URLError, OSError, shutil.ReadError, ValueError, KeyError) as exc:
+        log(f"  ⚠ language pack {locale} not available ({exc}) — admin and core strings stay English; "
+            "the site plugin translates the front-end core strings it shows (wordpress-builder § 8)")
+        return None
+
+
+def wp_locale(spec: dict[str, Any]) -> str | None:
+    lang = str(spec.get("ui_language") or "de").lower()
+    return {"de": "de_DE", "en": None}.get(lang, f"{lang}_{lang.upper()}")
+
+
+def prepare_site(project: Path, spec: dict[str, Any], wp: dict[str, Any], port: int, fresh: bool,
+                 seed_mode: str = "demo") -> tuple[Path, dict[str, Any]]:
     core, sqlite_plugin = fetch(str(wp.get("version") or "6.8"))
     site = project / ".onecommand" / "wp-site"
     if fresh and site.exists():
-        shutil.rmtree(site)
+        stop_stale_server(site)
+        for _ in range(5):
+            shutil.rmtree(site, ignore_errors=True)
+            if not site.exists():
+                break
+            time.sleep(1)
+        if site.exists():
+            raise SystemExit(f"[wp-gate] cannot remove {site} — another process still writes to it "
+                             "(a `wp-gate.py serve` in another terminal?) — stop it and retry")
     if not (site / "wp-load.php").exists():
         log(f"▶ creating the site in {site}")
         shutil.copytree(core, site, ignore=shutil.ignore_patterns(".git"), symlinks=False)
@@ -444,25 +536,38 @@ require_once ABSPATH . 'wp-settings.php';
     (site / "router.php").write_text(ROUTER_PHP, encoding="utf-8")
     (site / ".oc-install.php").write_text(INSTALL_PHP, encoding="utf-8")
     (site / ".oc-setup.php").write_text(SETUP_PHP, encoding="utf-8")
+    (site / ".oc-seed.php").write_text(SEED_PHP, encoding="utf-8")
+    (site / ".oc-flush.php").write_text(FLUSH_PHP, encoding="utf-8")
+    locale = wp_locale(spec)
+    pack = fetch_language(str(wp.get("version") or "6.8"), locale) if locale else None
+    if pack:
+        shutil.copytree(pack, site / "wp-content" / "languages", dirs_exist_ok=True)
     seed = project / str(wp.get("seed") or "wordpress/seed.php")
     cfg = {"title": spec.get("project_name") or "Website", "theme": theme, "plugins": plugin_files,
-           "users": demo_users(spec), "seed": str(seed) if seed.exists() else ""}
+           "users": demo_users(spec), "seed": str(seed) if seed.exists() else "", "locale": locale if pack else None,
+           "missing_language": locale if locale and not pack else None}
     cfg_path = site / ".oc-site.json"
     cfg_path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    env = {**os.environ, "OC_WP_HOST": f"127.0.0.1:{port}", "OC_WP_CONFIG": str(cfg_path)}
-    for script in (".oc-install.php", ".oc-setup.php"):
+    # OC_SEED_MODE=worst: seed.php adds worst-case content (long German words, empty lists, 100 entries) —
+    # emil's break-ui runs against it (`serve --seed-mode worst`).
+    env = {**os.environ, **TEST_ENV, "OC_WP_HOST": f"127.0.0.1:{port}", "OC_WP_CONFIG": str(cfg_path),
+           "OC_SEED_MODE": seed_mode}
+    for script in (".oc-install.php", ".oc-setup.php", ".oc-seed.php", ".oc-flush.php"):
         r = subprocess.run(["php", "-d", "memory_limit=512M", script], cwd=site, env=env, capture_output=True,
                            text=True, timeout=300)
         if r.returncode != 0:
             raise SystemExit(f"[wp-gate] {script} failed: {(r.stderr or r.stdout).strip()[-1500:]}")
-        if script == ".oc-setup.php":
+        if script in (".oc-setup.php", ".oc-seed.php", ".oc-flush.php"):
             last = (r.stdout.strip().splitlines() or ["{}"])[-1]
             try:
                 result = json.loads(last)
             except ValueError:
-                raise SystemExit(f"[wp-gate] setup printed no result: {r.stdout[-800:]} {r.stderr[-800:]}")
+                raise SystemExit(f"[wp-gate] {script} printed no result: {r.stdout[-800:]} {r.stderr[-800:]}")
             if result.get("errors"):
-                raise SystemExit("[wp-gate] setup: " + "; ".join(result["errors"]))
+                raise SystemExit(f"[wp-gate] {script.strip('.').removesuffix('.php').removeprefix('oc-')}: "
+                                 + "; ".join(result["errors"]))
+            for w in result.get("warnings") or []:
+                log(f"  ⚠ {w}")
     return site, cfg
 
 
@@ -475,8 +580,9 @@ class Server:
         self.log_fh = open(self.log_path, "w", encoding="utf-8")
         self.proc = subprocess.Popen(["php", "-d", "memory_limit=512M", "-S", f"127.0.0.1:{self.port}", "-t", str(self.site),
                                       str(self.site / "router.php")], cwd=self.site, stdout=self.log_fh,
-                                     stderr=subprocess.STDOUT, env={**os.environ, "PHP_CLI_SERVER_WORKERS": "4"},
+                                     stderr=subprocess.STDOUT, env={**os.environ, **TEST_ENV, "PHP_CLI_SERVER_WORKERS": "4"},
                                      start_new_session=True)
+        (self.site / ".oc-server.pid").write_text(str(self.proc.pid))
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
@@ -512,7 +618,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         log("spec has no wordpress section — not applicable")
         return 3
     port = free_port(args.port)
-    site, cfg = prepare_site(project, spec, wp, port, args.fresh)
+    site, cfg = prepare_site(project, spec, wp, port, args.fresh, args.seed_mode)
     server = Server(site, port, project / ".onecommand" / "wp-server.log")
     problem = server.start()
     if problem:
@@ -578,6 +684,12 @@ class Gate:
                   "failed_steps": [s["step"] for s in self.steps if s["status"] == "fail"],
                   "warnings": [f"{s['step']}: {s['reason']}" for s in self.steps if s["status"] == "warn"],
                   "steps": self.steps}
+        acc = self.out / "acceptance.json"
+        if self.stage in ("e2e", "all") and acc.exists():
+            try:
+                result["acceptance"] = json.loads(acc.read_text(encoding="utf-8")).get("summary")
+            except ValueError:
+                pass
         tmp = self.out / ".result.json.tmp"
         tmp.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
         os.replace(tmp, self.out / "result.json")
@@ -617,8 +729,11 @@ def cmd_gate(args: argparse.Namespace) -> int:
         port = free_port(args.port)
         server = None
         try:
-            site, _ = prepare_site(project, spec, wp, port, fresh=True)
+            site, site_cfg = prepare_site(project, spec, wp, port, fresh=True)
             gate.record("site", "pass", f"WordPress with theme {wp.get('theme')} on 127.0.0.1:{port}")
+            if site_cfg.get("missing_language"):
+                gate.record("language", "warn", f"language pack {site_cfg['missing_language']} not reachable — admin in "
+                                                "English; front-end core strings need the site plugin's gettext fallback")
             server = Server(site, port, gate.out / "wp-server.log")
             problem = server.start()
             if problem:
@@ -677,6 +792,8 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--port", type=int, default=8890)
         if name == "serve":
             p.add_argument("--fresh", action="store_true", help="rebuild the site (new database)")
+            p.add_argument("--seed-mode", choices=("demo", "worst"), default="demo",
+                           help="worst: seed.php adds worst-case content (OC_SEED_MODE) for emil's break-ui")
         if name == "gate":
             p.add_argument("--stage", choices=("static", "e2e", "tour", "all"), default="all")
             p.add_argument("--out")

@@ -470,7 +470,8 @@ try { pw = req('@playwright/test'); } catch { pw = req('playwright'); }
 const { chromium } = pw;
 const origin = new URL(cfg.base_url).origin;
 const BAD_TEXT = /(?<![\w-])(undefined|NaN|Invalid Date|\[object Object\]|lorem ipsum)(?![\w-])/gi;
-const out = { logins: [], visits: [] };
+const out = { logins: [], visits: [], broken_links: [], links_checked: false };
+const VENDOR_UI = /^\/(wp-admin|wp-login\.php)/;
 let shot = 0;
 
 function slug(s) { return (s || 'root').replace(/^\/+/, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'root'; }
@@ -503,7 +504,9 @@ async function visit(page, acct, vp, target, pattern) {
   }
   await page.waitForTimeout(cfg.settle_ms);
   rec.status = resp ? resp.status() : null;
-  if (page._ocBudget) {
+  // The CMS's own back office (WordPress admin, login) is not the project's design or its page weight.
+  const vendorUi = VENDOR_UI.test(new URL(page.url()).pathname) || VENDOR_UI.test(target);
+  if (page._ocBudget && !vendorUi) {
     try {
       rec.performance = await page.evaluate(async () => {
         let lcp = 0, cls = 0;
@@ -526,6 +529,26 @@ async function visit(page, acct, vp, target, pattern) {
     } catch (e) { rec.warnings.push(`performance not measured: ${String(e.message || e).split('\n')[0]}`); }
   }
   rec.final_path = new URL(page.url()).pathname;
+  // Visitors scroll: load lazy images and scroll-triggered content before the full-page screenshot,
+  // otherwise the review sees blank image boxes that no visitor sees.
+  try {
+    await page.evaluate(async () => {
+      const step = Math.max(400, Math.round(window.innerHeight * 0.8));
+      for (let y = 0; y < document.documentElement.scrollHeight; y += step) {
+        window.scrollTo(0, y);
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      window.scrollTo(0, 0);
+      await Promise.all([...document.images].filter((i) => !i.complete).map((i) => new Promise((r) => {
+        i.addEventListener('load', r, { once: true }); i.addEventListener('error', r, { once: true }); setTimeout(r, 3000);
+      })));
+    });
+    await page.waitForTimeout(150);
+    const broken = await page.evaluate(() => [...document.images]
+      .filter((i) => i.complete && i.naturalWidth === 0 && (i.currentSrc || i.src) && !i.src.startsWith('data:'))
+      .map((i) => i.currentSrc || i.src));
+    if (broken.length) rec.issues.push(`broken image(s): ${[...new Set(broken)].slice(0, 3).map((u) => new URL(u).pathname).join(', ')}`);
+  } catch {}
   shot += 1;
   const file = `${String(shot).padStart(3, '0')}-${slug(acct ? (acct.role || acct.email.split('@')[0]) : 'anon')}-${vp.name}-${slug(target)}.png`;
   try { await page.screenshot({ path: path.join(cfg.out_dir, file), fullPage: true, timeout: 30000 }); rec.screenshot = file; }
@@ -533,8 +556,6 @@ async function visit(page, acct, vp, target, pattern) {
   let text = '';
   try { text = await page.evaluate(() => (document.body ? document.body.innerText : '')); } catch {}
   rec.design = [];
-  // The CMS's own back office (WordPress admin, login) is not the project's design.
-  const vendorUi = /^\/(wp-admin|wp-login\.php)/.test(new URL(page.url()).pathname);
   if (thirdParty.size && !vendorUi) rec.design.push({ kind: 'privacy', msg: `requests to third parties without consent: ${[...thirdParty].sort().join(', ')} — every request sends the visitor's IP (GDPR): self-host it, remove it (WordPress: emoji script → s.w.org, Gravatar), or load it only after consent; allowed hosts go in spec.allowed_third_parties` });
   const ids = vendorUi ? [] : findIdentifiers(text);
   if (ids.length) rec.design.push({ kind: 'identifier', msg: `technical identifiers visible: ${ids.slice(0, 5).map((i) => `"${i}"`).join(', ')} — show the user-facing label (e.g. the German intent / status name), not the code value` });
@@ -567,11 +588,39 @@ async function visit(page, acct, vp, target, pattern) {
   return rec;
 }
 
+// Every internal link of the visited pages must answer (a menu or card pointing to a 404 is a broken site).
+async function checkLinks(page, acct) {
+  out.links_checked = true;
+  const seen = new Map();
+  for (const v of out.visits) {
+    if ((v.account || null) !== (acct ? acct.email : null) || v.viewport !== 'desktop') continue;
+    for (const h of v.links || []) {
+      let u;
+      try { u = new URL(h, cfg.base_url + v.path); } catch { continue; }
+      if (u.origin !== origin || VENDOR_UI.test(u.pathname) || /^\/(wp-json|feed|xmlrpc)/.test(u.pathname)) continue;
+      if (/\/(logout|abmelden)|action=logout/i.test(u.pathname + u.search)) continue;
+      const key = u.pathname + u.search;
+      if (!seen.has(key)) seen.set(key, v.path);
+    }
+  }
+  const visited = new Set(out.visits.filter((v) => (v.account || null) === (acct ? acct.email : null)).map((v) => v.final_path || v.path));
+  for (const [key, from] of [...seen].slice(0, 300)) {
+    if (visited.has(key)) continue;
+    try {
+      const r = await page.request.get(cfg.base_url + key, { maxRedirects: 5, timeout: 15000 });
+      if (r.status() >= 400) out.broken_links.push({ from, href: key, status: r.status(), account: acct ? acct.email : null });
+    } catch (e) { out.broken_links.push({ from, href: key, status: null, error: String(e.message || e).split('\n')[0] }); }
+  }
+}
+
 async function login(ctx, acct) {
   const page = await ctx.newPage();
   const rec = { account: acct.email, role: acct.role || null, ok: false };
   try {
     await page.goto(cfg.base_url + cfg.login_path, { waitUntil: 'networkidle', timeout: cfg.nav_timeout_ms });
+    // wp-login.php moves the focus to #user_login after load; a fill before that can land in the wrong field.
+    await page.waitForFunction(() => { const u = document.getElementById('user_login'); return !u || document.activeElement === u; },
+                               null, { timeout: 3000 }).catch(() => null);
     await page.locator('input[type=email], input[name=email], input[autocomplete=username], input[autocomplete=email], input[name=username], input[name=log]').first().fill(acct.login || acct.email);
     await page.locator('input[type=password]').first().fill(acct.password);
     const left = page.waitForURL((u) => !new URL(u).pathname.startsWith(cfg.login_path), { timeout: cfg.login_timeout_ms }).catch(() => null);
@@ -635,6 +684,7 @@ async function tour(acct, vp, pages) {
       }
       await visit(page, acct, vp, hit.pathname, d.path);
     }
+    if (vp.name === 'desktop' && (!acct || (acct.email === cfg.first_account && !out.links_checked))) await checkLinks(page, acct);
   } finally {
     await ctx.close();
   }
@@ -661,6 +711,13 @@ try {
 
 # ─── run ──────────────────────────────────────────────────────────────────────
 
+def browser_env(locale: str) -> dict[str, str]:
+    """Headless Chromium formats native controls (date fields) by the OS locale, not by --lang:
+    without this a German page shows mm/dd/yyyy in the screenshots."""
+    posix = locale.replace("-", "_") + ".UTF-8"
+    return {**os.environ, "LANG": posix, "LC_ALL": posix, "LANGUAGE": locale.replace("-", "_")}
+
+
 def has_playwright(project: Path) -> bool:
     return any((project / "node_modules" / name / "package.json").exists() for name in ("@playwright/test", "playwright"))
 
@@ -678,13 +735,24 @@ def metric_labels(spec: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
     return result
 
 
-def split_pages(pages: list[str], login_path: str | None, with_accounts: bool) -> tuple[dict, dict]:
+def public_pages(spec: dict[str, Any], pages: list[str]) -> set[str]:
+    """Pages visitors see without a login although the spec has demo accounts (a website with a CMS login)."""
+    listed = {str(p) for p in spec.get("public_pages") or []}
+    if isinstance(spec.get("wordpress"), dict):
+        # A WordPress site is public; only its back office needs the login.
+        listed |= {p for p in pages if not re.match(r"^/(wp-admin|wp-login\.php)", p)}
+    return listed
+
+
+def split_pages(pages: list[str], login_path: str | None, with_accounts: bool,
+                public_set: set[str] | None = None) -> tuple[dict, dict]:
     anon: dict[str, list] = {"static": [], "dynamic": []}
     priv: dict[str, list] = {"static": [], "dynamic": []}
     for p in pages:
         if LOGOUT.search(p):
             continue
-        public = bool(AUTH_PAGES.search(p)) or (login_path is not None and p.startswith(login_path))
+        public = (bool(AUTH_PAGES.search(p)) or (login_path is not None and p.startswith(login_path))
+                  or p in (public_set or set()))
         bucket = anon if (public or not with_accounts) else priv
         if is_dynamic(p):
             bucket["dynamic"].append({"path": p, "regex": pattern_regex(p)})
@@ -702,6 +770,10 @@ def evaluate(data: dict[str, Any], first_account: str | None) -> tuple[list[str]
             blocking.append(f"login failed for {login['account']} ({login.get('role') or 'no role'})"
                             + (f": {login['error']}" if login.get("error") else "")
                             + (f" — see {login['screenshot']}" if login.get("screenshot") else ""))
+    for b in data.get("broken_links", []):
+        blocking.append(f"broken link on {b['from']}: {b['href']} → "
+                        + (f"HTTP {b['status']}" if b.get("status") else b.get("error", "no answer"))
+                        + " — fix the link or the page it points to (WordPress: rewrite order, flush rewrite rules)")
     for v in data.get("visits", []):
         who = f"{v.get('role') or v.get('account') or 'anonymous'} · {v['viewport']} · {v['path']}"
         status = v.get("status")
@@ -836,7 +908,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     accounts = [a for a in demo.get("accounts") or [] if isinstance(a, dict)]
     login_path = demo.get("login_path") if accounts else None
     pages = collect_pages(spec)
-    anon, priv = split_pages(pages, login_path, bool(accounts))
+    anon, priv = split_pages(pages, login_path, bool(accounts), public_pages(spec, pages))
+    if isinstance(spec.get("wordpress"), dict) and accounts and not (priv["static"] or priv["dynamic"]):
+        priv["static"].append("/wp-admin/")      # every demo login lands in its back office once
 
     if not args.no_seed and demo.get("seed_command"):
         problem = run_seed(project, str(demo["seed_command"]), args.seed_timeout, out_dir / "seed.log")
@@ -874,7 +948,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         log(f"▶ visiting {total} page(s) with {len(accounts)} demo login(s)")
         try:
             proc = subprocess.run(["node", str(script), str(out_dir / "config.json")], cwd=project,
-                                  capture_output=True, text=True, timeout=args.timeout)
+                                  capture_output=True, text=True, timeout=args.timeout, env=browser_env(cfg["locale"]))
         except subprocess.TimeoutExpired:
             print(f"  ✗ tour timed out after {args.timeout}s")
             return 1

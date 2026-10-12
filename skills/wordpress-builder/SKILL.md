@@ -58,13 +58,29 @@ Demo logins: `demo.accounts` with `wp_role` (administrator, editor …) and `log
   before the first pattern, `animate` before every transition (CSS, `prefers-reduced-motion`), `mobile-native`
   for touch, and in Phase 6 `break-ui` on every pattern with long German texts and `review-animations`. No animation library for a website unless the brief
   asks for a signature motion piece.
-- Style variations (`styles/*.json`) for a dark mode or seasonal look instead of a second theme.
+- Style variations (`styles/*.json`) for a dark mode or seasonal look instead of a second theme — and look at
+  each one once in the browser (Site Editor → Styles) before delivery; an untested variation is not delivered.
+- Every card (journal, events, team) has an image: `seed.php` sets a featured image (`_thumbnail_id`) for every
+  post it creates; a card without an image looks broken in the screenshots and to visitors.
+- Native date fields follow the visitor's browser language: set `lang="de-DE"` on `<html>` (core does it from the
+  site language), add the format as a hint ("TT.MM.JJJJ") and validate server-side; never a US-format placeholder.
+- The core navigation overlay removes `is-menu-open` instantly — an exit animation needs a closing class removed
+  on `transitionend`; if you skip it, say so in design.md instead of promising it.
 
 ## 3. Site plugin and blocks
 
 - Post types and taxonomies for every blueprint entity (case studies, team, jobs, services …):
   `show_in_rest: true`, German labels, `rewrite` slugs in German, `template` + `template_lock` for their block
-  layout, archive templates in the theme.
+  layout, archive templates in the theme, `supports` incl. `editor`, `thumbnail`, `excerpt`, `custom-fields`
+  (the block editor and its meta panels need them).
+- **Permalinks:** a structure with a front (`/journal/%postname%/`) prefixes every taxonomy and post type that
+  keeps `with_front` — categories become `/journal/category/…`. Decide whether that is wanted
+  (`'rewrite' => array( 'with_front' => false )` otherwise), and when the seed changes the structure, the rules
+  are only right after a flush in a new request (the gate does that; in production `wp rewrite flush` after the
+  seed). The tour's link check fails on every link that answers 404.
+- **Rewrite order:** when a taxonomy's slug starts with a post type's slug (`/feiern/anlass/…` under the post
+  type `/feiern/…`), register the taxonomy **before** the post type — otherwise the post type's rule catches
+  the URL and the term archive is a 404. The tour's link check fails on such links.
 - Custom fields: `register_post_meta` with `show_in_rest`, `sanitize_callback`, `auth_callback`; edit them with
   block bindings or a block inspector panel — no ACF unless the customer already uses it.
 - Custom blocks only where core blocks plus patterns cannot do it (filters, maps with two-click consent,
@@ -113,12 +129,32 @@ the acceptance tests. Theme templates for shop, product, cart, checkout as block
 
 ## 8. Demo content (`seed.php`)
 
-Runs after `wp-load.php`, must be idempotent (look up by slug before inserting). Fixed German slugs —
-WordPress turns "Über uns" into `uber-uns` without the de_DE locale, so set `post_name` explicitly
-(`ueber-uns`). Content: every page of the spec built from the theme's patterns with real text (no lorem ipsum),
+Runs in its own PHP process after `wp-load.php` (the gate activates theme and plugins first, so post types,
+taxonomies, blocks and patterns are registered — no manual `register_*` calls in the seed), as the first
+administrator. Must be idempotent (look up by slug before inserting). `OC_SEED_MODE=worst` (`serve --seed-mode
+worst`) adds worst-case content for `emil`'s break-ui: the longest German compound words, 40 dishes in one
+category, empty lists, a 300-character title. Fixed German slugs —
+WordPress turns "Über uns" into `uber-uns` and drops `ß` without the de_DE locale, so set `post_name` explicitly
+(`ueber-uns`, `strasse`) and add a `sanitize_title` filter with German rules (ä→ae, ö→oe, ü→ue, ß→ss) in the
+site plugin for slugs editors create later.
+Every invented business fact (address, owner, VAT ID, phone, hours, prices, menu, team, video IDs) is listed in
+`spec.demo_facts` — the delivery report turns it into the "Vor dem Livegang ersetzen" checklist. No invented
+reviews, star ratings, awards or named testimonials (UWG § 5): use offers, facts and a note from the owner. Content: every page of the spec built from the theme's patterns with real text (no lorem ipsum),
 entries for every post type, a primary navigation (`wp_navigation` post), front page set
 (`show_on_front`/`page_on_front`), images from `wordpress/seed-media/` imported with `media_handle_sideload`
 (no hotlinking). The gate creates the demo users from `demo.accounts`.
+
+## 8b. Language, test mode, caching
+
+- The gate installs the core language pack for the spec's `ui_language` (cached in
+  `~/.onecommand/cache/wordpress/languages`) and sets `WPLANG`. Offline the admin stays English and the gate
+  says so — then translate the core strings the front end shows ("Menu", "Skip to content", "Search") with a
+  `gettext` filter in the site plugin, never by editing core.
+- Test mode has one switch: `getenv( 'ONECOMMAND_E2E' )` (the gate sets it for the PHP server; its wp-config
+  also sets `WP_ENVIRONMENT_TYPE=local`). Test mail goes to an outbox the site plugin keeps in an option and
+  exposes through a REST route that exists only in test mode — never in production.
+- Page caching serves stale nonces: exclude pages with forms from the cache, or fetch the nonce with a small
+  uncached REST call before submit.
 
 ## 9. Operations and handover
 

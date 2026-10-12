@@ -104,7 +104,8 @@ def test_phase_checkpoint_is_refused_while_assigned_skills_were_not_loaded(tmp_p
     r = cp(home, project, "phase", "2", "--summary", "built")
     assert r.returncode == 1 and "NOT saved" in r.stdout and "oc-frontend-design" in r.stdout
     assert not (home / ".onecommand" / "brain" / "working_memory.json").exists()
-    for name in ("oc-frontend-design", "oc-ui-ux", "emil", "21st-components", "collab-protocol"):
+    for name in ("oc-frontend-design", "oc-ui-ux", "emil", "21st-components", "collab-protocol",
+                 "emil/emil-design-eng", "emil/animate", "emil/mobile-native"):
         cat("read", name, "--phase", "2")
     assert cp(home, project, "phase", "2", "--summary", "built").returncode == 0
     r = cp(home, project, "phase", "3", "--summary", "x", "--skills-skipped", "no marketing in a demo")

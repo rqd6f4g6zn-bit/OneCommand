@@ -271,8 +271,32 @@ enterprise tier) keep the draft's `performance_budget` and `media.videos`:
 - `media.videos`: one entry per video (`name`, `purpose`, `muted`, `max_seconds`, `max_kb`, `source`,
   `brief`, `captions`). Fill `brief` from the prompt; `video-producer` cuts the footage the user provides in
   `media.raw_dir` (default `assets/raw`), or builds the video from images or motion graphics.
-- Texts are written for the company in the prompt — never placeholders. Missing facts (address, register
-  number for the Impressum) become an open item in the delivery report, not invented data.
+- Texts are written for the company in the prompt — never placeholders ("Lorem", "Musterstraße 1",
+  "[Adresse]"). A demo must still show a complete Impressum, footer and structured data: facts the prompt
+  does not give are invented as **demo facts** and recorded in `demo_facts` (below) — never silently.
+- Industry context: when the blueprint draft is a website with an industry (`blueprint.context`, e.g.
+  "Webseite für unser Restaurant" → `website` + `restaurant`), the criteria from the industry's website
+  block (`source` `blueprint:<industry>.website/…`) are domain criteria — keep them like any other.
+
+### `demo_facts` — invented business facts
+
+```json
+"demo_facts": [
+  {"field": "Impressum: Anschrift", "value": "Ottenser Hauptstraße 21, 22765 Hamburg", "source": "demo — replace before go-live"},
+  {"field": "Öffnungszeiten", "value": "Di–So 17:30–23:00, Mo Ruhetag", "source": "demo — replace before go-live"}
+]
+```
+
+- One entry per invented fact: address, owner / managing director, USt-ID, register court and number,
+  phone, e-mail, opening hours, prices, menu / product list, allergens, team names, seat counts, video IDs …
+- Values are plausible but obviously replaceable. The site's own domain (`trattoria-luna.de`) and
+  example.com-style e-mail domains are fine only when listed here.
+- **Never invent** customer reviews, testimonials with names, ratings, star scores, awards, seals or
+  certificates (UWG § 5 — fake reviews are an unfair commercial practice). Use offers, facts about the
+  business or a note from the owner instead.
+- Every demo fact also goes to `to_verify` (`domain_brief.to_verify` when the spec has a brief, otherwise a
+  top-level `to_verify` list). `delivery-reporter` lists them under "Vor dem Livegang ersetzen";
+  `demo-cleaner` checks that every invented fact in the code is listed here.
 
 ## Game Project Support
 

@@ -71,8 +71,10 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "oc-frontend-design":      {"phases": [2], "when": "web", "use": "layout, typography, spacing rules"},
     "oc-ui-ux":                {"phases": [2], "when": "web", "use": "UX patterns and accessibility"},
     "wordpress-builder":       {"phases": [2, 4, 6], "when": "web", "requires": "wordpress", "use": "WordPress site: block theme from the design brief, site plugin, patterns, privacy, security, WooCommerce (hooks/wp-gate.py)"},
-    "emil":                    {"phases": [2, 6], "when": "web", "use": "Emil Kowalski's design engineering: polish, animation, native feel on phones, worst-case data (/emil)"},
-    "21st-components":         {"phases": [2, 3], "when": "web", "use": "community UI sections before custom code"},
+    "emil":                    {"phases": [2, 6], "when": "web", "use": "Emil Kowalski's design engineering: polish, animation, native feel on phones, worst-case data (/emil)",
+                                # Its guides carry the rules; each one is loaded (and checked) like a skill: read emil/<guide>.
+                                "guides": {2: ["emil-design-eng", "animate", "mobile-native"], 6: ["break-ui", "review-animations"]}},
+    "21st-components":         {"phases": [2, 3], "when": "web", "excludes": "wordpress", "use": "community UI sections before custom code"},
     "app-icon-generator":      {"phases": [2], "when": "mobile", "use": "app icons in every iOS/Android size"},
     "game-engine-selector":    {"phases": [2], "when": "game", "use": "choose Godot / Three.js / Phaser"},
     "godot-builder":           {"phases": [2], "when": "game", "use": "Godot 4 project (if selected)"},
@@ -252,6 +254,9 @@ def resolve_bundled(entry: dict[str, Any], targets: set[str], spec: dict[str, An
     elif when == "support":
         entry.update(status="not_used", phases=[], use=rule["use"],
                      reason="infrastructure skill used by /oc-resume and /oc-save, not by phase agents")
+    elif (when == "always" or when in targets) and rule.get("excludes") and spec_has(spec or {}, rule["excludes"]):
+        entry.update(status="not_used", phases=[], use=rule["use"],
+                     reason=f"not usable when the spec has '{rule['excludes']}' (React components)")
     elif (when == "always" or when in targets) and rule.get("requires") and not spec_has(spec or {}, rule["requires"]):
         entry.update(status="not_used", phases=[], use=rule["use"],
                      reason=f"spec has no '{rule['requires']}' section")
@@ -413,7 +418,15 @@ def cmd_for_phase(args: argparse.Namespace) -> int:
     for e in rows:
         print(f"  - {e['name']} [{e['source']}] — {e['use']}\n"
               f"      python3 \"{script}\" --project-dir \"{Path(args.project_dir).resolve()}\" read {e['name']} --phase {args.phase}")
+        for g in guides_for(e["name"], args.phase):
+            print(f"      python3 \"{script}\" --project-dir \"{Path(args.project_dir).resolve()}\" read {e['name']}/{g} --phase {args.phase}")
     return 0
+
+
+def guides_for(skill: str, phase: int) -> list[str]:
+    """Guides of a bundled skill that a phase must load too (emil: emil-design-eng, animate, …)."""
+    rule = BUNDLED.get(skill.split(":")[-1]) or {}
+    return list((rule.get("guides") or {}).get(phase, []))
 
 
 # Plugins OneCommand recommends; the library lists them as missing when they are not installed.
@@ -509,6 +522,10 @@ def cmd_library(args: argparse.Namespace) -> int:
 
 
 def skill_path(name: str, catalog: dict[str, Any] | None, project: Path | None = None) -> Path | None:
+    if "/" in name:  # a guide of a bundled skill: emil/animate → skills/emil/guides/animate/GUIDE.md
+        skill, guide = name.split(":")[-1].split("/", 1)
+        path = Path(__file__).resolve().parent.parent / "skills" / skill / "guides" / guide / "GUIDE.md"
+        return path if path.exists() and "/" not in guide and ".." not in guide else None
     for e in (catalog or {}).get("skills", []):
         if e["name"] == name and e.get("path"):
             return Path(e["path"])
@@ -557,13 +574,18 @@ def cmd_check_read(args: argparse.Namespace) -> int:
     problems: list[str] = []
     rows = [e for e in catalog["skills"] if e["status"] == "assigned" and args.phase in e["phases"]]
     for e in rows:
-        path = Path(e["path"])
-        mine = [r for r in reads if r.get("skill") == e["name"] and r.get("phase") == args.phase]
-        if not mine:
-            problems.append(f"{e['name']}: assigned to phase {args.phase} but never loaded — "
-                            f"its rules were not applied")
-        elif path.exists() and all(r.get("sha256") != sha256(path) for r in mine):
-            problems.append(f"{e['name']}: loaded in an older version — load it again")
+        wanted = [(e["name"], Path(e["path"]))]
+        for g in guides_for(e["name"], args.phase):
+            gp = skill_path(f"{e['name']}/{g}", catalog)
+            if gp is not None:
+                wanted.append((f"{e['name']}/{g}", gp))
+        for name, path in wanted:
+            mine = [r for r in reads if r.get("skill") == name and r.get("phase") == args.phase]
+            if not mine:
+                problems.append(f"{name}: assigned to phase {args.phase} but never loaded — "
+                                f"its rules were not applied")
+            elif path.exists() and all(r.get("sha256") != sha256(path) for r in mine):
+                problems.append(f"{name}: loaded in an older version — load it again")
     for p in problems:
         print(f"  ✗ {p}")
     if problems:
