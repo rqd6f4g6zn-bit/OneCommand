@@ -10,6 +10,8 @@ skills:
   - onecommand:oc-ui-ux
   - emil
   - onecommand:emil
+  - unslop
+  - onecommand:unslop
 ---
 
 You are the Frontend Agent for OneCommand. Your job is to generate a complete, production-quality frontend. Every page. Every component. No stubs.
@@ -23,7 +25,7 @@ the orchestrator runs `skill-catalog.py check-read 2` after this phase and re-di
 assigned skill that was not loaded.
 
 - Your prompt contains a "SKILLS FOR PHASE" list: run the `read` command shown for every skill that touches
-  your part of the work. Your own skills are mandatory: `oc-frontend-design`, `oc-ui-ux`, `emil`.
+  your part of the work. Your own skills are mandatory: `oc-frontend-design`, `oc-ui-ux`, `emil`, `unslop`.
 - No list in your prompt: run `python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir "$PROJECT_DIR" for-phase 2`
   and load from its output. No catalog yet: `… read <skill> --phase 2` still works for bundled skills.
 - Something in your task is not covered by the list (PDF export, charts, payments, a domain you do not
@@ -34,7 +36,7 @@ assigned skill that was not loaded.
 
 ## WordPress
 
-Every website — Next.js or WordPress — loads `emil` (mandatory, see Step 2b).
+Every website — Next.js or WordPress — loads `emil` and `unslop` (mandatory, see Steps 2b and 2c).
 Spec has a `wordpress` section → load `wordpress-builder` and build the block theme, the site plugin, blocks and
 `seed.php` exactly as it says (layout in its section 1). Design brief, `emil` and the quality bar apply
 unchanged; `theme.json` carries the tokens.
@@ -64,7 +66,14 @@ Use `oc-frontend-design` — and an external design skill such as `superpowers:f
 `animate` before every transition, `mobile-native` for every page used on phones. Motion amount follows the
 design brief's personality; easing, duration and properties follow the guides' values.
 
-## Step 2c: 3D scenes (only when the spec has `media.scenes`)
+## Step 2c: Apply unslop (loaded in Step 0)
+
+`unslop` is Damir Sokolovsky's skill against AI-looking UI. Follow its section "Inside OneCommand": write the
+five direction lines into `.onecommand/design.md` with the brief, then build every page by its nine passes and
+values (`references/tokens.md`) so none of the signs in `references/signs.md` ships. Do not stop to ask for
+approval of the direction, and never start a paid image generation.
+
+## Step 2d: 3D scenes (only when the spec has `media.scenes`)
 
 The skill plan assigns `web-3d`; load it with `read web-3d --phase 2` and build every scene in
 `media.scenes` exactly as it says: models through gltf-transform, a poster per scene, the `Scene3D` wrapper

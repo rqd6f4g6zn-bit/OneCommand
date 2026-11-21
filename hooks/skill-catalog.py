@@ -74,6 +74,7 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "emil":                    {"phases": [2, 6], "when": "web", "use": "Emil Kowalski's design engineering: polish, animation, native feel on phones, worst-case data (/emil)",
                                 # Its guides carry the rules; each one is loaded (and checked) like a skill: read emil/<guide>.
                                 "guides": {2: ["emil-design-eng", "animate", "mobile-native"], 6: ["break-ui", "review-animations"]}},
+    "unslop":                  {"phases": [2, 6], "when": "web", "use": "Damir Sokolovsky's unslop: AI-looking UI into a designed interface — direction, nine passes, slop audit (/unslop)"},
     "21st-components":         {"phases": [2, 3], "when": "web", "excludes": "wordpress", "use": "community UI sections before custom code"},
     "app-icon-generator":      {"phases": [2], "when": "mobile", "use": "app icons in every iOS/Android size"},
     "game-engine-selector":    {"phases": [2], "when": "game", "use": "choose Godot / Three.js / Phaser"},
@@ -88,7 +89,6 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "web-3d":                  {"phases": [2], "when": "web", "requires": "media.scenes", "use": "3D on websites: hero, product viewer with AR, configurator, scroll scene, 3D data (Three.js / React Three Fiber, model-viewer), checked by hooks/scene3d.py when spec.media.scenes is set"},
     "live-integrations":       {"phases": [3], "when": "web", "requires": "production_dependencies", "use": "real e-mail, OAuth, push for production_dependencies"},
     "oc-marketing":            {"phases": [3], "when": "always", "use": "README, landing page, docs (via marketing-agent)"},
-    "unslop":                  {"phases": [3], "when": "always", "use": "strip AI writing patterns from README, landing copy and docs under a fact-preserving contract (/unslop)"},
     "acceptance-tester":       {"phases": [4, 6], "when": "web", "use": "Playwright suite from acceptance_criteria"},
     "self-healer":             {"phases": [4, 6], "when": "always", "use": "fix gate failures, record learnings"},
     "automation-installer":    {"phases": [5], "when": "always", "use": "CI, git hooks, Makefile"},

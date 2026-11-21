@@ -287,6 +287,13 @@ Load the `emil` skill and run, in the app's code:
 3. `animation-performance` on scroll- and load-time motion; `mobile-native` on every page used on phones.
 Note each fix in the report with the guide it came from.
 
+## Unslop Pass (skill `unslop`)
+
+Load the `unslop` skill and follow its section "Inside OneCommand", Phase 6: audit every page against
+`references/signs.md` with the tour screenshots in `.onecommand/tour/`, then fix every sign in the app's code in
+the skill's pass order (spacing, color, icons, copy, type, layout, details, visuals, motion). A page without
+slop stays unchanged. Audit and fixes go into `.onecommand/decisions.md` and the report.
+
 ## Accessibility Pass
 
 After all additions, run this accessibility check:

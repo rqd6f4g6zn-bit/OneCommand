@@ -32,23 +32,30 @@ Websites can show their product in 3D without getting slow.
 
 ## [1.17.0] — 2026-11-21
 
-Texts a build ships no longer read like a language model wrote them.
+Built screens stop looking AI-generated.
 
 ### Added
-- **unslop skill** (`skills/unslop`, [unslop](https://github.com/theclaymethod/unslop) by Clayton Kim, MIT, upstream
-  commit `0f4a07f`): finds formulaic writing (throat-clearing, hedge stacks, significance inflation, closing
-  recaps, filler words) and edits only confirmed defects, with checks that numbers, names, versions and links
-  survive. Bundled unchanged with its Python scanners (standard library only), presets and references; its eval
-  suite stays upstream.
-- **Phase 3:** the marketing-agent loads `unslop` (mandatory, checked by `check-read 3`) and runs `rewrite` on
-  README, CHANGELOG, landing-page copy and docs before the phase ends. The scanners are English-only and decline
-  German text, so German copy is edited by the skill's contract by hand, and the preservation check still runs.
-- **`/unslop <text or file>`** runs it outside a build: `rewrite`, `cleanup` (reviewable edits), `--report`
-  (audit only), `teach` and `mimic` (your own voice).
+- **unslop skill** (`skills/unslop`): [unslop](https://github.com/heydamir/unslop) by Damir Sokolovsky
+  ([@heydamir](https://x.com/heydamir)), CC BY 4.0, upstream commit `620163e`, bundled unchanged with its
+  references, reference images and scripts. It finds the usual tells (purple gradients, glows, gradient text, emoji
+  labels, "New ✨" badges, uppercase tracked labels, pulsing elements, uneven spacing), sets a direction from the
+  product and fixes the screen in nine passes: spacing, color, icons, copy, type, layout, details, visuals, motion.
+- **Phase 2:** the frontend-agent loads `unslop` on every web build, WordPress included (mandatory,
+  `check-read 2`). The five direction lines go into `.onecommand/design.md` next to the brief, and every page is
+  built by the passes.
+- **Phase 6:** an Unslop pass in `exceed-expectations` audits every page against `signs.md` with the tour
+  screenshots and fixes what it finds.
+- **Inside a build nobody is asked:** the direction is written down instead of waiting for approval,
+  unverifiable claims are removed and listed, and no paid image generation starts. OneCommand's own rules win
+  where they differ (self-hosted fonts, mono only for copyable values, motion from `emil`).
+- **`/unslop <screen, file or URL>`** runs the skill as written: audit, direction, wait for the user, then the
+  passes; a story video on request (Playwright and ffmpeg).
 
 ### Fixed
 - `install.sh` excluded every file named `LICENSE` or `NOTICE` from the plugin copy, so bundled third-party skills
   (emil, unslop) were installed without their licence. Only the repository root's files are excluded now.
+- CI: the end-to-end job runs on `ubuntu-24.04`. `ubuntu-latest` moved to 26.04, where the pinned Playwright
+  1.56.1 cannot install Chromium.
 
 ## [1.16.0] — 2026-10-12
 
