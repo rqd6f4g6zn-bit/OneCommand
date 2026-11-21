@@ -277,6 +277,7 @@ and without it the CLI stops waiting after 600 s. `bench/run.py` sets it.
 | `/oc-doctor` | Diagnose the installation and print exact fixes |
 | `/oc-skills [topic]` | Skill library: every bundled and installed skill, searchable by topic |
 | `/emil <task>` | Emil Kowalski's design-engineering skills in one command: polish, animations (build, review, audit, performance), native feel on phones, worst-case data, prototypes |
+| `/unslop <text or file>` | Strip AI writing patterns from a text: rewrite, reviewable edits (`cleanup`), audit only (`--report`), learn your voice (`teach`, `mimic`) — unslop by Clayton Kim |
 | `/oc-update` | Install the latest OneCommand now (also happens automatically) |
 
 Builds are written to `~/Desktop/<ProjectName>` — never into the plugin folder. If the current

@@ -87,6 +87,7 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "video-producer":          {"phases": [2, 3], "when": "web", "requires": "media.videos", "use": "cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set"},
     "live-integrations":       {"phases": [3], "when": "web", "requires": "production_dependencies", "use": "real e-mail, OAuth, push for production_dependencies"},
     "oc-marketing":            {"phases": [3], "when": "always", "use": "README, landing page, docs (via marketing-agent)"},
+    "unslop":                  {"phases": [3], "when": "always", "use": "strip AI writing patterns from README, landing copy and docs under a fact-preserving contract (/unslop)"},
     "acceptance-tester":       {"phases": [4, 6], "when": "web", "use": "Playwright suite from acceptance_criteria"},
     "self-healer":             {"phases": [4, 6], "when": "always", "use": "fix gate failures, record learnings"},
     "automation-installer":    {"phases": [5], "when": "always", "use": "CI, git hooks, Makefile"},

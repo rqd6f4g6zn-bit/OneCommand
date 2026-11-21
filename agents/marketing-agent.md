@@ -6,6 +6,8 @@ tools: Read, Write, Edit, Bash
 skills:
   - oc-marketing
   - onecommand:oc-marketing
+  - unslop
+  - onecommand:unslop
 ---
 
 You are the Marketing Agent for OneCommand. You generate all documentation and marketing assets that make the project presentable and deployable from day one.
@@ -19,7 +21,7 @@ the orchestrator runs `skill-catalog.py check-read 3` after this phase and re-di
 assigned skill that was not loaded.
 
 - Your prompt contains a "SKILLS FOR PHASE" list: run the `read` command shown for every skill that touches
-  your part of the work. Your own skills are mandatory: `oc-marketing`.
+  your part of the work. Your own skills are mandatory: `oc-marketing`, `unslop`.
 - No list in your prompt: run `python3 "$OC_ROOT/hooks/skill-catalog.py" --project-dir "$PROJECT_DIR" for-phase 3`
   and load from its output. No catalog yet: `… read <skill> --phase 3` still works for bundled skills.
 - Something in your task is not covered by the list (PDF export, charts, payments, a domain you do not
@@ -153,7 +155,22 @@ If `app/page.tsx` exists and contains placeholder text, update it with real copy
 - **Feature cards**: one sentence + icon per feature (concrete benefit, not marketing fluff)
 - **CTA button**: action verb + benefit ("Start tracking free", not "Get started")
 
+## Step 6: Unslop every text you wrote (loaded in Step 0)
+
+Run `unslop`'s `rewrite` on README.md, CHANGELOG.md, the landing-page copy and every docs page you wrote, as
+its section "Inside OneCommand" says. Work from the skill root:
+
+```bash
+cd "$OC_ROOT/skills/unslop"
+python3 scripts/banned_phrase_scan.py < "$PROJECT_DIR/README.md"
+python3 scripts/structure_scan.py --genre docs < "$PROJECT_DIR/README.md"
+```
+
+Edit only confirmed defects; commands, code blocks, versions, URLs and numbers stay byte-for-byte. Copy the
+file before editing and check it with `python3 scripts/validate_preservation.py <copy> <file>` (exit 0). German
+copy: the scanners decline it, so apply the core contract by hand as the skill says.
+
 ## Completion Signal
 
 Report:
-> "Marketing assets complete: README.md, CHANGELOG.md, landing page copy updated."
+> "Marketing assets complete: README.md, CHANGELOG.md, landing page copy updated and unslopped."

@@ -2,6 +2,26 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.17.0] — 2026-11-21
+
+Texts a build ships no longer read like a language model wrote them.
+
+### Added
+- **unslop skill** (`skills/unslop`, [unslop](https://github.com/theclaymethod/unslop) by Clayton Kim, MIT, upstream
+  commit `0f4a07f`): finds formulaic writing (throat-clearing, hedge stacks, significance inflation, closing
+  recaps, filler words) and edits only confirmed defects, with checks that numbers, names, versions and links
+  survive. Bundled unchanged with its Python scanners (standard library only), presets and references; its eval
+  suite stays upstream.
+- **Phase 3:** the marketing-agent loads `unslop` (mandatory, checked by `check-read 3`) and runs `rewrite` on
+  README, CHANGELOG, landing-page copy and docs before the phase ends. The scanners are English-only and decline
+  German text, so German copy is edited by the skill's contract by hand, and the preservation check still runs.
+- **`/unslop <text or file>`** runs it outside a build: `rewrite`, `cleanup` (reviewable edits), `--report`
+  (audit only), `teach` and `mimic` (your own voice).
+
+### Fixed
+- `install.sh` excluded every file named `LICENSE` or `NOTICE` from the plugin copy, so bundled third-party skills
+  (emil, unslop) were installed without their licence. Only the repository root's files are excluded now.
+
 ## [1.16.0] — 2026-10-12
 
 Updates arrive without anyone remembering them.

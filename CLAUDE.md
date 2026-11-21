@@ -6,7 +6,7 @@ OneCommand is a Claude Code plugin that builds complete, production-ready softwa
 
 ```
 .claude-plugin/plugin.json   # Plugin manifest
-commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update, /oc-skills, /emil)
+commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update, /oc-skills, /emil, /unslop)
 skills/                      # Reusable skills invoked by agents and commands
 agents/                      # Specialized agents for each build phase
 hooks/                       # hooks.json (SessionStart auto-update) + build scripts (see below)
@@ -22,6 +22,7 @@ docs/superpowers/            # Design specs and implementation plans
 - `/oc-doctor` — Diagnose the installation (registry, commands, brain, Codex)
 - `/oc-skills [topic]` — The skill library: every bundled and installed skill, searchable
 - `/emil <task>` — Emil Kowalski's design-engineering skills (polish, animation, native feel, worst-case data)
+- `/unslop <text>` — Clayton Kim's unslop: strip AI writing patterns (rewrite, cleanup, --report, teach, mimic)
 - `/oc-update` — Install the latest release now (`check`, `status`, `off`, `on`)
 
 ## Workflow Overview
@@ -29,7 +30,7 @@ docs/superpowers/            # Design specs and implementation plans
 ```
 Phase 1: Spec          → spec-analyzer (incl. acceptance_criteria, validated) + stack-detector
 Phase 2: Parallel      → frontend-agent (Claude) + backend-agent (Codex)
-Phase 3: Integration   → integration subagent + live-integrations + marketing-agent
+Phase 3: Integration   → integration subagent + live-integrations + marketing-agent (texts through unslop)
 Phase 4: Gate          → test-agent: quality-gate.sh static → acceptance-tester (Playwright) → e2e → tour + screenshot review; self-healer
 Phase 5: Automations   → automation-installer skill
 Phase 6: Exceed        → exceed-expectations + security-agent + demo-cleaner, then regression gate

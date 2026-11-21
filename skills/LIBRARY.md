@@ -29,6 +29,7 @@ Skills installed elsewhere (personal, project, other plugins) join this library 
 | `wordpress-builder` | 2, 4, 6 | WordPress site: block theme from the design brief, site plugin, patterns, privacy, security, WooCommerce (hooks/wp-gate.py) | web + spec.wordpress |
 | `live-integrations` | 3 | real e-mail, OAuth, push for production_dependencies | web + spec.production_dependencies |
 | `oc-marketing` | 3 | README, landing page, docs (via marketing-agent) | always |
+| `unslop` | 3 | strip AI writing patterns from README, landing copy and docs under a fact-preserving contract (/unslop) | always |
 | `acceptance-tester` | 4, 6 | Playwright suite from acceptance_criteria | web |
 | `self-healer` | 4, 6 | fix gate failures, record learnings | always |
 | `automation-installer` | 5 | CI, git hooks, Makefile | always |
