@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """OneCommand scene3d — check the 3D scenes of a website or web app.
 
+Part of the web-3d skill · Copyright © 2026 GK Digitalstudio UG
+
 A 3D hero, a product viewer or a configurator either feels premium or makes the page
 slow, blank on old phones and dizzy for people who switched motion off. This script
 measures the models and checks the code rules the `web-3d` skill sets.

@@ -202,7 +202,8 @@ python3 hooks/scene3d.py inspect public/models/sneaker.glb   # KB, triangles, te
 python3 hooks/scene3d.py check --project-dir .               # every scene in media.scenes
 ```
 
-Games are a different build type (`game-engine-selector`, `threejs-builder`).
+Games are a different build type (`game-engine-selector`, `threejs-builder`). The `web-3d` skill and
+`hooks/scene3d.py` are by GK Digitalstudio UG.
 
 ## WordPress Websites
 
