@@ -271,6 +271,11 @@ enterprise tier) keep the draft's `performance_budget` and `media.videos`:
 - `media.videos`: one entry per video (`name`, `purpose`, `muted`, `max_seconds`, `max_kb`, `source`,
   `brief`, `captions`). Fill `brief` from the prompt; `video-producer` cuts the footage the user provides in
   `media.raw_dir` (default `assets/raw`), or builds the video from images or motion graphics.
+- `media.scenes`: one entry per 3D scene (`name`, `kind` hero|product|configurator|scroll|data|background,
+  `purpose`, `model` or null for code-built scenes, `source`, `poster`, `component`, `max_kb`,
+  `max_triangles`, `max_texture_px`, `ar`) — only when the prompt asks for 3D ("3D", "drehbar", "360°",
+  "Konfigurator", "AR", "WebGL", "Three.js") or a premium site sells a physical product. Format and kinds in
+  the `web-3d` skill; `hooks/scene3d.py check` verifies them. Games are `build_targets: ["game"]`, not scenes.
 - Texts are written for the company in the prompt — never placeholders ("Lorem", "Musterstraße 1",
   "[Adresse]"). A demo must still show a complete Impressum, footer and structured data: facts the prompt
   does not give are invented as **demo facts** and recorded in `demo_facts` (below) — never silently.

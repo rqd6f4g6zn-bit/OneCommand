@@ -345,7 +345,7 @@ export default function Scene() {
 
 import { RigidBody } from '@react-three/rapier'
 import { Environment, Sky } from '@react-three/drei'
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useLayoutEffect } from 'react'
 import * as THREE from 'three'
 
 // Instanced mesh for repeated trees
@@ -353,7 +353,8 @@ function Trees({ count = 40 }: { count?: number }) {
   const meshRef = useRef<THREE.InstancedMesh>(null)
   const dummy = useMemo(() => new THREE.Object3D(), [])
 
-  useMemo(() => {
+  // useLayoutEffect, not useMemo: the ref is only attached after render, so a memo would never place the trees
+  useLayoutEffect(() => {
     if (!meshRef.current) return
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2
@@ -425,6 +426,15 @@ function Coins({ count = 10 }: { count?: number }) {
 }
 
 export default function World() {
+  const rocks = useMemo(
+    () =>
+      Array.from({ length: 20 }, () => ({
+        position: [(Math.random() - 0.5) * 80, 0.3, (Math.random() - 0.5) * 80] as [number, number, number],
+        rotation: [Math.random(), Math.random(), Math.random()] as [number, number, number],
+        radius: 0.4 + Math.random() * 0.8,
+      })),
+    []
+  )
   return (
     <>
       {/* Sky */}
@@ -456,18 +466,11 @@ export default function World() {
       {/* Coins */}
       <Coins count={12} />
 
-      {/* Decorative rocks */}
-      {Array.from({ length: 20 }, (_, i) => (
+      {/* Decorative rocks — random once, not on every render (fixed bodies must not jump) */}
+      {rocks.map((rock, i) => (
         <RigidBody key={i} type="fixed" colliders="hull">
-          <mesh
-            position={[
-              (Math.random() - 0.5) * 80,
-              0.3,
-              (Math.random() - 0.5) * 80,
-            ]}
-            rotation={[Math.random(), Math.random(), Math.random()]}
-          >
-            <dodecahedronGeometry args={[0.4 + Math.random() * 0.8, 0]} />
+          <mesh position={rock.position} rotation={rock.rotation}>
+            <dodecahedronGeometry args={[rock.radius, 0]} />
             <meshStandardMaterial color="#888" roughness={0.95} />
           </mesh>
         </RigidBody>

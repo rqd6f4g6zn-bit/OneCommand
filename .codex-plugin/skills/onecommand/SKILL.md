@@ -139,7 +139,7 @@ Special build types — check the spec and follow the matching skill as well:
 ```bash
 python3 -c "
 import json; s=json.load(open('.onecommand-spec.json'))
-print('ML:', 'ml' in s.get('build_targets', []), '· VOICE:', 'voice' in s, '· VIDEOS:', bool((s.get('media') or {}).get('videos')))
+print('ML:', 'ml' in s.get('build_targets', []), '· VOICE:', 'voice' in s, '· VIDEOS:', bool((s.get('media') or {}).get('videos')), '· SCENES:', bool((s.get('media') or {}).get('scenes')))
 "
 ```
 - **ML: True** (train a model): follow the `ml-builder` skill (data pipeline, from-scratch templates when
@@ -152,6 +152,8 @@ print('ML:', 'ml' in s.get('build_targets', []), '· VOICE:', 'voice' in s, '· 
   It must pass before Phase 2 ends. It also fails on TwiML `<Say>` and robotic speech engines.
 - **VIDEOS: True** (premium website): follow the `video-producer` skill, then check the result with
   `python3 "$OC_ROOT/hooks/video.py" check`.
+- **SCENES: True** (3D on a website): follow the `web-3d` skill, then check the result with
+  `python3 "$OC_ROOT/hooks/scene3d.py" check --project-dir .` (exit 0 before Phase 2 ends).
 
 **Skill plan — consider every available skill** (bundled and user-installed):
 ```bash

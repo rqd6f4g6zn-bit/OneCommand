@@ -184,6 +184,27 @@ python3 hooks/video.py render --plan video/plan.json --out-dir public/videos
 python3 hooks/video.py check public/videos                   # formats, faststart, silent loops, budget
 ```
 
+## 3D on Websites
+
+"Webseite mit drehbarem 3D-Produkt", "Konfigurator", "3D-Hero" or "mit AR" adds scenes to `media.scenes`, and
+the `web-3d` skill builds them: a 3D hero, a product viewer with AR (model-viewer), a configurator whose options
+are real buttons and whose choice lands in the URL and the cart, a scroll-driven scene, 3D data or an animated
+background. Three.js with React Three Fiber on Next.js, a bundled module on WordPress. Models are your own
+files (CAD and FBX converted to glTF), built in code, or CC0 with a credits entry, and always optimised with
+gltf-transform.
+
+Every scene starts as a poster image, loads three.js only when it scrolls into view, keeps still for visitors
+who switched motion off, falls back to the poster without WebGL and loads nothing from third-party servers.
+`hooks/scene3d.py` checks that before Phase 2 ends:
+
+```bash
+python3 hooks/scene3d.py inspect public/models/sneaker.glb   # KB, triangles, textures, compression
+python3 hooks/scene3d.py check --project-dir .               # every scene in media.scenes
+```
+
+Games are a different build type (`game-engine-selector`, `threejs-builder`). The `web-3d` skill and
+`hooks/scene3d.py` are by GK DigitalStudio UG.
+
 ## WordPress Websites
 
 Websites are built the way the customer wants. When the prompt does not say, OneCommand asks once: **custom

@@ -73,6 +73,14 @@ five direction lines into `.onecommand/design.md` with the brief, then build eve
 values (`references/tokens.md`) so none of the signs in `references/signs.md` ships. Do not stop to ask for
 approval of the direction, and never start a paid image generation.
 
+## Step 2d: 3D scenes (only when the spec has `media.scenes`)
+
+The skill plan assigns `web-3d`; load it with `read web-3d --phase 2` and build every scene in
+`media.scenes` exactly as it says: models through gltf-transform, a poster per scene, the `Scene3D` wrapper
+(lazy import, reduced motion, fallback without WebGL), Lightformers or a local HDRI instead of
+`Environment preset`, local fonts and decoders. Before you report, run
+`python3 "$OC_ROOT/hooks/scene3d.py" check --project-dir "$PROJECT_DIR"` until it exits 0.
+
 ## Step 3: Apply oc-ui-ux (loaded in Step 0)
 
 Use `oc-ui-ux` — and `ui-ux-pro-max` when the skill plan assigns it — to validate:

@@ -2,6 +2,34 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.18.0] — 2026-11-21
+
+Websites can show their product in 3D without getting slow.
+
+### Added
+- **web-3d skill** (`skills/web-3d`, by GK DigitalStudio UG): 3D for websites and web apps, six kinds of scene: hero, product viewer
+  with AR (model-viewer), configurator, scroll scene, 3D data, background. Three.js with React Three Fiber and
+  Drei on Next.js, a bundled ES module on WordPress. It covers where models come from (the user's files incl.
+  CAD/FBX via Blender, code, CC0 with credits), gltf-transform optimisation (Meshopt, WebP, 2048 px), a
+  `Scene3D` wrapper (poster first, lazy import on scroll, reduced motion, error boundary and WebGL check),
+  canvas rules (no `Environment preset` or default fonts from a CDN, local Draco/KTX2 decoders, demand frame
+  loop, capped pixel ratio) and accessibility (HTML controls, aria-live summary, text twin of 3D data).
+- **`hooks/scene3d.py inspect|check`**: reads glTF/GLB with the standard library (size incl. external files,
+  triangles incl. GPU instancing, texture pixel size from PNG/JPEG/WebP/KTX2/AVIF headers, compression) and checks
+  every scene in `spec.media.scenes` against its budget, plus poster, reduced motion, no-WebGL fallback, lazy
+  loading, accessible name, configurator controls and credits. Writes `.onecommand/scene3d.json`.
+- **Phase 1:** spec-analyzer plans `media.scenes` when the prompt asks for 3D. **Phase 2:** the skill plan
+  assigns `web-3d` for those specs, the frontend agent builds the scenes and Phase 2 ends only when
+  `scene3d.py check` passes (Claude Code and Codex orchestrator).
+
+### Changed
+- The UI tour starts Chromium with SwiftShader, so WebGL also renders in headless screenshots on machines without a GPU instead of the
+  fallback.
+
+### Fixed
+- `threejs-builder`: the instanced trees were positioned in a `useMemo` before the ref existed, so all trees
+  stood at the origin; the rocks got new random positions on every render. Both are set once now.
+
 ## [1.17.0] — 2026-11-21
 
 Built screens stop looking AI-generated.
