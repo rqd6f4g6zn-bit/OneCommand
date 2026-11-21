@@ -139,11 +139,14 @@ def test_spec_sections_decide_conditional_skills(env):
     scan(home, project)
     status = {s["name"]: s["status"] for s in catalog(project)["skills"]}
     assert status["voice-agent"] == "not_used" and status["video-producer"] == "not_used"
+    assert status["web-3d"] == "not_used"
     write_json(project / ".onecommand-spec.json", {"app_type": "web-app", "build_targets": ["web"],
-                                                   "voice": {"provider": "twilio"}, "media": {"videos": [{"id": "hero"}]}})
+                                                   "voice": {"provider": "twilio"},
+                                                   "media": {"videos": [{"id": "hero"}], "scenes": [{"name": "hero"}]}})
     scan(home, project)
     status = {s["name"]: s["status"] for s in catalog(project)["skills"]}
     assert status["voice-agent"] == "assigned" and status["video-producer"] == "assigned"
+    assert status["web-3d"] == "assigned"
 
 
 def test_react_components_are_not_assigned_to_wordpress_builds(env):

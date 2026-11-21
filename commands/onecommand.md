@@ -296,6 +296,7 @@ print('game:', 'game' in targets or app_type == 'game')
 print('os:', 'os' in targets or app_type == 'os')
 print('ml:', 'ml' in targets or app_type == 'ml')
 print('videos:', bool((s.get('media') or {}).get('videos')))
+print('scenes:', bool((s.get('media') or {}).get('scenes')))
 "
 ```
 
@@ -385,6 +386,12 @@ also saves voice samples to `.onecommand/calls/audio/` for listening.
 Ken-Burns shots from images, or a Remotion motion-graphics video when there is no footage), renders
 `public/videos/*.mp4|webm|jpg` with `hooks/video.py render` and must pass `hooks/video.py check`. The
 frontend agent embeds them as the skill describes (poster, muted loop, reduced-motion fallback, captions).
+
+**If `scenes` is true (spec.media.scenes — 3D on a website or web app):** the frontend agent loads the
+`web-3d` skill (assigned by the skill plan) and builds every scene with it: optimised glTF models
+(gltf-transform), a poster per scene, the `Scene3D` wrapper (lazy, reduced motion, no-WebGL fallback) and
+no third-party requests. Phase 2 is not done until
+`python3 "$OC_ROOT/hooks/scene3d.py" check --project-dir "$PROJECT_DIR"` exits 0.
 
 Dispatch all agents of this phase in ONE message so they run in parallel. Wait for ALL of them to complete before proceeding.
 

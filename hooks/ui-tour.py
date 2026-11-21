@@ -691,7 +691,8 @@ async function tour(acct, vp, pages) {
 }
 
 // --lang: native controls (date fields, number formats) follow the browser process locale, not the context's.
-const browser = await chromium.launch({ args: [`--lang=${cfg.locale}`] });
+// SwiftShader gives headless Chromium WebGL, so 3D scenes render in the screenshots instead of their fallback.
+const browser = await chromium.launch({ args: [`--lang=${cfg.locale}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 try {
   if (cfg.anonymous.static.length || cfg.anonymous.dynamic.length) {
     await tour(null, cfg.desktop, cfg.anonymous);

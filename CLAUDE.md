@@ -29,7 +29,7 @@ docs/superpowers/            # Design specs and implementation plans
 
 ```
 Phase 1: Spec          → spec-analyzer (incl. acceptance_criteria, validated) + stack-detector
-Phase 2: Parallel      → frontend-agent (Claude) + backend-agent (Codex)
+Phase 2: Parallel      → frontend-agent (Claude, 3D scenes via web-3d) + backend-agent (Codex)
 Phase 3: Integration   → integration subagent + live-integrations + marketing-agent (texts through unslop)
 Phase 4: Gate          → test-agent: quality-gate.sh static → acceptance-tester (Playwright) → e2e → tour + screenshot review; self-healer
 Phase 5: Automations   → automation-installer skill
@@ -70,6 +70,10 @@ never stops for `/clear`. auto-clear SAVE is a silent checkpoint after every pha
   `dataset.py --task speech` checks voice recordings (own brand voice) and reports the hours per voice path.
 - `hooks/video.py probe|scenes|render|check`: website videos (ffmpeg) — cut, Ken Burns, MP4 + WebM + poster
   within `max_kb`; used by the `video-producer` skill when `spec.media.videos` is set.
+- `hooks/scene3d.py inspect|check`: 3D scenes on websites (spec `media.scenes`) — glTF size, triangles, texture
+  size and geometry compression per model, poster ≤ 200 KB, and per component reduced-motion handling, a
+  no-WebGL fallback, lazy loading, an accessible name, HTML controls for configurators and credits for
+  third-party models; used by the `web-3d` skill. Games use `threejs-builder`.
 - Exit codes: 0 passed · 1 failed · 2 usage error · 3 not applicable (no package.json).
 
 ## Domain Blueprints

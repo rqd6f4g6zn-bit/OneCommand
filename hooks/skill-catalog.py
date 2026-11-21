@@ -85,6 +85,7 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "ml-builder":              {"phases": [2, 4], "when": "ml", "use": "AI/ML training project: data, training, evaluation, model card, inference API (via ml-agent)"},
     "voice-agent":             {"phases": [2, 3, 4], "when": "web", "requires": "voice", "use": "phone/voice assistant: telephony, speech, dialogue, handover, test calls (when spec.voice is set)"},
     "video-producer":          {"phases": [2, 3], "when": "web", "requires": "media.videos", "use": "cut and encode website videos (hero loop, films) with hooks/video.py when spec.media.videos is set"},
+    "web-3d":                  {"phases": [2], "when": "web", "requires": "media.scenes", "use": "3D on websites: hero, product viewer with AR, configurator, scroll scene, 3D data (Three.js / React Three Fiber, model-viewer), checked by hooks/scene3d.py when spec.media.scenes is set"},
     "live-integrations":       {"phases": [3], "when": "web", "requires": "production_dependencies", "use": "real e-mail, OAuth, push for production_dependencies"},
     "oc-marketing":            {"phases": [3], "when": "always", "use": "README, landing page, docs (via marketing-agent)"},
     "unslop":                  {"phases": [3], "when": "always", "use": "strip AI writing patterns from README, landing copy and docs under a fact-preserving contract (/unslop)"},
