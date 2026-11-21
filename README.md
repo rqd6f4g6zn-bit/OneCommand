@@ -203,7 +203,7 @@ python3 hooks/scene3d.py check --project-dir .               # every scene in me
 ```
 
 Games are a different build type (`game-engine-selector`, `threejs-builder`). The `web-3d` skill and
-`hooks/scene3d.py` are by GK Digitalstudio UG.
+`hooks/scene3d.py` are by GK DigitalStudio UG.
 
 ## WordPress Websites
 

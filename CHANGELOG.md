@@ -7,7 +7,7 @@ All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 Websites can show their product in 3D without getting slow.
 
 ### Added
-- **web-3d skill** (`skills/web-3d`, by GK Digitalstudio UG): 3D for websites and web apps, six kinds of scene: hero, product viewer
+- **web-3d skill** (`skills/web-3d`, by GK DigitalStudio UG): 3D for websites and web apps, six kinds of scene: hero, product viewer
   with AR (model-viewer), configurator, scroll scene, 3D data, background. Three.js with React Three Fiber and
   Drei on Next.js, a bundled ES module on WordPress. It covers where models come from (the user's files incl.
   CAD/FBX via Blender, code, CC0 with credits), gltf-transform optimisation (Meshopt, WebP, 2048 px), a
