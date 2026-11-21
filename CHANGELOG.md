@@ -2,6 +2,33 @@
 
 All notable changes to OneCommand. Versions follow `.claude-plugin/plugin.json`.
 
+## [1.17.0] — 2026-11-21
+
+Built screens stop looking AI-generated.
+
+### Added
+- **unslop skill** (`skills/unslop`): [unslop](https://github.com/heydamir/unslop) by Damir Sokolovsky
+  ([@heydamir](https://x.com/heydamir)), CC BY 4.0, upstream commit `620163e`, bundled unchanged with its
+  references, reference images and scripts. It finds the usual tells (purple gradients, glows, gradient text, emoji
+  labels, "New ✨" badges, uppercase tracked labels, pulsing elements, uneven spacing), sets a direction from the
+  product and fixes the screen in nine passes: spacing, color, icons, copy, type, layout, details, visuals, motion.
+- **Phase 2:** the frontend-agent loads `unslop` on every web build, WordPress included (mandatory,
+  `check-read 2`). The five direction lines go into `.onecommand/design.md` next to the brief, and every page is
+  built by the passes.
+- **Phase 6:** an Unslop pass in `exceed-expectations` audits every page against `signs.md` with the tour
+  screenshots and fixes what it finds.
+- **Inside a build nobody is asked:** the direction is written down instead of waiting for approval,
+  unverifiable claims are removed and listed, and no paid image generation starts. OneCommand's own rules win
+  where they differ (self-hosted fonts, mono only for copyable values, motion from `emil`).
+- **`/unslop <screen, file or URL>`** runs the skill as written: audit, direction, wait for the user, then the
+  passes; a story video on request (Playwright and ffmpeg).
+
+### Fixed
+- `install.sh` excluded every file named `LICENSE` or `NOTICE` from the plugin copy, so bundled third-party skills
+  (emil, unslop) were installed without their licence. Only the repository root's files are excluded now.
+- CI: the end-to-end job runs on `ubuntu-24.04`. `ubuntu-latest` moved to 26.04, where the pinned Playwright
+  1.56.1 cannot install Chromium.
+
 ## [1.16.0] — 2026-10-12
 
 Updates arrive without anyone remembering them.

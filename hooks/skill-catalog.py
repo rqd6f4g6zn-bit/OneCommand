@@ -74,6 +74,7 @@ BUNDLED: dict[str, dict[str, Any]] = {
     "emil":                    {"phases": [2, 6], "when": "web", "use": "Emil Kowalski's design engineering: polish, animation, native feel on phones, worst-case data (/emil)",
                                 # Its guides carry the rules; each one is loaded (and checked) like a skill: read emil/<guide>.
                                 "guides": {2: ["emil-design-eng", "animate", "mobile-native"], 6: ["break-ui", "review-animations"]}},
+    "unslop":                  {"phases": [2, 6], "when": "web", "use": "Damir Sokolovsky's unslop: AI-looking UI into a designed interface — direction, nine passes, slop audit (/unslop)"},
     "21st-components":         {"phases": [2, 3], "when": "web", "excludes": "wordpress", "use": "community UI sections before custom code"},
     "app-icon-generator":      {"phases": [2], "when": "mobile", "use": "app icons in every iOS/Android size"},
     "game-engine-selector":    {"phases": [2], "when": "game", "use": "choose Godot / Three.js / Phaser"},

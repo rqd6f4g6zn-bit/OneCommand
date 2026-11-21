@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PLUGIN_NAME="onecommand"
-PLUGIN_VERSION="1.16.0"
+PLUGIN_VERSION="1.17.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DRY_RUN=false
@@ -310,6 +310,7 @@ CLAUDE_COMMANDS_DIR="$CLAUDE_DIR/commands"
 run mkdir -p "$CLAUDE_PLUGINS_DIR" "$CLAUDE_COMMANDS_DIR"
 
 # Plugin copy — content-synced, so upgrades never depend on a version bump.
+# LICENSE/NOTICE are excluded at the root only: bundled third-party skills (emil, unslop) keep theirs.
 sync_dir "${REPO_ROOT}/" "$OC_CLAUDE_DIR/" "Claude Code plugin files → $(tilde "$OC_CLAUDE_DIR")" \
   --delete \
   --exclude='.git' \
@@ -318,8 +319,8 @@ sync_dir "${REPO_ROOT}/" "$OC_CLAUDE_DIR/" "Claude Code plugin files → $(tilde
   --exclude='install.sh' \
   --exclude='.codex-plugin' \
   --exclude='README.md' \
-  --exclude='LICENSE' \
-  --exclude='NOTICE' \
+  --exclude='/LICENSE' \
+  --exclude='/NOTICE' \
   --exclude='docs' \
   --exclude='tests' \
   --exclude='bench' \
@@ -554,6 +555,7 @@ BUNDLED_SKILLS=(
   "wordpress-builder"
   "oc-ui-ux"
   "oc-marketing"
+  "unslop"
   "app-icon-generator"
   "spec-analyzer"
   "stack-detector"

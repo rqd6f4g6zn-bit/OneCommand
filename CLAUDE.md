@@ -6,7 +6,7 @@ OneCommand is a Claude Code plugin that builds complete, production-ready softwa
 
 ```
 .claude-plugin/plugin.json   # Plugin manifest
-commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update, /oc-skills, /emil)
+commands/                    # Slash commands (/onecommand, /onecommand-status, /oc-save, /oc-resume, /oc-doctor, /oc-update, /oc-skills, /emil, /unslop)
 skills/                      # Reusable skills invoked by agents and commands
 agents/                      # Specialized agents for each build phase
 hooks/                       # hooks.json (SessionStart auto-update) + build scripts (see below)
@@ -22,6 +22,7 @@ docs/superpowers/            # Design specs and implementation plans
 - `/oc-doctor` — Diagnose the installation (registry, commands, brain, Codex)
 - `/oc-skills [topic]` — The skill library: every bundled and installed skill, searchable
 - `/emil <task>` — Emil Kowalski's design-engineering skills (polish, animation, native feel, worst-case data)
+- `/unslop <screen>` — Damir Sokolovsky's unslop: AI-looking UI into a designed interface (audit, direction, nine passes)
 - `/oc-update` — Install the latest release now (`check`, `status`, `off`, `on`)
 
 ## Workflow Overview
