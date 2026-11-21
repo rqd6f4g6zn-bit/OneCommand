@@ -1,6 +1,6 @@
 ---
-description: Remove AI writing patterns from a text — rewrite a draft, propose reviewable edits, audit without changes, or learn and write in your own voice (unslop by Clayton Kim).
-argument-hint: "[rewrite · cleanup · --report · teach · mimic] <text or file>"
+description: Turn vibecoded, AI-looking UI into a designed interface — audit the slop, set a direction from the product, fix it in nine passes, optionally render a story video (unslop by Damir Sokolovsky).
+argument-hint: "<screen, file or URL, e.g. 'this dashboard' or 'the hero of https://example.com'>"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
@@ -12,11 +12,9 @@ OC_ROOT="${CLAUDE_PLUGIN_ROOT:-$(python3 -c "import json,os;d=json.load(open(os.
 echo "$OC_ROOT/skills/unslop"
 ```
 
-1. Read `$OC_ROOT/skills/unslop/SKILL.md`.
-2. Pick the command from its routing table that fits: **$ARGUMENTS**
-   (only text or a file given → `rewrite`; nothing given → ask for the text).
-3. Read the command file in `references/commands/` and the files it links, then run its scanners from the
-   skill root (`cd "$OC_ROOT/skills/unslop"`) exactly as it says. A file argument is read in place; pasted
-   text goes to the scanners on stdin.
-4. Return what the command's output format asks for. A rewrite of a file is written back to that file only
-   when the user named the file; otherwise return the text.
+1. Read `$OC_ROOT/skills/unslop/SKILL.md` (the skill folder in its scripts is `$OC_ROOT/skills/unslop`).
+2. Run it on: **$ARGUMENTS** (nothing given → ask which screen).
+3. Follow "Run it" exactly: look at the screen, audit with `references/signs.md`, decide how much to change, show
+   the audit and the five direction lines and wait for the user's answer, then the nine passes, the checklist and
+   the report. Read each reference file when the skill points to it.
+4. A story video only when the user asks for one; it needs Playwright and ffmpeg.

@@ -22,7 +22,7 @@ docs/superpowers/            # Design specs and implementation plans
 - `/oc-doctor` — Diagnose the installation (registry, commands, brain, Codex)
 - `/oc-skills [topic]` — The skill library: every bundled and installed skill, searchable
 - `/emil <task>` — Emil Kowalski's design-engineering skills (polish, animation, native feel, worst-case data)
-- `/unslop <text>` — Clayton Kim's unslop: strip AI writing patterns (rewrite, cleanup, --report, teach, mimic)
+- `/unslop <screen>` — Damir Sokolovsky's unslop: AI-looking UI into a designed interface (audit, direction, nine passes)
 - `/oc-update` — Install the latest release now (`check`, `status`, `off`, `on`)
 
 ## Workflow Overview
@@ -30,7 +30,7 @@ docs/superpowers/            # Design specs and implementation plans
 ```
 Phase 1: Spec          → spec-analyzer (incl. acceptance_criteria, validated) + stack-detector
 Phase 2: Parallel      → frontend-agent (Claude) + backend-agent (Codex)
-Phase 3: Integration   → integration subagent + live-integrations + marketing-agent (texts through unslop)
+Phase 3: Integration   → integration subagent + live-integrations + marketing-agent
 Phase 4: Gate          → test-agent: quality-gate.sh static → acceptance-tester (Playwright) → e2e → tour + screenshot review; self-healer
 Phase 5: Automations   → automation-installer skill
 Phase 6: Exceed        → exceed-expectations + security-agent + demo-cleaner, then regression gate
